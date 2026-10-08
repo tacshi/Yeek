@@ -153,39 +153,62 @@ func statusLabel(response engine.Object, short bool) string {
 }
 
 var iconPaths = map[string]string{
-	"plus":       `<path d="M12 5v14M5 12h14"/>`,
-	"chevron":    `<path d="m9 5 7 7-7 7"/>`,
-	"down":       `<path d="m5 9 7 7 7-7"/>`,
-	"folder":     `<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3Z"/>`,
-	"search":     `<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>`,
-	"gear":       `<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>`,
-	"send":       `<path d="m4 3 17 9-17 9 3-9Zm3 9h14"/>`,
-	"close":      `<path d="m6 6 12 12M18 6 6 18"/>`,
-	"copy":       `<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>`,
-	"download":   `<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>`,
-	"sidebar":    `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>`,
-	"split":      `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>`,
-	"history":    `<path d="M3 10a9 9 0 1 1 1 8M3 4v6h6M12 7v6l4 2"/>`,
-	"more":       `<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>`,
-	"braces":     `<path d="M8 3H6v6l-3 3 3 3v6h2M16 3h2v6l3 3-3 3v6h-2"/>`,
-	"globe":      `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-6 6-6 12 0 18 6-6 6-12 0-18"/>`,
-	"key":        `<circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-3-3 3-3m-6 0 3-3"/>`,
-	"cookie":     `<path d="M21 12a9 9 0 1 1-9-9c-1 5 4 4 4 4s-1 5 5 5Z"/><path d="M8 8h.01M7 14h.01M12 17h.01M13 12h.01"/>`,
-	"plusCircle": `<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>`,
-	"panelOpen":  `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m15 10-2 2 2 2"/>`,
-	"panelShut":  `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m13 10 2 2-2 2"/>`,
-	"columns":    `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>`,
-	"rows":       `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/>`,
-	"moreV":      `<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>`,
-	"wrench":     `<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"/>`,
-	"crosshair":  `<circle cx="12" cy="12" r="9"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/>`,
-	"expand":     `<path d="m7 15 5 5 5-5M7 9l5-5 5 5"/>`,
-	"collapse":   `<path d="m7 20 5-5 5 5M7 4l5 5 5-5"/>`,
-	"save":       `<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7M7 3v4a1 1 0 0 0 1 1h7"/>`,
-	"filter":     `<path d="M22 3H2l8 9.46V19l4 2v-8.54Z"/>`,
-	"eye":        `<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>`,
-	"pencil":     `<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5zM15 5l4 4"/>`,
-	"branch":     `<circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 6v12M18 8c0 6-12 4-12 10"/>`,
+	"plus":        `<path d="M12 5v14M5 12h14"/>`,
+	"chevron":     `<path d="m9 5 7 7-7 7"/>`,
+	"down":        `<path d="m5 9 7 7 7-7"/>`,
+	"folder":      `<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3Z"/>`,
+	"search":      `<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>`,
+	"gear":        `<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>`,
+	"send":        `<path d="m4 3 17 9-17 9 3-9Zm3 9h14"/>`,
+	"close":       `<path d="m6 6 12 12M18 6 6 18"/>`,
+	"copy":        `<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>`,
+	"download":    `<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>`,
+	"sidebar":     `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>`,
+	"split":       `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>`,
+	"history":     `<path d="M3 10a9 9 0 1 1 1 8M3 4v6h6M12 7v6l4 2"/>`,
+	"more":        `<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>`,
+	"braces":      `<path d="M8 3H6v6l-3 3 3 3v6h2M16 3h2v6l3 3-3 3v6h-2"/>`,
+	"globe":       `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-6 6-6 12 0 18 6-6 6-12 0-18"/>`,
+	"key":         `<circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-3-3 3-3m-6 0 3-3"/>`,
+	"cookie":      `<path d="M21 12a9 9 0 1 1-9-9c-1 5 4 4 4 4s-1 5 5 5Z"/><path d="M8 8h.01M7 14h.01M12 17h.01M13 12h.01"/>`,
+	"plusCircle":  `<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>`,
+	"panelOpen":   `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m15 10-2 2 2 2"/>`,
+	"panelShut":   `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m13 10 2 2-2 2"/>`,
+	"columns":     `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>`,
+	"rows":        `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/>`,
+	"moreV":       `<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>`,
+	"wrench":      `<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"/>`,
+	"crosshair":   `<circle cx="12" cy="12" r="9"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/>`,
+	"expand":      `<path d="m7 15 5 5 5-5M7 9l5-5 5 5"/>`,
+	"collapse":    `<path d="m7 20 5-5 5 5M7 4l5 5 5-5"/>`,
+	"save":        `<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7M7 3v4a1 1 0 0 0 1 1h7"/>`,
+	"filter":      `<path d="M22 3H2l8 9.46V19l4 2v-8.54Z"/>`,
+	"eye":         `<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>`,
+	"pencil":      `<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5zM15 5l4 4"/>`,
+	"undo":        `<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>`,
+	"external":    `<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>`,
+	"eyeOff":      `<path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M14.12 14.12a3 3 0 1 1-4.24-4.24M2 2l20 20"/>`,
+	"table":       `<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M12 3v18"/>`,
+	"fileCode":    `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M10 12l-2 2 2 2M14 16l2-2-2-2"/>`,
+	"checkCircle": `<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>`,
+	"alert":       `<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>`,
+	"info":        `<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>`,
+	"arrowUp":     `<path d="M9 18v-6H5l7-7 7 7h-4v6Z"/><path d="M9 22h6"/>`,
+	"arrowDown":   `<path d="M15 6v6h4l-7 7-7-7h4V6Z"/><path d="M9 2h6"/>`,
+	"redirect":    `<path d="M5 9v6h6v4l7-7-7-7v4Z"/><path d="M2 9v6"/>`,
+	"palette":     `<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.56-2.5 5.56-5.56C21.97 6.01 17.46 2 12 2"/>`,
+	"keyboard":    `<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M8 17h8M10 13h4"/>`,
+	"puzzle":      `<path d="M15.39 4.39a1 1 0 0 0 1.68-.47 2.5 2.5 0 1 1 3.01 3.01 1 1 0 0 0-.47 1.68l1.67 1.67a2.4 2.4 0 0 1 0 3.42l-1.61 1.61a1 1 0 0 1-1.68-.47 2.5 2.5 0 1 0-3.01 3.01 1 1 0 0 1 .47 1.68l-1.61 1.61a2.4 2.4 0 0 1-3.42 0l-1.67-1.67a1 1 0 0 0-1.68.47 2.5 2.5 0 1 1-3.01-3.01 1 1 0 0 0 .47-1.68l-1.67-1.67a2.4 2.4 0 0 1 0-3.42l1.61-1.61a1 1 0 0 1 1.68.47 2.5 2.5 0 1 0 3.01-3.01 1 1 0 0 1-.47-1.68l1.61-1.61a2.4 2.4 0 0 1 3.42 0Z"/>`,
+	"shield":      `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"/><path d="m9 12 2 2 4-4"/>`,
+	"wifi":        `<path d="M12 20h.01M2 8.82a15 15 0 0 1 20 0M5 12.86a10 10 0 0 1 14 0M8.5 16.43a5 5 0 0 1 7 0"/>`,
+	"trash":       `<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>`,
+	"check":       `<path d="M20 6 9 17l-5-5"/>`,
+	"arrowUpDown": `<path d="m21 16-4 4-4-4M17 20V4M3 8l4-4 4 4M7 4v16"/>`,
+	"book":        `<path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>`,
+	"pin":         `<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>`,
+	"sun":         `<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>`,
+	"moon":        `<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>`,
+	"branch":      `<circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 6v12M18 8c0 6-12 4-12 10"/>`,
 }
 var icons = func() map[string]*ui.SVG {
 	m := map[string]*ui.SVG{}
@@ -195,10 +218,10 @@ var icons = func() map[string]*ui.SVG {
 	return m
 }()
 
-func icon(c *ui.Context, name string) *ui.Element { return ui.Icon(c, icons[name]).FontSize(16) }
+func icon(c *ui.Context, name string) ui.Element { return ui.Icon(c, icons[name]).FontSize(16) }
 
 // chevronToggle is the borderless disclosure arrow used by trees.
-func chevronToggle(c *ui.Context, p colors, open bool, name string) *ui.Element {
+func chevronToggle(c *ui.Context, p colors, open bool, name string) ui.Element {
 	glyph, label := "chevron", "Expand "+name
 	if open {
 		glyph, label = "down", "Collapse "+name
@@ -212,15 +235,15 @@ func chevronToggle(c *ui.Context, p colors, open bool, name string) *ui.Element 
 }
 
 // iconButton is a 28×28 toolbar button holding a 16px icon.
-func iconButton(c *ui.Context, name, label string) *ui.Element {
+func iconButton(c *ui.Context, name, label string) ui.Element {
 	return sizedIconButton(c, name, label, 28, 16)
 }
 
 // smallIconButton is a 22×22 button holding a 14px icon, for actions inside rows and fields.
-func smallIconButton(c *ui.Context, name, label string) *ui.Element {
+func smallIconButton(c *ui.Context, name, label string) ui.Element {
 	return sizedIconButton(c, name, label, 22, 14)
 }
-func sizedIconButton(c *ui.Context, name, label string, size, glyph float32) *ui.Element {
+func sizedIconButton(c *ui.Context, name, label string, size, glyph float32) ui.Element {
 	button := ui.ButtonBase(c).Label(label).Tooltip(label).Size(size, size).Shrink(0).Radius(5).Justify(ui.Center)
 	if button.Hovered() {
 		button.Background(c.Theme().SurfaceHover)

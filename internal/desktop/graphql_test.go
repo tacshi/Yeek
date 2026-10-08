@@ -132,7 +132,7 @@ func TestGraphQLSchemaFileRestoreAndOperationSelection(t *testing.T) {
 	if d.OperationName != "First" {
 		t.Fatal("first named operation was not selected")
 	}
-	if err = tt.Click("GraphQL operation: First"); err != nil {
+	if err = tt.Click("Select Operation"); err != nil {
 		t.Fatal(err)
 	}
 	if err = tt.ChooseMenuItem("Second"); err != nil {
@@ -175,5 +175,66 @@ func TestGraphQLOperationDefaultFollowsAnonymousQuery(t *testing.T) {
 	tt.Frame()
 	if d.OperationName != "" {
 		t.Fatal("explicit unspecified operation was overwritten")
+	}
+}
+
+func TestGraphQLDocsExplorerPane(t *testing.T) {
+	e, err := engine.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = e.Close() })
+	w, _ := e.Save(t.Context(), engine.Object{"model": "workspace"})
+	path := filepath.Join(t.TempDir(), "schema.graphql")
+	if err = os.WriteFile(path, []byte(nativeGraphQLSchema), 0600); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := e.Save(t.Context(), engine.Object{"model": "http_request", "workspaceId": s(w, "id"), "bodyType": "graphql", "body": engine.Object{"query": "{}", "schemaFilePath": path, "disableAutoIntrospect": true}})
+	if _, err = e.LoadGraphQLSchemaFile(t.Context(), s(r, "id"), path, "fixture"); err != nil {
+		t.Fatal(err)
+	}
+	a, err := New(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(a.cancel)
+	a.testMode = true
+	a.openRequest(s(r, "id"))
+	a.drafts[a.active].Tab = 0
+	tt := ui.NewTester(a.View, 1360, 860)
+	if tt.HasText("Root Types") {
+		t.Fatal("docs open without asking")
+	}
+	if err := tt.Click("Show Documentation"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Root Types") || !tt.HasText("All Schema Types") || !tt.HasText("Hide Documentation") {
+		t.Fatal(tt.Texts())
+	}
+	// The request and response stay beside it.
+	if !tt.HasText("Send Active Request") && !tt.HasText("Request URL") {
+		t.Fatal(tt.Texts())
+	}
+	if err := tt.Click("Go to Query"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Go to User"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("friend") || !tt.HasText("Go to Query") {
+		t.Fatal("breadcrumbs or fields missing", tt.Texts())
+	}
+	if err := tt.Click("Search GraphQL schema"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("fri")
+	if !tt.HasText("Go to User.friend") {
+		t.Fatal(tt.Texts())
+	}
+	if err := tt.Click("Close documentation explorer"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("Root Types") || tt.HasText("friend") {
+		t.Fatal("explorer did not close")
 	}
 }

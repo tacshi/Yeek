@@ -204,18 +204,18 @@ func (p *Painter) drawPath(f *flatPath, width float32, c Color, g *LinearGradien
 	var hs maphash.Hash
 	hs.SetSeed(pathSeed)
 	binary.LittleEndian.PutUint64(buf[:], key)
-	_, _ = hs.Write(buf[:])
+	hs.Write(buf[:])
 	for i := range f.polys() {
 		for _, pt := range f.poly(i) {
 			binary.LittleEndian.PutUint32(buf[:4], math.Float32bits(round((pt[0]-x0)*4)))
 			binary.LittleEndian.PutUint32(buf[4:], math.Float32bits(round((pt[1]-y0)*4)))
-			_, _ = hs.Write(buf[:])
+			hs.Write(buf[:])
 		}
 		end := byte(0xff)
 		if f.closed[i] {
 			end = 0xfe
 		}
-		_ = hs.WriteByte(end)
+		hs.WriteByte(end)
 	}
 	j := &p.rt.paths.job
 	if j.rasterize == nil {
@@ -227,7 +227,7 @@ func (p *Painter) drawPath(f *flatPath, width float32, c Color, g *LinearGradien
 	if !gi.OK {
 		return
 	}
-	start := sceneIndex(len(p.s.Glyphs))
+	start := int32(len(p.s.Glyphs))
 	c = c.Alpha(p.opacity)
 	p.s.Glyphs = append(p.s.Glyphs, scene.Glyph{X: x0, Y: y0, W: float32(gi.W), H: float32(gi.H), U: gi.X, V: gi.Y, UW: gi.W, VH: gi.H, Color: c.scene(), Wide: p.glyphWide(c)})
 	op := scene.Op{Kind: scene.OpGlyphs, Start: start, End: start + 1}

@@ -83,7 +83,7 @@ func (p *Painter) Glyphs(glyphs []Glyph, x, y float32, c Color) {
 	c = c.Alpha(p.opacity)
 	color := c.scene()
 	baseline := sys.Baseline(y * s)
-	start := sceneIndex(len(p.s.Glyphs))
+	start := int32(len(p.s.Glyphs))
 	left, right := p.clip.X*s, (p.clip.X+p.clip.W)*s
 	var run *glyphRun
 	if sys.JoinsGlyphs() {
@@ -120,7 +120,7 @@ func (p *Painter) Glyphs(glyphs []Glyph, x, y float32, c Color) {
 	if run != nil {
 		run.flush(p, baseline)
 	}
-	if end := sceneIndex(len(p.s.Glyphs)); end > start {
+	if end := int32(len(p.s.Glyphs)); end > start {
 		p.s.Ops = append(p.s.Ops, scene.Op{Kind: scene.OpGlyphs, Start: start, End: end})
 	}
 }

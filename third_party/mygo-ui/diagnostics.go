@@ -46,7 +46,7 @@ func (rt *engine) warn(msg string) {
 }
 
 // uiPackage prefixes the names of the functions of package ui.
-const uiPackage = "github.com/egoist/mygo/yeekui."
+const uiPackage = "github.com/egoist/mygo/ui."
 
 // callSite returns the file and line of the innermost call outside package
 // ui on the stack: the app's code that built an element, or "".

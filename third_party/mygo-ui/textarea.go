@@ -3,6 +3,7 @@ package ui
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -22,6 +23,7 @@ import (
 // paragraph and how far into it the view starts (anchor, anchorOff), so
 // that the view stays put as the heights above it are measured.
 type area struct {
+	// A CodeEditor's folds hide lines (code_folding.go).
 	hidden           []bool
 	foldStarts       map[int]int
 	foldStateVersion uint64
@@ -43,7 +45,55 @@ type area struct {
 	// with a layout.
 	first, last int
 	laid        int
-	widest      float32
+	// wrapped is the height of the whole text wrapped at a width, for a text
+	// area that grows with it (Lines), and the params it is of.
+	wrapped        float32
+	wrappedParams  text.Params
+	wrappedVersion uint64
+	wrappedCompose string
+	// widest is the widest paragraph laid out, how far a text area that
+	// does not wrap scrolls sideways.
+	widest float32
+}
+
+// wrappedHeight returns the height of the text, with an input method's
+// composition, wrapped at the content width cw.
+func (a *area) wrappedHeight(e *node, ed *editor, cw float32) float32 {
+	params := e.textParams(max(cw, 1))
+	if ed.buf.indexed {
+		params.KeepSpaces, params.MaxLines = true, 0
+		if params != a.wrappedParams || a.wrappedVersion != ed.buf.version || a.wrappedCompose != ed.compose {
+			empty := params
+			empty.Text = ""
+			limit := float32(ed.lines[1]) * textSystem().Layout(empty).Lines[0].Height
+			var height float32
+			for p := 0; p < len(ed.buf.paras) && height < limit; p++ {
+				part := params
+				part.Text = ed.buf.text(p)
+				if ed.compose != "" && p == ed.buf.para(ed.caret) {
+					at := runeOffset(part.Text, ed.caret-ed.buf.start(p))
+					part.Text = part.Text[:at] + ed.compose + part.Text[at:]
+				} else {
+					part.Spans, _ = ed.rangeSpans(ed.buf.start(p), ed.buf.end(p))
+				}
+				height += textSystem().Shape(part).Height
+			}
+			a.wrapped, a.wrappedParams, a.wrappedVersion = height, params, ed.buf.version
+			a.wrappedCompose = ed.compose
+		}
+		return a.wrapped
+	}
+	params.Text = ed.displayText()
+	params.KeepSpaces, params.MaxLines = true, 0
+	if ed.compose == "" {
+		// Bold runs take more room, so the text may wrap sooner.
+		params.Spans, _ = ed.rangeSpans(0, ed.buf.n)
+	}
+	if params != a.wrappedParams {
+		a.wrappedParams = params
+		a.wrapped = textSystem().Layout(params).Height
+	}
+	return a.wrapped
 }
 
 // maxLaid is how many paragraphs keep their layouts out of view, beyond
@@ -135,17 +185,26 @@ func (a *area) paraLayout(ed *editor, p int) *text.Layout {
 	if ed.compose != "" && p == b.para(ed.caret) {
 		compose = ed.compose
 	}
-	if pr.layout != nil && pr.compose == compose {
+	spans := ""
+	if compose == "" {
+		spans, _ = ed.rangeSpans(b.start(p), b.end(p))
+	}
+	if pr.layout != nil && pr.compose == compose && pr.spans == spans {
 		a.widest = max(a.widest, pr.layout.Width)
 		return pr.layout
 	}
 	t := b.text(p)
 	if compose != "" {
-		at := b.byteOf(ed.caret) - pr.byte
+		at := runeOffset(t, ed.caret-b.start(p))
 		t = t[:at] + compose + t[at:]
 	}
 	params := a.params
-	params.Text = t
+	// A paragraph's layout outlives edits elsewhere. Its text must not
+	// pin the old document when the buffer replaces it with a new string.
+	if !b.indexed && len(t) < b.byteLen() {
+		t = strings.Clone(t)
+	}
+	params.Text, params.Spans = t, spans
 	l := textSystem().Shape(params)
 	a.widest = max(a.widest, l.Width)
 	if pr.layout == nil {
@@ -156,14 +215,14 @@ func (a *area) paraLayout(ed *editor, p int) *text.Layout {
 	} else {
 		a.hs.add(p, float64(l.Height), -1)
 	}
-	pr.layout, pr.compose, pr.h = l, compose, l.Height
+	pr.layout, pr.compose, pr.spans, pr.h = l, compose, spans, l.Height
 	return l
 }
 
 // local returns where rune i of paragraph p is in its layout, which holds
 // the composition after the caret.
 func (a *area) local(ed *editor, p, i int) int {
-	l := i - ed.buf.paras[p].rune
+	l := i - ed.buf.start(p)
 	if ed.compose != "" && i > ed.caret && p == ed.buf.para(ed.caret) {
 		l += utf8.RuneCountInString(ed.compose)
 	}
@@ -173,7 +232,7 @@ func (a *area) local(ed *editor, p, i int) int {
 // global returns the rune of the text at index l of the layout of
 // paragraph p.
 func (a *area) global(ed *editor, p, l int) int {
-	start := ed.buf.paras[p].rune
+	start := ed.buf.start(p)
 	if ed.compose != "" && p == ed.buf.para(ed.caret) {
 		n, c := utf8.RuneCountInString(ed.compose), ed.caret-start
 		switch {
@@ -191,7 +250,11 @@ func (a *area) global(ed *editor, p, l int) int {
 func (a *area) caretAt(ed *editor, i, extra int) (x float32, y float64, h float32) {
 	p := ed.buf.para(i)
 	l := a.paraLayout(ed, p)
-	x, ly, h := l.Caret(a.local(ed, p, i) + extra)
+	affinity := text.Downstream
+	if i == ed.caret {
+		affinity = ed.caretAffinity
+	}
+	x, ly, h := l.CaretAt(text.CaretPosition{Index: a.local(ed, p, i) + extra, Affinity: affinity})
 	return x, a.hs.top(p) + float64(ly), h
 }
 
@@ -215,6 +278,18 @@ func (a *area) firstLine(b *buffer) *text.Line {
 // indexAt returns the rune of the caret position closest to (x, y) in the
 // content.
 func (a *area) indexAt(ed *editor, x float32, y float64) int {
+	return a.positionAt(ed, x, y).Index
+}
+
+func (a *area) positionAt(ed *editor, x float32, y float64) text.CaretPosition {
+	return a.hitPosition(ed, x, y, false)
+}
+
+func (a *area) documentPositionAt(ed *editor, x float32, y float64) text.CaretPosition {
+	return a.hitPosition(ed, x, y, true)
+}
+
+func (a *area) hitPosition(ed *editor, x float32, y float64, virtual bool) text.CaretPosition {
 	n := len(ed.buf.paras)
 	y = max(y, 0)
 	p := a.hs.at(y)
@@ -228,10 +303,19 @@ func (a *area) indexAt(ed *editor, x float32, y float64) int {
 		case y >= top+float64(l.Height) && p < n-1:
 			p++
 		default:
-			return a.global(ed, p, l.IndexAt(x, float32(y-top)))
+			position := l.PositionAt(x, float32(y-top))
+			if virtual {
+				position.Index += ed.buf.start(p)
+				if ed.compose != "" && p > ed.buf.para(ed.caret) {
+					position.Index += utf8.RuneCountInString(ed.compose)
+				}
+			} else {
+				position.Index = a.global(ed, p, position.Index)
+			}
+			return position
 		}
 	}
-	return ed.buf.n
+	return text.CaretPosition{Index: ed.buf.n, Affinity: text.Upstream}
 }
 
 // setScroll scrolls the content to y, keeping the place by the paragraph
@@ -245,7 +329,7 @@ func (a *area) setScroll(y float64) {
 // layout lays the text area out in a content box of cw×ch: the
 // paragraphs in view, the caret's when it is to be revealed, and where the
 // view is.
-func (a *area) layout(e *Element, cw, ch float32) {
+func (a *area) layout(e *node, cw, ch float32) {
 	ed := e.st.editor
 	b := &ed.buf
 	params := e.textParams(cw)
@@ -349,7 +433,7 @@ func (a *area) forget(b *buffer) {
 
 // paint paints the paragraphs in view, the selection, the composition and
 // the caret, with the content's top at oy.
-func (a *area) paint(e *Element, p *Painter, ox, oy float32) {
+func (a *area) paint(e *node, p *Painter, ox, oy float32) {
 	ed := e.st.editor
 	b := &ed.buf
 	t := e.c.theme
@@ -374,7 +458,6 @@ func (a *area) paint(e *Element, p *Painter, ox, oy float32) {
 	savedClip := p.clip
 	p.pushClip(clip, [4]float32{})
 	defer func() { p.popClip(); p.clip = savedClip }()
-	sa, sz := ed.selection()
 	last := len(b.paras) - 1
 	for i := a.first; i <= a.last; i++ {
 		if a.isHidden(i) {
@@ -382,11 +465,18 @@ func (a *area) paint(e *Element, p *Painter, ox, oy float32) {
 		}
 		l := a.paraLayout(ed, i)
 		y := oy + float32(a.hs.top(i)-a.scroll)
-		start, end := b.paras[i].rune, b.end(i)
-		if (focused || ed.code) && sa != sz && sa <= end && sz >= start && (sz != start || i <= 0 || sa >= start) {
-			from, to := a.local(ed, i, max(sa, start)), a.local(ed, i, min(sz, end))
-			for _, r := range l.SelectionOn(from, to, sz > end && i < last) {
-				p.Fill(Rect{ox + r.X, y + r.Y, r.W, r.H}, t.Selection, 0)
+		start, end := b.start(i), b.end(i)
+		// A code editor shows its selection without the focus too.
+		if focused || ed.code {
+			for _, selected := range ed.selectedRanges() {
+				sa, sz := selected.Start, selected.End
+				if sa == sz || sa > end || sz < start || sz == start && i > 0 && sa < start {
+					continue
+				}
+				from, to := a.local(ed, i, max(sa, start)), a.local(ed, i, min(sz, end))
+				for _, r := range l.SelectionVisual(from, to, sz > end && i < last) {
+					p.Fill(Rect{ox + r.X, y + r.Y, r.W, r.H}, ts.selectionColor(t), 0)
+				}
 			}
 		}
 		firstMark, _ := slices.BinarySearchFunc(e.codeMarks, start, func(mark CodeMark, position int) int {
@@ -407,7 +497,10 @@ func (a *area) paint(e *Element, p *Painter, ox, oy float32) {
 				p.Fill(Rect{X: ox + r.X, Y: y + r.Y, W: r.W, H: r.H}, mark.Color, 0)
 			}
 		}
-		var paint *spanPaint
+		var sp *spanPaint
+		if pr := &b.paras[i]; pr.compose == "" {
+			_, sp = ed.rangeSpans(start, end)
+		}
 		if e.codePaint != nil {
 			value := *e.codePaint
 			value.offset = start
@@ -415,9 +508,9 @@ func (a *area) paint(e *Element, p *Painter, ox, oy float32) {
 				value.insertAt = ed.caret
 				value.insertCount = utf8.RuneCountInString(ed.compose)
 			}
-			paint = &value
+			sp = &value
 		}
-		p.textLayout(l, ox, y, ts.color, ts, paint)
+		p.textLayout(l, ox, y, ts.color, ts, sp)
 		for _, mark := range e.codeDiagnostics {
 			if mark.Start >= end {
 				break
@@ -437,15 +530,25 @@ func (a *area) paint(e *Element, p *Painter, ox, oy float32) {
 			}
 		}
 	}
-	if focused && !ed.readOnly {
+	// A read-only code editor still shows where it was clicked.
+	if focused && (!ed.readOnly || ed.code) {
 		rt := e.c.rt
 		phase := time.Since(rt.blinkStart)
 		const blink = 530 * time.Millisecond
 		if (phase/blink)%2 == 0 {
 			x, y, h := a.caretAt(ed, ed.caret, ed.composeCaret)
-			p.s.Ops = append(p.s.Ops, scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, oy + float32(y-a.scroll), 0, h}), Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{}), Opacity: p.opacity})
+			top := oy + float32(y-a.scroll)
+			if ed.code {
+				// Like Yaak's CodeMirror caret: as tall as the text, centred
+				// in the taller code line.
+				if text := ed.codeOptions.FontSize * 1.3; text < h {
+					top += (h - text) / 2
+					h = text
+				}
+			}
+			p.s.Ops = append(p.s.Ops, scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, top, 0, h}), Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{}), Opacity: p.opacity})
 			op := &p.s.Ops[len(p.s.Ops)-1]
-			op.Rect.W = max(round(p.scale), 1)
+			op.Rect.W = max(round(2*p.scale), 1) // 2px, as in Yaak
 		}
 		if phase < 30*time.Second {
 			e.c.After(blink - phase%blink)

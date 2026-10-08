@@ -2,8 +2,6 @@ package engine
 
 import (
 	"cmp"
-	"compress/gzip"
-	"compress/zlib"
 	"context"
 	"errors"
 	"io"
@@ -14,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,8 +25,10 @@ type resolvedRequest struct {
 	AuthOwnerID string
 	Model       Object
 	Settings    Object
-	Workspace   Object
-	Variables   map[string]string
+	// SettingSources names the model each setting came from, for the timeline.
+	SettingSources map[string]Object
+	Workspace      Object
+	Variables      map[string]string
 }
 
 func (e *Engine) resolve(ctx context.Context, request Object, environment string) (resolvedRequest, error) {
@@ -52,8 +53,10 @@ func (e *Engine) resolve(ctx context.Context, request Object, environment string
 	}
 	chain = append(chain, workspace)
 	settings := Object{}
+	sources := map[string]Object{}
 	for _, key := range []string{"settingSendCookies", "settingStoreCookies", "settingFollowRedirects", "settingValidateCertificates", "settingRequestTimeout", "settingRequestMessageSize", "settingHttpVersion"} {
 		settings[key] = workspace[key]
+		sources[key] = settingSource(workspace)
 	}
 	headers := e.DefaultHeaders()
 	authType := workspace["authenticationType"]
@@ -65,6 +68,7 @@ func (e *Engine) resolve(ctx context.Context, request Object, environment string
 			for k := range settings {
 				if value := obj(m, k); boolean(value, "enabled") {
 					settings[k] = value["value"]
+					sources[k] = settingSource(m)
 				}
 			}
 		}
@@ -133,7 +137,28 @@ func (e *Engine) resolve(ctx context.Context, request Object, environment string
 	}
 	keys := []string{"url", "headers", "metadata", "urlParameters"}
 	if str(rendered, "authenticationType") != "" && str(rendered, "authenticationType") != "none" {
-		keys = append(keys, "authentication")
+		// Like Yaak's render_http_request: authentication.disabled is true,
+		// false, or a template ("Enabled when...") that disables auth when it
+		// renders empty. Disabled auth keeps only {disabled: true}.
+		authValues := obj(rendered, "authentication")
+		disabled := false
+		switch condition := authValues["disabled"].(type) {
+		case bool:
+			disabled = condition
+		case string:
+			value, _ := renderWith(condition, vars, map[string]bool{}, 0, e.functions(ctx, str(request, "workspaceId"), environment))
+			disabled = value == ""
+		}
+		if disabled {
+			rendered["authentication"] = Object{"disabled": true}
+		} else {
+			if _, ok := authValues["disabled"]; ok {
+				authValues = maps.Clone(authValues)
+				authValues["disabled"] = false
+				rendered["authentication"] = authValues
+			}
+			keys = append(keys, "authentication")
+		}
 	}
 	if str(rendered, "model") != "http_request" {
 		keys = append(keys, "message")
@@ -171,19 +196,28 @@ func (e *Engine) resolve(ctx context.Context, request Object, environment string
 		rendered[key] = value
 	}
 
-	return resolvedRequest{Model: rendered, Settings: settings, Workspace: workspace, Variables: vars, AuthOwnerID: authOwnerID}, nil
+	return resolvedRequest{Model: rendered, Settings: settings, SettingSources: sources, Workspace: workspace, Variables: vars, AuthOwnerID: authOwnerID}, nil
 }
+
+// ensureProto is Yaak's default scheme for a URL typed without one: HTTPS
+// for the .app, .dev and .page TLDs (which are HSTS-preloaded), else HTTP.
+func ensureProto(raw string) string {
+	raw = strings.TrimPrefix(raw, "//")
+	if u, err := url.Parse("http://" + raw); err == nil {
+		if host := u.Hostname(); strings.HasSuffix(host, ".app") || strings.HasSuffix(host, ".dev") || strings.HasSuffix(host, ".page") {
+			return "https://" + raw
+		}
+	}
+	return "http://" + raw
+}
+
 func buildURL(m Object) (*url.URL, error) {
 	raw := strings.TrimSpace(str(m, "url"))
 	if raw == "" {
 		return nil, errors.New("enter a request URL")
 	}
 	if !strings.Contains(raw, "://") {
-		if strings.HasPrefix(raw, "//") {
-			raw = "http:" + raw
-		} else {
-			raw = "http://" + raw
-		}
+		raw = ensureProto(raw)
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -192,7 +226,9 @@ func buildURL(m Object) (*url.URL, error) {
 	if u.Hostname() == "" {
 		return nil, errors.New("URL is missing a hostname")
 	}
-	query := u.Query()
+	// Like Yaak, the URL's own query stays as typed and enabled parameters
+	// are appended after it in table order.
+	var params [][2]string
 	for _, p := range objects(array(m, "urlParameters")) {
 		if !enabled(p) || str(p, "name") == "" {
 			continue
@@ -209,25 +245,68 @@ func buildURL(m Object) (*url.URL, error) {
 			}
 			u.Path, u.RawPath = decoded, escaped
 		} else {
-			query.Add(name, value)
+			params = append(params, [2]string{name, value})
 		}
 	}
+	u.RawQuery = appendQuery(escapeRawQuery(u.RawQuery), params)
 	if str(m, "bodyType") == "graphql" && strings.EqualFold(str(m, "method"), "GET") {
 		body := obj(m, "body")
-		query.Set("query", str(body, "query"))
-		for _, key := range []string{"variables", "operationName"} {
-			query.Del(key)
-			value := str(body, key)
-			if key == "variables" {
-				value = StripJSONComments(value)
-			}
-			if strings.TrimSpace(value) != "" {
-				query.Set(key, value)
-			}
+		params = [][2]string{{"query", str(body, "query")}}
+		if variables := StripJSONComments(str(body, "variables")); strings.TrimSpace(variables) != "" {
+			params = append(params, [2]string{"variables", variables})
+		}
+		if operation := str(body, "operationName"); strings.TrimSpace(operation) != "" {
+			params = append(params, [2]string{"operationName", operation})
+		}
+		u.RawQuery = appendQuery(stripQuery(u.RawQuery, "query", "variables", "operationName"), params)
+	}
+	u.ForceQuery = false
+	return u, nil
+}
+
+// queryComponent percent-encodes everything but unreserved characters, so
+// spaces become %20 as in Yaak rather than +.
+func queryComponent(s string) string {
+	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
+}
+
+func appendQuery(raw string, params [][2]string) string {
+	parts := make([]string, 0, len(params)+1)
+	if strings.TrimSpace(raw) != "" {
+		parts = append(parts, raw)
+	}
+	for _, p := range params {
+		parts = append(parts, queryComponent(p[0])+"="+queryComponent(p[1]))
+	}
+	return strings.Join(parts, "&")
+}
+
+func stripQuery(raw string, names ...string) string {
+	if raw == "" {
+		return ""
+	}
+	pairs := strings.Split(raw, "&")
+	return strings.Join(slices.DeleteFunc(pairs, func(pair string) bool {
+		key, _, _ := strings.Cut(pair, "=")
+		decoded, err := url.QueryUnescape(key)
+		return err == nil && slices.Contains(names, decoded)
+	}), "&")
+}
+
+// escapeRawQuery percent-encodes bytes that can't appear in a request line
+// (the url crate's query set: controls, space, quotes, angle brackets,
+// non-ASCII) while leaving existing escapes and the user's ordering alone.
+func escapeRawQuery(raw string) string {
+	var b strings.Builder
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		if c <= ' ' || c >= 0x7f || c == '"' || c == '<' || c == '>' {
+			b.WriteString("%" + strings.ToUpper(strconv.FormatUint(uint64(c)|0x100, 16)[1:]))
+		} else {
+			b.WriteByte(c)
 		}
 	}
-	u.RawQuery = query.Encode()
-	return u, nil
+	return b.String()
 }
 func replacePathParameter(path, name, value string) (string, bool) {
 	parts := strings.Split(path, "/")
@@ -240,7 +319,18 @@ func replacePathParameter(path, name, value string) (string, bool) {
 	}
 	return strings.Join(parts, "/"), changed
 }
+
+// authApplies reports whether a resolved model's authentication should be
+// applied: it has a type and wasn't disabled.
+func authApplies(m Object) bool {
+	kind := str(m, "authenticationType")
+	return kind != "" && kind != "none" && !boolean(obj(m, "authentication"), "disabled")
+}
+
 func (e *Engine) authenticate(req *http.Request, m Object, oauthOptions ...OAuthOptions) error {
+	if !authApplies(m) {
+		return nil
+	}
 	auth := obj(m, "authentication")
 	switch str(m, "authenticationType") {
 	case "", "none":
@@ -258,9 +348,8 @@ func (e *Engine) authenticate(req *http.Request, m Object, oauthOptions ...OAuth
 			key = str(auth, "name")
 		}
 		if cmp.Or(str(auth, "location"), str(auth, "in")) == "query" {
-			q := req.URL.Query()
-			q.Set(key, str(auth, "value"))
-			req.URL.RawQuery = q.Encode()
+			// Appended after the URL's own parameters, like Yaak's setQueryParameters.
+			req.URL.RawQuery = appendQuery(req.URL.RawQuery, [][2]string{{key, str(auth, "value")}})
 		} else {
 			if strings.EqualFold(key, "Cookie") {
 				req.Header.Add(key, str(auth, "value"))
@@ -349,6 +438,9 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 	if err != nil {
 		return response, err
 	}
+	for _, setting := range resolved.timelineSettings() {
+		event(setting)
+	}
 	if timeout := number(resolved.Settings, "settingRequestTimeout"); timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
@@ -434,12 +526,16 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 	defer transport.CloseIdleConnections()
 	var roundTripper http.RoundTripper = cookieTraceTransport{base: transport, observe: func(sent *http.Request, received *http.Response) {
 		response["requestHeaders"] = headerModels(sent.Header)
-		event(Object{"type": "info", "message": sent.Method + " " + sent.URL.String()})
+		event(sendURLEvent(sent))
 		for _, h := range objects(headerModels(sent.Header)) {
 			event(Object{"type": "header_up", "name": h["name"], "value": h["value"]})
 		}
+		if sent.ContentLength > 0 {
+			event(Object{"type": "chunk_sent", "bytes": sent.ContentLength})
+		}
 		var headers http.Header
 		if received != nil {
+			event(Object{"type": "receive_url", "version": received.Proto, "status": received.Status})
 			headers = received.Header
 			for _, h := range objects(headerModels(headers)) {
 				event(Object{"type": "header_down", "name": h["name"], "value": h["value"]})
@@ -450,10 +546,12 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 		response["cookieHistory"] = append(array(response, "cookieHistory"), exchange)
 	}}
 
-	switch str(resolved.Model, "authenticationType") {
-	case "digest":
-		roundTripper = digestTransport{base: roundTripper, auth: obj(resolved.Model, "authentication")}
-	case "windows", "ntlm":
+	switch kind := str(resolved.Model, "authenticationType"); {
+	case !authApplies(resolved.Model):
+	case kind == "digest":
+		bodyType := str(resolved.Model, "bodyType")
+		roundTripper = digestTransport{base: roundTripper, auth: obj(resolved.Model, "authentication"), signBody: bodyType != "binary" && bodyType != "multipart/form-data"}
+	case kind == "windows" || kind == "ntlm":
 		roundTripper = ntlmssp.Negotiator{RoundTripper: roundTripper}
 	}
 	jarID, recordingJar, err := e.prepareCookieJar(ctx, str(request, "workspaceId"), opts.CookieJarID, boolean(resolved.Settings, "settingSendCookies"), boolean(resolved.Settings, "settingStoreCookies"))
@@ -465,7 +563,7 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 		sendErr = errors.Join(sendErr, e.persistCookies(context.WithoutCancel(ctx), jarID, recordingJar))
 	}()
 	client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
-		event(Object{"type": "info", "message": "Redirect → " + next.URL.String()})
+		event(redirectEvent(next, via[len(via)-1]))
 		if !boolean(resolved.Settings, "settingFollowRedirects") {
 			return http.ErrUseLastResponse
 		}
@@ -500,23 +598,11 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 	if err = e.persistCookies(ctx, jarID, recordingJar); err != nil {
 		return response, err
 	}
-	reader := io.Reader(res.Body)
-	switch strings.ToLower(res.Header.Get("Content-Encoding")) {
-	case "gzip":
-		gz, err := gzip.NewReader(res.Body)
-		if err != nil {
-			return response, err
-		}
-		defer func() { _ = gz.Close() }()
-		reader = gz
-	case "deflate":
-		z, err := zlib.NewReader(res.Body)
-		if err != nil {
-			return response, err
-		}
-		defer func() { _ = z.Close() }()
-		reader = z
+	reader, closeDecoder, err := decodeContent(res.Body, res.Header.Get("Content-Encoding"))
+	if err != nil {
+		return response, err
 	}
+	defer closeDecoder()
 	file, err := e.bodies.OpenFile(responseID, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return response, err
@@ -566,4 +652,78 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 	}
 	event(Object{"type": "chunk_received", "bytes": size})
 	return response, nil
+}
+
+func settingSource(m Object) Object {
+	return Object{"model": str(m, "model"), "id": str(m, "id"), "name": str(m, "name")}
+}
+
+// timelineSettings are Yaak's "setting" timeline events: each setting the
+// request is sent with, and the model it came from.
+func (r resolvedRequest) timelineSettings() []Object {
+	timeout := "Infinity"
+	if ms := number(r.Settings, "settingRequestTimeout"); ms > 0 {
+		timeout = rustDuration(time.Duration(ms) * time.Millisecond)
+	}
+	version := str(r.Settings, "settingHttpVersion")
+	if version == "" {
+		version = "auto"
+	}
+	events := []Object{}
+	for _, s := range []struct{ name, key, value string }{
+		{"validate_certificates", "settingValidateCertificates", strconv.FormatBool(boolean(r.Settings, "settingValidateCertificates"))},
+		{"redirects", "settingFollowRedirects", strconv.FormatBool(boolean(r.Settings, "settingFollowRedirects"))},
+		{"timeout", "settingRequestTimeout", timeout},
+		{"send_cookies", "settingSendCookies", strconv.FormatBool(boolean(r.Settings, "settingSendCookies"))},
+		{"store_cookies", "settingStoreCookies", strconv.FormatBool(boolean(r.Settings, "settingStoreCookies"))},
+		{"http_version", "settingHttpVersion", version},
+	} {
+		source := r.SettingSources[s.key]
+		events = append(events, Object{"type": "setting", "name": s.name, "value": s.value, "source_model": str(source, "model"), "source_id": str(source, "id"), "source_name": str(source, "name")})
+	}
+	return events
+}
+
+// rustDuration writes a duration as Rust's Debug does, which Yaak shows: 500ms, 30s, 1.5s.
+func rustDuration(d time.Duration) string {
+	if d < time.Second {
+		return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
+	}
+	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64) + "s"
+}
+
+// sendURLEvent is Yaak's send_url event: the request line's parts.
+func sendURLEvent(req *http.Request) Object {
+	u := req.URL
+	port := 80
+	if u.Scheme == "https" {
+		port = 443
+	}
+	if p, err := strconv.Atoi(u.Port()); err == nil {
+		port = p
+	}
+	password, _ := u.User.Password()
+	return Object{"type": "send_url", "method": req.Method, "scheme": u.Scheme, "username": u.User.Username(), "password": password, "host": u.Hostname(), "port": port, "path": u.EscapedPath(), "query": u.RawQuery, "fragment": u.Fragment}
+}
+
+// redirectEvent is Yaak's redirect event: where the redirect goes, and what
+// following it drops from the request.
+func redirectEvent(next, previous *http.Request) Object {
+	status := 0
+	if next.Response != nil {
+		status = next.Response.StatusCode
+	}
+	behavior := "preserve"
+	droppedBody := previous.ContentLength > 0 && next.ContentLength <= 0 && next.GetBody == nil
+	if next.Method != previous.Method || droppedBody {
+		behavior = "drop_body"
+	}
+	dropped := []any{}
+	for name := range previous.Header {
+		if next.Header.Get(name) == "" {
+			dropped = append(dropped, name)
+		}
+	}
+	slices.SortFunc(dropped, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+	return Object{"type": "redirect", "status": status, "url": next.URL.String(), "behavior": behavior, "dropped_body": droppedBody, "dropped_headers": dropped}
 }

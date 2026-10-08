@@ -51,13 +51,19 @@ func run() (runErr error) {
 	ready := false
 	pendingURLs := []string{}
 	pending := append([]string{}, flag.Args()...)
-	open := func() *desktop.App {
+	var open func() *desktop.App
+	open = func() *desktop.App {
 		a, err := desktop.New(e)
 		if err != nil {
 			log.Print(err)
 			return nil
 		}
 		windows = append(windows, a)
+		a.OpenWorkspace = func(id string) {
+			if w := open(); w != nil {
+				w.ShowWorkspace(id)
+			}
+		}
 		a.OpenWindow()
 		return a
 	}

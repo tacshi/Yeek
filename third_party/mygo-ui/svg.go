@@ -78,7 +78,7 @@ func (s *SVG) imageSize() (float32, float32) {
 //		ui.Icon(c, save)
 //		ui.Text(c, "Save")
 //	})
-func Icon(c *Context, s *SVG) *Element {
+func coreIcon(c *context, s *SVG) *node {
 	e := c.newElement(kindIcon)
 	e.svg = s
 	if s != nil && s.h > 0 {
@@ -95,10 +95,10 @@ func (p *Painter) Icon(s *SVG, r Rect, c Color) { p.drawIcon(s, r, c, 0) }
 //
 //	spin := ui.Icon(c, loader)
 //	spin.Rotate(spin.Loop("spin", time.Second, ui.Linear) * 360)
-func (e *Element) Rotate(degrees float32) *Element { e.rotate = degrees; return e }
+func (e *node) Rotate(degrees float32) *node { e.rotate = degrees; return e }
 
 // Grayscale draws the element's image, or icon, in shades of gray.
-func (e *Element) Grayscale() *Element { e.gray = true; return e }
+func (e *node) Grayscale() *node { e.gray = true; return e }
 
 // svgs holds what the engine reuses to draw SVGs: the job of drawing an
 // icon's mask, the pixels it draws them into, and the pictures of SVGs
@@ -201,7 +201,7 @@ func (p *Painter) drawIcon(s *SVG, r Rect, c Color, rotate float32) {
 		return
 	}
 	x, y := d.X-float32((cw-w)/2), d.Y-float32((ch-h)/2)
-	start := sceneIndex(len(p.s.Glyphs))
+	start := int32(len(p.s.Glyphs))
 	c = c.Alpha(p.opacity)
 	p.s.Glyphs = append(p.s.Glyphs, scene.Glyph{X: x, Y: y, W: float32(gi.W), H: float32(gi.H), U: gi.X, V: gi.Y, UW: gi.W, VH: gi.H, Color: c.scene(), Wide: p.glyphWide(c)})
 	p.s.Ops = append(p.s.Ops, scene.Op{Kind: scene.OpGlyphs, Start: start, End: start + 1})

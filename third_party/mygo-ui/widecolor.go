@@ -141,9 +141,6 @@ func (p *Painter) glyphWide(c Color) uint16 {
 // scene should reach, the colors draw as their nearest sRGB ones.
 func (p *Painter) addWide(w scene.WideColors) uint16 {
 	n := len(p.s.Wide)
-	if n > math.MaxUint16 {
-		return 0
-	}
 	if n > 0 && p.s.Wide[n-1] == w {
 		return uint16(n)
 	}

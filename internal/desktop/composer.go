@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 	"uuid"
 
@@ -33,10 +34,10 @@ func (a *App) formatRequestBody(d *Draft) {
 		if !b(o(d.Model, "body"), "sendJsonComments") {
 			value = engine.FixJSONBody(value)
 		}
-		var parsed any
-		if err = json.Unmarshal([]byte(value), &parsed); err == nil {
-			data, marshalErr := json.Marshal(parsed, jsontext.WithIndent("  "))
-			formatted, err = string(data), marshalErr
+		// Reformat in place so keys keep their order and numbers their digits.
+		pretty := jsontext.Value(value)
+		if err = pretty.Indent(jsontext.WithIndent("  ")); err == nil {
+			formatted = string(pretty)
 		}
 	}
 	if err != nil {
@@ -73,7 +74,7 @@ func (a *App) saveMultipartPart() {
 		return
 	}
 	contentType := strings.TrimSpace(state.contentType)
-	if strings.Contains(contentType, "${[") || strings.Contains(contentType, "{{") {
+	if strings.Contains(contentType, "${[") {
 		contentType = ""
 	}
 	if err := engine.ValidateMultipartMetadata(state.filename, contentType); err != nil {
@@ -176,6 +177,10 @@ func (a *App) changeBodyType(d *Draft, kind string) {
 	}
 	body := engine.ConvertRequestBody(d.bodyObject(), d.BodyType, kind)
 	if kind == "graphql" || kind == "multipart/form-data" || d.BodyType == "" && strings.EqualFold(d.Method, "GET") && kind != "" && kind != "binary" {
+		if !strings.EqualFold(d.Method, "POST") {
+			// Yaak's "switched-method" toast.
+			a.showToast("switched-method", "Request method switched to POST", "info", 5*time.Second)
+		}
 		d.Method = "POST"
 	}
 	d.Model["body"] = body
@@ -269,7 +274,7 @@ func (a *App) binaryBodyEditor(c *ui.Context, p colors, d *Draft) {
 				a.deferUntilInputs(func() { d.FilePath = ""; d.Dirty = true })
 			}
 		})
-		if d.FilePath == "" || strings.Contains(d.FilePath, "${[") || strings.Contains(d.FilePath, "{{") {
+		if d.FilePath == "" || strings.Contains(d.FilePath, "${[") {
 			return
 		}
 		contentType := engine.GuessContentType(d.FilePath)

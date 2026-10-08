@@ -1,7 +1,10 @@
 package desktop
 
 import (
+	"os"
 	"path/filepath"
+	"time"
+	"uuid"
 
 	"github.com/egoist/mygo"
 	"yeek/internal/engine"
@@ -20,18 +23,40 @@ func (a *App) copyCurl() {
 	id, env := a.active, a.environment
 	a.background(func() (func(), error) {
 		text, err := a.Engine.Curl(a.ctx, id, env)
-		if err == nil {
-			mygo.Clipboard.WriteText(text)
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+		mygo.Clipboard.WriteText(text)
+		return a.copiedToast, nil
 	})
 }
-func (a *App) newGraphQL(folder string) {
-	workspace := a.workspace
+
+// copyGrpcurl is Yaak's Copy as gRPCurl.
+func (a *App) copyGrpcurl(id string) {
+	a.saveActive()
+	env := a.environment
+	var files []string
+	if d := a.drafts[id]; d != nil {
+		files = a.protoFiles(d.ID)
+	}
 	a.background(func() (func(), error) {
-		m, err := a.Engine.Save(a.ctx, engine.Object{"model": "http_request", "workspaceId": workspace, "folderId": nilIfEmpty(folder), "name": "GraphQL Request", "method": "POST", "bodyType": "graphql", "body": engine.Object{"query": "query {\n  \n}", "variables": "{}"}})
-		return func() { a.applyModel(m); a.openRequest(s(m, "id")); a.drafts[s(m, "id")].Tab = 0 }, err
+		text, err := a.Engine.Grpcurl(a.ctx, id, env, files)
+		if err != nil {
+			return nil, err
+		}
+		mygo.Clipboard.WriteText(text)
+		return a.copiedToast, nil
 	})
+}
+
+func (a *App) copiedToast() {
+	a.showToast("", "Command copied to clipboard", "success", 5*time.Second)
+}
+
+// newGraphQL is Yaak's GraphQL item of the create menu.
+func (a *App) newGraphQL(folder string) {
+	a.createRequest(engine.Object{"model": "http_request", "folderId": nilIfEmpty(folder), "method": "POST", "bodyType": "graphql",
+		"headers": []any{engine.Object{"name": "Content-Type", "value": "application/json", "enabled": true, "id": uuid.NewV4().String()}}})
 }
 func (a *App) saveResponse(response engine.Object) {
 	id := s(response, "id")
@@ -58,14 +83,27 @@ func (a *App) chooseBodyFile(d *Draft) {
 		}, nil
 	})
 }
-func (a *App) chooseSyncDir() {
+
+// chooseSyncDir picks the directory the workspace syncs with.
+func (a *App) chooseSyncDir(workspace string) {
 	a.background(func() (func(), error) {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Workspace Directory", Directory: true})
 		if err != nil || len(paths) == 0 {
 			return nil, err
 		}
 		path, err := filepath.Abs(paths[0])
-		return func() { a.dialogValue = path; a.gitDirectory = path; a.refreshGit() }, err
+		if err != nil {
+			return nil, err
+		}
+		entries, err := os.ReadDir(path)
+		return func() {
+			if len(entries) > 0 {
+				a.notEmptySyncDir = path
+				return
+			}
+			a.notEmptySyncDir = ""
+			a.setSyncDir(workspace, path)
+		}, err
 	})
 }
 

@@ -11,7 +11,6 @@ import (
 
 type Engine struct {
 	oauthMu          sync.Mutex
-	prompts          promptCache
 	oauthFlights     map[string]*oauthFlight
 	oauthGenerations map[string]uint64
 	oauthCallbacks   map[string]func(string) bool

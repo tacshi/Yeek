@@ -101,7 +101,7 @@ func defaultModel(kind string) (Object, error) {
 		maps.Copy(m, Object{"method": "GET", "url": "", "body": Object{}, "bodyType": nil, "urlParameters": []any{}})
 	case "grpc_request":
 		inherit()
-		maps.Copy(m, Object{"url": "", "metadata": []any{}, "message": "{}", "method": nil, "service": nil})
+		maps.Copy(m, Object{"url": "", "metadata": []any{}, "message": "", "method": nil, "service": nil})
 	case "websocket_request":
 		inherit()
 		maps.Copy(m, Object{"url": "", "message": "", "urlParameters": []any{}})

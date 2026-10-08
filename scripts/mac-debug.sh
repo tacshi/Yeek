@@ -52,7 +52,8 @@ built="$out/darwin-$arch/Yeek.app"
 app="$out/$name.app"
 
 echo "==> Building debug app for darwin/$arch"
-go tool mygo build -debug -skip-dmg -platform "darwin/$arch" -o "$out"
+# cgo: the 1Password SDK signs in through the desktop app with it.
+CGO_ENABLED=1 go tool mygo build -debug -skip-dmg -platform "darwin/$arch" -o "$out"
 if [[ ! -d "$built" ]]; then
 	echo "Expected $built after the build." >&2
 	exit 1
@@ -74,6 +75,8 @@ done
 echo "==> Packaging $name.app"
 rm -rf "$app"
 mv "$built" "$app"
+# MyGo builds into a per-platform folder, empty once the app moves out.
+rmdir "$(dirname "$built")" 2>/dev/null || true
 plist="$app/Contents/Info.plist"
 icon_file="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$plist" 2>/dev/null || echo AppIcon)"
 icon_file="${icon_file%.icns}"

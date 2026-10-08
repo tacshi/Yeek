@@ -27,13 +27,17 @@ func ParseImport(data []byte) ([]Object, error) {
 		return parseBruno(text)
 	}
 	if strings.HasPrefix(text, "curl ") {
-		request, err := ParseCurl(text)
+		requests, err := ConvertCurl(text)
 		if err != nil {
 			return nil, err
 		}
-		request["id"] = "curl_request"
-		request["workspaceId"] = "import_workspace"
-		return []Object{{"model": "workspace", "id": "import_workspace", "name": "Imported cURL"}, request}, nil
+		result := []Object{{"model": "workspace", "id": "import_workspace", "name": "Curl Import"}}
+		for i, request := range requests {
+			request["id"] = fmt.Sprintf("curl_request_%d", i)
+			request["workspaceId"] = "import_workspace"
+			result = append(result, request)
+		}
+		return result, nil
 	}
 	var root Object
 	if err := json.Unmarshal(data, &root); err != nil {

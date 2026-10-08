@@ -32,6 +32,37 @@ type templateForm struct {
 	error, preview     string
 	secureExisting     string
 	revision           uint64
+	// advanced opens Yaak's Advanced accordion; rendered is the values
+	// with their tags rendered, for the banner, as of renderedAt.
+	advanced   bool
+	rendered   map[string]string
+	renderedAt uint64
+	// dynamic is the options of selects that list them for the other values.
+	dynamic map[string]dynamicOptions
+}
+
+type dynamicOptions struct{ options, labels []string }
+
+// shown reports whether a field shows for the form's values.
+func (f *templateForm) shown(field engine.TemplateField, values map[string]string) bool {
+	if field.Visible != nil && !field.Visible(values) {
+		return false
+	}
+	if field.Describe != nil {
+		if _, _, _, visible := field.Describe(values); !visible {
+			return false
+		}
+	}
+	return field.Dynamic == nil || len(f.dynamic[field.Name].options) > 0
+}
+
+// values are the form's arguments as entered.
+func (f *templateForm) values() map[string]string {
+	values := map[string]string{}
+	for name, arg := range f.args {
+		values[name] = arg.text
+	}
+	return values
 }
 
 func (a *App) openTemplateForm(doc *documentEditor, source string, start, end int, value *engine.TemplateExpression) {
@@ -116,7 +147,7 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 	if f == nil {
 		return
 	}
-	ui.DialogBase(c, &f.open, func(back, panel *ui.Element) {
+	ui.DialogBase(c, &f.open, func(back, panel ui.Element) {
 		back.Background(ui.RGBA(0, 0, 0, .4))
 		panel.Key("template-dialog").Width(600).MaxWidthPercent(92).MaxHeightPercent(90).Padding(0).Gap(0).Radius(9).Border(1, p.border).Background(p.background)
 		ui.Row(c).Padding(14, 18).Gap(10).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
@@ -156,8 +187,38 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 				if f.definition.Description != "" && f.kind == "function" {
 					ui.Text(c, f.definition.Description).TextColor(p.muted).FontSize(12)
 				}
+				values := f.values()
+				hasAdvanced := false
 				for _, field := range f.definition.Fields {
-					a.templateArgument(c, p, f, field)
+					if field.Advanced {
+						hasAdvanced = true
+					} else if f.shown(field, values) {
+						a.templateArgument(c, p, f, field)
+					}
+				}
+				a.renderTemplateValues(f)
+				a.templateBanner(c, p, f)
+				if hasAdvanced {
+					// Yaak's Advanced accordion.
+					glyph := "chevron"
+					if f.advanced {
+						glyph = "down"
+					}
+					toggle := ui.ButtonBase(c).Label("Advanced").Gap(6).AlignSelf(ui.Start)
+					toggle.Children(func() {
+						icon(c, glyph).FontSize(11).TextColor(p.subtle)
+						ui.Text(c, "Advanced").FontSize(13)
+					})
+					if toggle.Clicked() {
+						f.advanced = !f.advanced
+					}
+					if f.advanced {
+						for _, field := range f.definition.Fields {
+							if field.Advanced && f.shown(field, values) {
+								a.templateArgument(c, p, f, field)
+							}
+						}
+					}
 				}
 				if f.kind == "variable" {
 					ui.Text(c, "Value").FontSize(11).TextColor(p.muted)
@@ -198,7 +259,20 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 	if arg == nil {
 		return
 	}
+	description := ""
+	if field.Describe != nil {
+		label, about, secret, _ := field.Describe(f.values())
+		field.Label, description, field.Secret = label, about, secret
+	}
+	if d, ok := f.dynamic[field.Name]; ok && field.Dynamic != nil {
+		field.Options, field.OptionLabels = d.options, d.labels
+	}
 	ui.Column(c).Key(field.Name).Gap(5).Children(func() {
+		defer func() {
+			if description != "" {
+				ui.Text(c, description).FontSize(11).TextColor(p.muted).MaxLines(4)
+			}
+		}()
 		ui.Row(c).Gap(8).Children(func() {
 			label := templateFieldLabel(field)
 			if f.name == "secure" && f.secureExisting != "" {
@@ -242,7 +316,14 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 				if arg.text != "" && !slices.Contains(options, arg.text) {
 					options = append(options, arg.text)
 				}
-				changed = ui.Select(c, &arg.text, options).Label(templateFieldLabel(field)).FillWidth().Changed()
+				labels := slices.Clone(options)
+				for i := range min(len(field.OptionLabels), len(labels)) {
+					labels[i] = field.OptionLabels[i]
+				}
+				chosen := labels[max(0, slices.Index(options, arg.text))]
+				if ui.Select(c, &chosen, labels).Label(templateFieldLabel(field)).FillWidth().Changed() {
+					arg.text, changed = options[slices.Index(labels, chosen)], true
+				}
 			case "request":
 				requests := a.list("http_request")
 				ids := []string{""}
@@ -297,7 +378,7 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 					}
 					changed = entry.Changed()
 				} else {
-					entry := ui.TextInput(c, &arg.text).Label(templateFieldLabel(field) + " argument").FillWidth()
+					entry := ui.TextInput(c, &arg.text).Label(templateFieldLabel(field) + " argument").Placeholder(field.Placeholder).FillWidth()
 					if len(f.definition.Fields) > 0 && f.definition.Fields[0].Name == field.Name {
 						entry.AutoFocus()
 					}
@@ -386,4 +467,82 @@ func (f *templateForm) insert(tag string) {
 	f.doc.state.Replace(f.start, f.end, tag)
 	f.doc.state.Focus()
 	f.open = false
+}
+
+// renderTemplateValues renders the tags in a function's values once they
+// change, for its banner and the options its selects list.
+func (a *App) renderTemplateValues(f *templateForm) {
+	needed := f.definition.Banner != nil || slices.ContainsFunc(f.definition.Fields, func(field engine.TemplateField) bool { return field.Dynamic != nil })
+	if !needed || f.renderedAt == f.revision {
+		return
+	}
+	f.renderedAt = f.revision
+	values, scope, revision := f.values(), f.scope, f.revision
+	a.run(func() (func(), error) {
+		ctx, cancel := context.WithTimeout(a.ctx, 3*time.Second)
+		defer cancel()
+		for name, value := range values {
+			if strings.Contains(value, "${[") {
+				if rendered, err := a.Engine.PreviewTemplate(ctx, value, scope.workspace, scope.folder, scope.environment, scope.request, scope.cookieJar); err == nil {
+					values[name] = rendered
+				}
+			}
+		}
+		return func() {
+			if f.revision != revision {
+				return
+			}
+			f.rendered = values
+			a.loadDynamicOptions(f, values)
+		}, nil
+	})
+}
+
+// loadDynamicOptions lists the options of selects such as 1password.item's
+// vaults, which fail quietly, as Yaak hides them.
+func (a *App) loadDynamicOptions(f *templateForm, values map[string]string) {
+	for _, field := range f.definition.Fields {
+		if field.Dynamic == nil {
+			continue
+		}
+		load, name, revision := field.Dynamic, field.Name, f.revision
+		a.background(func() (func(), error) {
+			ctx, cancel := context.WithTimeout(a.ctx, 15*time.Second)
+			defer cancel()
+			options, labels, err := load(ctx, values)
+			return func() {
+				if f.revision != revision {
+					return
+				}
+				if f.dynamic == nil {
+					f.dynamic = map[string]dynamicOptions{}
+				}
+				if err != nil {
+					options, labels = nil, nil
+				}
+				f.dynamic[name] = dynamicOptions{options, labels}
+			}, nil
+		})
+	}
+}
+
+// templateBanner shows a function's banner, as for where prompt.text
+// stores its value, with the values' tags rendered.
+func (a *App) templateBanner(c *ui.Context, p colors, f *templateForm) {
+	if f.definition.Banner == nil {
+		return
+	}
+	values := f.rendered
+	if values == nil {
+		values = f.values()
+	}
+	text, danger := f.definition.Banner(values)
+	if text == "" {
+		return
+	}
+	color := p.blue
+	if danger {
+		color = p.red
+	}
+	ui.Text(c, text).FontSize(12).Padding(8, 10).Radius(5).Border(1, color.Alpha(.45)).Background(color.Alpha(.08)).TextColor(color).MaxLines(4).Selectable().FillWidth()
 }

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"crypto"
 	"crypto/hmac"
-	"crypto/md5" // #nosec G501 -- required for HTTP Digest interoperability.
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1" // #nosec G505 -- required for OAuth 1.0 interoperability.
@@ -17,7 +16,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,9 +44,7 @@ func extendedAuth(req *http.Request, kind string, a Object) error {
 			return err
 		}
 		if str(a, "location") == "query" {
-			q := req.URL.Query()
-			q.Set(cmp.Or(str(a, "name"), "token"), token)
-			req.URL.RawQuery = q.Encode()
+			req.URL.RawQuery = appendQuery(req.URL.RawQuery, [][2]string{{cmp.Or(str(a, "name"), "token"), token}})
 		} else {
 			req.Header.Set(cmp.Or(str(a, "name"), "Authorization"), strings.TrimSpace(cmp.Or(str(a, "headerPrefix"), "Bearer")+" "+token))
 		}
@@ -217,89 +213,4 @@ func signOAuth1(req *http.Request, a Object) error {
 	}
 	req.Header.Set("Authorization", "OAuth "+strings.Join(parts, ", "))
 	return nil
-}
-
-type digestTransport struct {
-	base http.RoundTripper
-	auth Object
-}
-
-var digestParams = regexp.MustCompile(`(\w+)=(?:"([^"]*)"|([^,\s]+))`)
-
-func (d digestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	res, err := d.base.RoundTrip(req)
-	if err != nil || res.StatusCode != 401 {
-		return res, err
-	}
-	challenge := ""
-	for _, h := range res.Header.Values("WWW-Authenticate") {
-		if strings.HasPrefix(strings.ToLower(h), "digest ") {
-			challenge = h[7:]
-			break
-		}
-	}
-	if challenge == "" {
-		return res, nil
-	}
-	params := map[string]string{}
-	for _, match := range digestParams.FindAllStringSubmatch(challenge, -1) {
-		params[match[1]] = cmp.Or(match[2], match[3])
-	}
-	algorithm := strings.ToUpper(cmp.Or(params["algorithm"], "MD5"))
-	hash := func(text string) string {
-		if strings.HasPrefix(algorithm, "SHA-256") {
-			sum := sha256.Sum256([]byte(text))
-			return hex.EncodeToString(sum[:])
-		}
-		sum := md5.Sum([]byte(text))
-		return hex.EncodeToString(sum[:])
-	} // #nosec G401 -- HTTP Digest supports legacy MD5 by protocol.
-	if algorithm != "MD5" && algorithm != "MD5-SESS" && algorithm != "SHA-256" && algorithm != "SHA-256-SESS" {
-		return res, fmt.Errorf("unsupported Digest algorithm %s", algorithm)
-	}
-	qop := ""
-	if params["qop"] != "" {
-		for option := range strings.SplitSeq(params["qop"], ",") {
-			if strings.TrimSpace(option) == "auth" {
-				qop = "auth"
-				break
-			}
-		}
-		if qop == "" {
-			_ = res.Body.Close()
-			return nil, errors.New("server requires unsupported Digest qop")
-		}
-	}
-	nonce := params["nonce"]
-	cnonce := strings.ReplaceAll(uuid.NewV4().String(), "-", "")
-	uri := req.URL.RequestURI()
-	a1 := hash(str(d.auth, "username") + ":" + params["realm"] + ":" + str(d.auth, "password"))
-	if strings.HasSuffix(algorithm, "-SESS") {
-		a1 = hash(a1 + ":" + nonce + ":" + cnonce)
-	}
-	a2 := hash(req.Method + ":" + uri)
-	digest := hash(a1 + ":" + nonce + ":" + a2)
-	if qop != "" {
-		digest = hash(a1 + ":" + nonce + ":00000001:" + cnonce + ":" + qop + ":" + a2)
-	}
-	retry := req.Clone(req.Context())
-	if req.GetBody != nil {
-		retry.Body, err = req.GetBody()
-		if err != nil {
-			_ = res.Body.Close()
-			return nil, err
-		}
-	}
-	quoted := func(v string) string { return strconv.Quote(v) }
-	value := "Digest username=" + quoted(str(d.auth, "username")) + ", realm=" + quoted(params["realm"]) + ", nonce=" + quoted(nonce) + ", uri=" + quoted(uri) + ", response=" + quoted(digest) + ", algorithm=" + algorithm
-	if qop != "" {
-		value += ", qop=auth, nc=00000001, cnonce=" + quoted(cnonce)
-	}
-	if opaque := params["opaque"]; opaque != "" {
-		value += ", opaque=" + quoted(opaque)
-	}
-	retry.Header.Set("Authorization", value)
-	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 1<<20))
-	_ = res.Body.Close()
-	return d.base.RoundTrip(retry)
 }

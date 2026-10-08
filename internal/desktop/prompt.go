@@ -51,7 +51,7 @@ func (a *App) valuePromptDialog(c *ui.Context, p colors) {
 		return
 	}
 	request := a.valuePrompts[0]
-	ui.DialogBase(c, &request.open, func(backdrop, panel *ui.Element) {
+	ui.DialogBase(c, &request.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, .48))
 		panel.Key(request).Width(480).MaxWidthPercent(90).Padding(0).Radius(10).Background(p.background).Border(1, p.border).Gap(0)
 		ui.Row(c).Padding(16, 20).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,6 +49,9 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 		option("--max-time", strconv.FormatFloat(timeout/1000, 'f', -1, 64))
 	}
 	authKind, auth := str(model, "authenticationType"), obj(model, "authentication")
+	if !authApplies(model) {
+		authKind = ""
+	}
 	headers := http.Header{}
 	hasContentType, suppressContentType := false, false
 	for _, row := range objects(array(model, "headers")) {
@@ -106,7 +110,18 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 			headers.Set("X-Amz-Security-Token", token)
 		}
 	case "", "none", "basic", "bearer", "apikey", "oauth2", "oauth1", "jwt":
-		if err = e.authenticate(request, model, resolved.oauthOptions(environment)); err != nil {
+		authModel := model
+		if authKind == "apikey" && cmp.Or(str(auth, "key"), str(auth, "name")) == "" {
+			// Yaak's Copy as cURL names an unnamed key X-Api-Key, or token in the query.
+			key := "X-Api-Key"
+			if cmp.Or(str(auth, "location"), str(auth, "in")) == "query" {
+				key = "token"
+			}
+			authModel = maps.Clone(model)
+			authModel["authentication"] = maps.Clone(auth)
+			obj(authModel, "authentication")["key"] = key
+		}
+		if err = e.authenticate(request, authModel, resolved.oauthOptions(environment)); err != nil {
 			return "", err
 		}
 	default:

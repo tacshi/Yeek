@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -255,7 +256,7 @@ func TestTemplateFormInsideEnvironmentDialog(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := kvRows(saved, "variables")
-	if len(rows) != 1 || !strings.Contains(rows[0].Value, `value="alpha"`) {
+	if len(rows) != 1 || !strings.Contains(rows[0].Value, `value='alpha'`) {
 		t.Fatalf("environment insertion not saved: %#v", rows)
 	}
 }
@@ -274,5 +275,84 @@ func TestTemplateSpansKeepUnicodeRanges(t *testing.T) {
 			t.Fatalf("template range not colored: %#v", span)
 		}
 		end = span.End
+	}
+}
+
+func TestPromptTextFormStorageFields(t *testing.T) {
+	a, _, _ := treeApp(t)
+	value := ""
+	tt := ui.NewTester(func(c *ui.Context) {
+		p := a.theme(c)
+		ui.Column(c).Fill().Children(func() { a.templateInput(c, p, &value, "url", "URL", "", false).FillWidth().Height(32) })
+		a.templateDialog(c, p)
+	}, 700, 800)
+	a.openTemplateForm(a.templateDoc("url"), "", 0, 0, &engine.TemplateExpression{Kind: "function", Value: "prompt.text"})
+	tt.Frame()
+	if !tt.HasText("Store Input") || tt.HasText("Namespace") || tt.HasText("Prompt Title") {
+		t.Fatal(tt.Texts())
+	}
+	if err := tt.Click("Label argument"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("API Key")
+	if err := tt.Click("Never"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Forever"); err != nil {
+		t.Fatal(tt.Texts())
+	}
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("Namespace") || !tt.HasText("Key (defaults to Label)") || tt.HasText("TTL (seconds)") {
+		t.Fatal(tt.Texts())
+	}
+	if !tt.HasText("Value will be saved under: " + slugifyForTest(a.workspace) + ".api-key") {
+		t.Fatal(tt.Texts())
+	}
+	if err := tt.Click("Advanced"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Prompt Title") || !tt.HasText("Mask Value") {
+		t.Fatal(tt.Texts())
+	}
+	if err := tt.Click("Insert"); err != nil {
+		t.Fatal(err)
+	}
+	expression, err := engine.ParseTemplateExpression(value)
+	if err != nil || expression.Arguments["store"].Value != "forever" || expression.Arguments["namespace"].Value != "${[ctx.workspace()]}" {
+		t.Fatalf("inserted %q %v", value, err)
+	}
+}
+
+func slugifyForTest(s string) string { return strings.ToLower(s) }
+
+func TestOnePasswordFormHidesListsUntilSignedIn(t *testing.T) {
+	a, _, _ := treeApp(t)
+	value := ""
+	tt := ui.NewTester(func(c *ui.Context) {
+		p := a.theme(c)
+		ui.Column(c).Fill().Children(func() { a.templateInput(c, p, &value, "url", "URL", "", false).FillWidth().Height(32) })
+		a.templateDialog(c, p)
+	}, 700, 800)
+	a.openTemplateForm(a.templateDoc("url"), "", 0, 0, &engine.TemplateExpression{Kind: "function", Value: "1password.item"})
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("Authentication Method") || !tt.HasText("Service Account") || !tt.HasText("Token") || !strings.Contains(strings.Join(tt.Texts(), " "), "Developer > Service Accounts") {
+		t.Fatal(tt.Texts())
+	}
+	for _, hidden := range []string{"Vault", "Item", "Field"} {
+		if slices.Contains(tt.Texts(), hidden) {
+			t.Fatalf("%s shown without a client: %v", hidden, tt.Texts())
+		}
+	}
+	if err := tt.Click("Service Account"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Desktop App"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Account Name") {
+		t.Fatal(tt.Texts())
 	}
 }

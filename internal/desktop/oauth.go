@@ -40,6 +40,9 @@ func oauthDraftSource(d *Draft, environment string) string {
 }
 func draftAuthObject(d *Draft) engine.Object {
 	result := engine.Object{}
+	if d.AuthDisabled != nil {
+		result["disabled"] = d.AuthDisabled
+	}
 	for key, value := range d.Auth {
 		result[key] = value
 		if d.AuthType == "oauth2" && (key == "usePkce" || key == "useExternalBrowser" || key == "clientAssertionSecretBase64") {

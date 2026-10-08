@@ -21,7 +21,7 @@ const (
 // first, and Home and End to the first and the last. An element inside
 // that takes those keys itself, as a slider or a text input does, keeps
 // them. Groups inside a group are part of it.
-func (e *Element) FocusGroup(o Orientation) *Element {
+func (e *node) FocusGroup(o Orientation) *node {
 	e.focusGroup = o
 	return e
 }
@@ -115,7 +115,7 @@ func (rt *engine) groupKey(mods Modifiers, key Key) bool {
 	if n == 0 || at < 0 {
 		return false
 	}
-	var to int
+	to := -1
 	switch {
 	case key == KeyRight && info.orient&Horizontal != 0, key == KeyDown && info.orient&Vertical != 0:
 		to = (at + 1) % n
