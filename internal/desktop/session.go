@@ -14,6 +14,7 @@ type windowState struct {
 	Tabs                            []string
 	Sidebar, RequestPane            float32
 	Vertical, HideSidebar           bool
+	BulkEdit                        map[string]bool
 }
 
 func (a *App) restoreSession() {
@@ -40,11 +41,12 @@ func (a *App) restoreSession() {
 			a.requestWidth = state.RequestPane
 		}
 		a.vertical, a.hideSidebar = state.Vertical, state.HideSidebar
+		a.bulkEdit = state.BulkEdit
 		return
 	}
 }
 func (a *App) persistSession() {
-	state := windowState{Workspace: a.workspace, Request: a.active, Environment: a.environment, CookieJar: a.cookieJar, CookieJars: maps.Clone(a.cookieSelections), Tabs: append([]string{}, a.tabs...), Sidebar: a.sidebarWidth, RequestPane: a.requestWidth, Vertical: a.vertical, HideSidebar: a.hideSidebar}
+	state := windowState{Workspace: a.workspace, Request: a.active, Environment: a.environment, CookieJar: a.cookieJar, CookieJars: maps.Clone(a.cookieSelections), Tabs: append([]string{}, a.tabs...), Sidebar: a.sidebarWidth, RequestPane: a.requestWidth, Vertical: a.vertical, HideSidebar: a.hideSidebar, BulkEdit: maps.Clone(a.bulkEdit)}
 	data, err := json.Marshal(state)
 	if err != nil {
 		a.errorMessage = err.Error()

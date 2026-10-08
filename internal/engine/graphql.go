@@ -2,8 +2,6 @@ package engine
 
 import (
 	"bytes"
-	"compress/gzip"
-	"compress/zlib"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -126,10 +124,10 @@ func (e *Engine) IntrospectGraphQL(ctx context.Context, original Object, options
 	defer transport.CloseIdleConnections()
 
 	var rt http.RoundTripper = transport
-	if str(resolved.Model, "authenticationType") == "digest" {
+	if authApplies(resolved.Model) && str(resolved.Model, "authenticationType") == "digest" {
 		rt = digestTransport{base: rt, auth: obj(resolved.Model, "authentication")}
 	}
-	if kind := str(resolved.Model, "authenticationType"); kind == "ntlm" || kind == "windows" {
+	if kind := str(resolved.Model, "authenticationType"); authApplies(resolved.Model) && (kind == "ntlm" || kind == "windows") {
 		rt = ntlmssp.Negotiator{RoundTripper: rt}
 	}
 	cookieID, recordingJar, err := e.prepareCookieJar(ctx, str(original, "workspaceId"), options.CookieJarID, boolean(resolved.Settings, "settingSendCookies"), boolean(resolved.Settings, "settingStoreCookies"))
@@ -148,23 +146,11 @@ func (e *Engine) IntrospectGraphQL(ctx context.Context, original Object, options
 		return nil, err
 	}
 	defer func() { _ = res.Body.Close() }()
-	reader := io.Reader(res.Body)
-	switch strings.ToLower(res.Header.Get("Content-Encoding")) {
-	case "gzip":
-		gz, err := gzip.NewReader(res.Body)
-		if err != nil {
-			return nil, err
-		}
-		defer func() { _ = gz.Close() }()
-		reader = gz
-	case "deflate":
-		z, err := zlib.NewReader(res.Body)
-		if err != nil {
-			return nil, err
-		}
-		defer func() { _ = z.Close() }()
-		reader = z
+	reader, closeDecoder, err := decodeContent(res.Body, res.Header.Get("Content-Encoding"))
+	if err != nil {
+		return nil, err
 	}
+	defer closeDecoder()
 	raw, err := io.ReadAll(io.LimitReader(reader, (16<<20)+1))
 	if err != nil {
 		return nil, err

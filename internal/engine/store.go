@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -321,11 +322,19 @@ func (s *Store) Duplicate(ctx context.Context, id string, source Object) (result
 		if !slices.Contains(allowed, str(root, "model")) {
 			return errors.New("this model cannot be duplicated")
 		}
-		name := str(root, "name") + " Copy"
-		base := name
-		for n := 2; slices.ContainsFunc(all, func(m Object) bool { return str(m, "model") == str(root, "model") && str(m, "name") == name }); n++ {
-			name = fmt.Sprintf("%s %d", base, n)
+		// Like Yaak, siblings are same-type models under the same parent;
+		// environments compare across the whole workspace.
+		var siblings []string
+		for _, m := range all {
+			if str(m, "model") != str(root, "model") || str(m, "workspaceId") != str(root, "workspaceId") {
+				continue
+			}
+			if str(root, "model") != "environment" && str(m, "folderId") != str(root, "folderId") {
+				continue
+			}
+			siblings = append(siblings, str(m, "name"))
 		}
+		name := conflictFreeName(str(root, "name"), siblings)
 		ids := map[string]string{id: newID(str(root, "model"))}
 		pending := []Object{root}
 		for i := 0; i < len(pending); i++ {
@@ -365,4 +374,32 @@ func (s *Store) Duplicate(ctx context.Context, id string, source Object) (result
 		return nil
 	})
 	return
+}
+
+// conflictFreeName is Yaak's name for a duplicated model: the first of
+// name, "name Copy", "name Copy 2", ... that no sibling uses. Empty names
+// stay empty so the display falls back to the URL.
+func conflictFreeName(name string, siblings []string) string {
+	if name == "" {
+		return ""
+	}
+	for range 100 {
+		if !slices.Contains(siblings, name) {
+			break
+		}
+		name = nextCopyName(name)
+	}
+	return name
+}
+
+func nextCopyName(name string) string {
+	if base, ok := strings.CutSuffix(name, " Copy"); ok {
+		return base + " Copy 2"
+	}
+	if i := strings.LastIndex(name, " Copy "); i >= 0 {
+		if n, err := strconv.ParseUint(name[i+len(" Copy "):], 10, 64); err == nil && strings.Trim(name[i+len(" Copy "):], "0123456789") == "" {
+			return fmt.Sprintf("%s Copy %d", name[:i], n+1)
+		}
+	}
+	return name + " Copy"
 }

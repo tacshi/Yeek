@@ -11,7 +11,7 @@ import (
 func TestCertificateEditorPersistsHostPortAndFormats(t *testing.T) {
 	a, e := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
-	a.modalTab = 4
+	a.modalTab = settingsCertificates
 	tt := ui.NewTester(a.View, 1360, 860)
 	if err := tt.Click("Add Certificate"); err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestCertificateEditorPersistsHostPortAndFormats(t *testing.T) {
 func TestProxyEditorAuthenticationAndTabSwitch(t *testing.T) {
 	a, e := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
-	a.modalTab = 3
+	a.modalTab = settingsProxy
 	tt := ui.NewTester(a.View, 1360, 860)
 	if err := tt.Click("Proxy mode"); err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestProxyEditorAuthenticationAndTabSwitch(t *testing.T) {
 func TestWorkspaceDNSAndCAEditors(t *testing.T) {
 	a, e := cookieApp(t)
 	a.prompt("workspace_settings", "Workspace Settings", "", a.workspace)
-	a.modalTab = 1
+	a.modalTab = 4
 	tt := ui.NewTester(a.View, 1360, 860)
 	if err := tt.Click("Add DNS Override"); err != nil {
 		t.Fatal(err)
@@ -135,9 +135,10 @@ func TestWorkspaceDNSAndCAEditors(t *testing.T) {
 	if len(rows) != 1 || s(rows[0], "hostname") != "api.test" || len(networkArray(rows[0], "ipv4")) != 2 || len(networkArray(rows[0], "ipv6")) != 1 {
 		t.Fatal(rows)
 	}
-	if err = tt.Click("CA Certificates"); err != nil {
-		t.Fatal(err)
-	}
+	// Certificate authorities are a section of the Settings tab.
+	a.workspaceDraft.Tab = 1
+	tt.Frame()
+	tt.Scroll(680, 500, 0, 2000)
 	if err = tt.Click("CA file path"); err != nil {
 		t.Fatal(err)
 	}
@@ -160,13 +161,25 @@ func TestRequestNetworkSettingsInheritAndOverride(t *testing.T) {
 	a.models["workspace"] = engine.Object{"settingRequestTimeout": 1200, "settingHttpVersion": "http1"}
 	d := newDraft(engine.Object{"model": "http_request", "id": "request", "workspaceId": "workspace"})
 	tt := ui.NewTester(func(c *ui.Context) { a.requestSettings(c, p, d) }, 700, 650)
-	if err := tt.Click("Override Timeout (milliseconds)"); err != nil {
+	// Without an override the request shows the inherited timeout; editing it overrides it.
+	if b(o(d.Model, "settingRequestTimeout"), "enabled") {
+		t.Fatal("timeout overridden before editing")
+	}
+	if err := tt.Click("Request Timeout setting"); err != nil {
 		t.Fatal(err)
 	}
-	if n(o(d.Model, "settingRequestTimeout"), "value") != 1200 || !b(o(d.Model, "settingRequestTimeout"), "enabled") {
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("2500")
+	if n(o(d.Model, "settingRequestTimeout"), "value") != 2500 || !b(o(d.Model, "settingRequestTimeout"), "enabled") {
 		t.Fatal(d.Model)
 	}
-	if err := tt.Click("Request HTTP version"); err != nil {
+	if err := tt.Click("Reset override"); err != nil {
+		t.Fatal(err)
+	}
+	if b(o(d.Model, "settingRequestTimeout"), "enabled") {
+		t.Fatal("timeout override not reset")
+	}
+	if err := tt.Click("HTTP version setting"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("HTTP/2"); err != nil {

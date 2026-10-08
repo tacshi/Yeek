@@ -5,7 +5,9 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,16 +25,22 @@ type KV struct {
 	Enabled               bool
 }
 type Draft struct {
-	FilePath                                                                                                          string
-	OperationName, DescriptionMode                                                                                    string
-	OperationExplicit                                                                                                 bool
-	FilterProvider                                                                                                    string
-	FilterPending, FilterOpen, InheritedClosed                                                                        bool
-	TreeOpen                                                                                                          map[string]bool
-	PrettySource, PrettyBody                                                                                          string
-	ResponseFilter, FilteredBody, FilterError, ResponseMode                                                           string
-	FilterSource                                                                                                      string
-	ProtoFiles                                                                                                        []string
+	FilePath                                                string
+	OperationName, DescriptionMode                          string
+	OperationExplicit                                       bool
+	FilterProvider                                          string
+	FilterPending, FilterOpen, InheritedClosed              bool
+	TreeOpen                                                map[string]bool
+	PrettySource, PrettyBody                                string
+	ResponseFilter, FilteredBody, FilterError, ResponseMode string
+	FilterSource                                            string
+	// ConnEvent is the gRPC or WebSocket event shown (-1 for none), of
+	// ConnEventFor's connection; HexDump and ShowLarge are how it shows.
+	ConnEvent                                                                                                         int
+	ConnEventFor                                                                                                      string
+	EventSplit                                                                                                        float32
+	HexDump                                                                                                           map[string]bool
+	ShowLarge                                                                                                         bool
 	Services                                                                                                          []engine.GRPCService
 	MessageType                                                                                                       string
 	LastEdit                                                                                                          time.Time
@@ -40,41 +48,60 @@ type Draft struct {
 	ID, Kind, Name, URL, Method, BodyType, Body, Query, Variables, AuthType, Description, Message, Service, RPCMethod string
 	Headers, Parameters, Form                                                                                         []KV
 	Auth                                                                                                              map[string]string
-	Tab, ResponseTab                                                                                                  int
+	Tab, ResponseTab, PartIndex, EventIndex, TimelineIndex                                                            int
+	TimelineText, TimelineRaw                                                                                         bool
 	Dirty                                                                                                             bool
 	Model                                                                                                             engine.Object
+	outline                                                                                                           *jsonOutline
+	outlineSource, crumbKey                                                                                           string
+
+	// AuthDisabled is Yaak's authentication.disabled: nil or false (enabled),
+	// true (disabled), or a template ("Enabled when...").
+	AuthDisabled any
+	authPreview  authConditionPreview
 }
 
 type App struct {
-	oauthBrowserCount                                                      int
-	oauthEditors                                                           map[string]*oauthEditorState
-	methodError                                                            string
-	partEditor                                                             *multipartPartEditor
-	exports                                                                *exportDialog
-	imports                                                                *importDialog
-	certificates                                                           *certificateEditor
-	proxyEditor                                                            *proxyEditor
-	workspaceNetworkEditors                                                map[string]*workspaceNetworkEditor
-	inView                                                                 bool
-	afterInput                                                             []func()
-	cookieSelections                                                       map[string]string
-	cookies                                                                *cookieManager
-	modelVersion                                                           uint64
-	templateCache                                                          templateVariableCache
-	templateForm                                                           *templateForm
-	editors                                                                map[string]*documentEditor
-	workerDone                                                             chan struct{}
-	backgroundWorkers                                                      sync.WaitGroup
-	images                                                                 map[string]ui.ImageSource
-	graphqlStates                                                          map[string]*graphQLState
-	graphqlType, graphqlSearch                                             string
-	scopeDraft                                                             *Draft
-	gitTab                                                                 int
-	gitMessage, gitRemoteName, gitRemoteURL, gitAuthorName, gitAuthorEmail string
+	oauthBrowserCount          int
+	oauthEditors               map[string]*oauthEditorState
+	methodError                string
+	partEditor                 *multipartPartEditor
+	exports                    *exportDialog
+	imports                    *importDialog
+	certificates               *certificateEditor
+	proxyEditor                *proxyEditor
+	workspaceNetworkEditors    map[string]*workspaceNetworkEditor
+	inView                     bool
+	afterInput                 []func()
+	cookieSelections           map[string]string
+	cookies                    *cookieManager
+	modelVersion               uint64
+	templateCache              templateVariableCache
+	templateForm               *templateForm
+	editors                    map[string]*documentEditor
+	workerDone                 chan struct{}
+	backgroundWorkers          sync.WaitGroup
+	images                     map[string]ui.ImageSource
+	graphqlStates              map[string]*graphQLState
+	docsTrail                  map[string][]string
+	docsSearch                 string
+	docsSplit                  float32
+	scopeDraft, workspaceDraft *Draft
 
-	gitDirectory                               string
-	gitState                                   *engine.GitStatus
-	syncPlan                                   []engine.SyncChange
+	gitState                                  *engine.GitStatus
+	gitInfo                                   *engine.GitBranchInfo
+	gitNoRepo                                 bool
+	gitRefreshed                              time.Time
+	gitCommitMessage, syncing, divergedChoice string
+	notEmptySyncDir                           string
+	switchTarget, moveTarget                  string
+	rememberWindow                            bool
+	moving                                    []string
+	// OpenWorkspace opens a workspace in a new window.
+	OpenWorkspace                              func(id string)
+	gitRemotes                                 []engine.GitRemoteInfo
+	diverged                                   *engine.GitResult
+	asking                                     *askState
 	stopSync                                   func()
 	connections                                map[string]engine.Object
 	closing                                    bool
@@ -102,14 +129,33 @@ type App struct {
 	errorMessage                               string
 	status                                     string
 	settings                                   engine.Object
-	paletteQuery                               string
+	palette                                    paletteState
+	switcher                                   switcherState
+	focusURL, focusSidebar, focusFilter        bool
+	sidebarFocused                             bool
+	tree                                       treeState
+	grpcSchemas                                map[string]*grpcSchemaState
+	pinnedConnections                          map[string]string
+	activeFolder                               string
+	revealedLarge                              map[string]bool
+	previewDraft                               *Draft
+	deleteIDs                                  []string
+	detailsOpen, dismissed, revealed, bulkEdit map[string]bool
+	bulkText, placeholderNames                 map[string]string
+	showEnvValues, kvMask                      bool
+	newEnv                                     newEnvironmentForm
+	environmentColor                           string
+	toasts                                     []toastItem
+	toastSerial                                int
+	folderEnvID, hotkeyFilter, recordingHotkey string
+	folderEnvRows                              []KV
 	valuePrompts                               []*valuePrompt
 	testMode                                   bool
 }
 
 func New(e *engine.Engine) (*App, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	a := &App{Engine: e, ctx: ctx, cancel: cancel, work: make(chan func() (func(), error), 128), workerDone: make(chan struct{}), models: map[string]engine.Object{}, connections: map[string]engine.Object{}, drafts: map[string]*Draft{}, responses: map[string]engine.Object{}, bodies: map[string]string{}, running: map[string]bool{}, expanded: map[string]bool{}, sidebarWidth: 260, requestWidth: 500, status: "", settings: engine.Object{}}
+	a := &App{Engine: e, ctx: ctx, cancel: cancel, work: make(chan func() (func(), error), 128), workerDone: make(chan struct{}), models: map[string]engine.Object{}, connections: map[string]engine.Object{}, drafts: map[string]*Draft{}, responses: map[string]engine.Object{}, bodies: map[string]string{}, running: map[string]bool{}, expanded: map[string]bool{}, revealedLarge: map[string]bool{}, sidebarWidth: 260, requestWidth: 500, status: "", settings: engine.Object{}}
 	models, err := e.Snapshot(ctx, "")
 	if err != nil {
 		cancel()
@@ -304,6 +350,10 @@ func (a *App) list(kind string) []engine.Object {
 	})
 	return out
 }
+
+// ShowWorkspace opens a workspace in the window.
+func (a *App) ShowWorkspace(id string) { a.switchWorkspace(id) }
+
 func (a *App) switchWorkspace(id string) {
 	if a.deferUntilInputs(func() { a.switchWorkspace(id) }) {
 		return
@@ -331,9 +381,9 @@ func (a *App) openRequest(id string) {
 	if m == nil {
 		return
 	}
-	if !slices.Contains(a.tabs, id) {
-		a.tabs = append(a.tabs, id)
-	}
+	a.activeFolder = ""
+	// Most recent first, as Yaak's recent requests are.
+	a.tabs = append([]string{id}, slices.DeleteFunc(a.tabs, func(tab string) bool { return tab == id })...)
 	a.active = id
 	if a.drafts[id] == nil {
 		a.drafts[id] = newDraft(m)
@@ -408,9 +458,23 @@ func (a *App) save(d *Draft) {
 	a.run(func() (func(), error) { _, err := a.Engine.Save(a.ctx, model); return nil, err })
 }
 func (a *App) addRequest(kind, folder string) {
-	workspace := a.workspace
+	a.createRequest(engine.Object{"model": kind, "folderId": nilIfEmpty(folder)})
+}
+
+// createRequest is Yaak's createRequestAndNavigate: a new request goes
+// below the active one, in its folder, else at the top.
+func (a *App) createRequest(m engine.Object) {
+	m["workspaceId"] = a.workspace
+	if active := a.models[a.active]; active != nil && a.activeFolder == "" {
+		m["sortPriority"] = n(active, "sortPriority")
+		if m["folderId"] == nil {
+			m["folderId"] = active["folderId"]
+		}
+	} else {
+		m["sortPriority"] = float64(-time.Now().UnixMilli())
+	}
 	a.run(func() (func(), error) {
-		m, err := a.Engine.Save(a.ctx, engine.Object{"model": kind, "workspaceId": workspace, "folderId": nilIfEmpty(folder)})
+		m, err := a.Engine.Save(a.ctx, m)
 		return func() {
 			if m != nil {
 				a.applyModel(m)
@@ -427,17 +491,23 @@ func (a *App) send() {
 	if d == nil {
 		return
 	}
+	// Yaak's request.send: an open WebSocket, or a gRPC call streaming
+	// from the client, sends the message; another running call is
+	// cancelled.
 	if a.running[d.ID] {
-		if connection := a.connections[d.ID]; connection != nil && d.Kind == "websocket_request" {
-			id := s(connection, "id")
-			a.run(func() (func(), error) { return nil, a.Engine.CloseWebSocket(id) })
-		} else {
+		kind := a.grpcMethodType(d)
+		switch {
+		case d.Kind == "websocket_request" && a.connected(d):
+			a.sendMessage(d)
+		case d.Kind == "grpc_request" && (kind == "client_streaming" || kind == "streaming"):
+			a.sendMessage(d)
+		default:
 			a.Engine.Cancel(d.ID)
 		}
 		return
 	}
 	a.save(d)
-	id, env, jar, kind, files := d.ID, a.environment, a.cookieJar, d.Kind, slices.Clone(d.ProtoFiles)
+	id, env, jar, kind, files := d.ID, a.environment, a.cookieJar, d.Kind, a.protoFiles(d.ID)
 	a.running[id] = true
 	a.run(func() (func(), error) {
 		go func() {
@@ -469,11 +539,14 @@ func (a *App) send() {
 }
 
 // sendFolder sends every HTTP request in a folder one at a time, in sidebar order.
-func (a *App) sendFolder(folder string) {
-	if a.deferUntilInputs(func() { a.sendFolder(folder) }) {
+func (a *App) sendFolder(folder string) { a.sendRequests(a.folderRequests(folder)) }
+
+// sendRequests sends HTTP requests one after another, as Send All does.
+func (a *App) sendRequests(ids []string) {
+	if a.deferUntilInputs(func() { a.sendRequests(ids) }) {
 		return
 	}
-	ids := slices.DeleteFunc(a.folderRequests(folder), func(id string) bool { return a.running[id] })
+	ids = slices.DeleteFunc(slices.Clone(ids), func(id string) bool { return a.running[id] })
 	if len(ids) == 0 {
 		return
 	}
@@ -539,16 +612,10 @@ func (a *App) prompt(kind, title, value, id string) {
 		a.modalTab = 0
 	}
 	a.dialog, a.dialogTitle, a.dialogValue, a.dialogID = kind, title, value, id
-	a.dialogOpen = true
-	if kind == "git" {
-		for _, meta := range a.list("workspace_meta") {
-			if s(meta, "settingSyncDir") != "" {
-				a.dialogValue = s(meta, "settingSyncDir")
-				a.gitDirectory = a.dialogValue
-			}
-		}
-		a.refreshGit()
+	if kind == "workspace_settings" {
+		a.workspaceDraft = nil
 	}
+	a.dialogOpen = true
 }
 func (a *App) saveModel(m engine.Object) {
 	copy := deepCopy(m)
@@ -572,10 +639,22 @@ func (a *App) duplicate(id string) {
 			return nil, err
 		}
 		m, err := a.Engine.Store.Get(a.ctx, created)
+		var copies []engine.Object
+		if err == nil && s(m, "model") == "folder" {
+			// The folder's contents were copied with it.
+			copies, err = a.Engine.Store.List(a.ctx, "", s(m, "workspaceId"))
+		}
 		return func() {
+			for _, copy := range copies {
+				if a.models[s(copy, "id")] == nil {
+					a.applyModel(copy)
+				}
+			}
 			a.applyModel(m)
 			if strings.HasSuffix(s(m, "model"), "_request") {
 				a.openRequest(created)
+			} else if s(m, "model") == "folder" {
+				a.openFolder(created)
 			}
 		}, err
 	})
@@ -587,8 +666,12 @@ func (a *App) deleteModel(id string) {
 }
 func newDraft(m engine.Object) *Draft {
 	body, auth := o(m, "body"), o(m, "authentication")
-	d := &Draft{FilePath: s(body, "filePath"), OperationName: s(body, "operationName"), OperationExplicit: body["operationName"] != nil, Tab: 1, MessageType: "text", ID: s(m, "id"), Kind: s(m, "model"), Name: s(m, "name"), URL: s(m, "url"), Method: s(m, "method"), BodyType: s(m, "bodyType"), Body: s(body, "text"), Query: s(body, "query"), Variables: s(body, "variables"), Description: s(m, "description"), Message: s(m, "message"), Service: s(m, "service"), RPCMethod: s(m, "method"), AuthType: s(m, "authenticationType"), Auth: map[string]string{}, Headers: kvRows(m, "headers"), Parameters: kvRows(m, "urlParameters"), Form: kvRows(body, "form"), Model: deepCopy(m)}
+	d := &Draft{FilePath: s(body, "filePath"), OperationName: s(body, "operationName"), OperationExplicit: body["operationName"] != nil, Tab: 1, TimelineIndex: -1, ConnEvent: -1, MessageType: "text", ID: s(m, "id"), Kind: s(m, "model"), Name: s(m, "name"), URL: s(m, "url"), Method: s(m, "method"), BodyType: s(m, "bodyType"), Body: s(body, "text"), Query: s(body, "query"), Variables: s(body, "variables"), Description: s(m, "description"), Message: s(m, "message"), Service: s(m, "service"), RPCMethod: s(m, "method"), AuthType: s(m, "authenticationType"), Auth: map[string]string{}, Headers: kvRows(m, "headers"), Parameters: kvRows(m, "urlParameters"), Form: kvRows(body, "form"), Model: deepCopy(m)}
 	d.Auth = oauthAuthStrings(auth)
+	if disabled, ok := auth["disabled"]; ok {
+		d.AuthDisabled = disabled
+		delete(d.Auth, "disabled")
+	}
 	if d.Auth["location"] == "" && d.Auth["in"] != "" {
 		d.Auth["location"] = d.Auth["in"]
 		delete(d.Auth, "in")
@@ -603,7 +686,7 @@ func newDraft(m engine.Object) *Draft {
 }
 func (d *Draft) object() engine.Object {
 	m := deepCopy(d.Model)
-	maps.Copy(m, engine.Object{"id": d.ID, "name": d.Name, "url": d.URL, "method": d.Method, "description": d.Description, "bodyType": nilIfEmpty(d.BodyType), "body": d.bodyObject(), "headers": rowObjects(d.Headers), "urlParameters": rowObjects(d.Parameters), "authenticationType": nilIfEmpty(d.AuthType), "message": d.Message})
+	maps.Copy(m, engine.Object{"id": d.ID, "name": d.Name, "url": d.URL, "method": d.Method, "description": d.Description, "bodyType": nilIfEmpty(d.BodyType), "body": d.bodyObject(), "headers": rowObjects(d.Headers), "urlParameters": rowObjects(slices.DeleteFunc(slices.Clone(d.Parameters), func(row KV) bool { return strings.HasPrefix(row.ID, placeholderRowIDTag) && row.Value == "" })), "authenticationType": nilIfEmpty(d.AuthType), "message": d.Message})
 	if !d.OperationExplicit && d.OperationName == "" {
 		delete(o(m, "body"), "operationName")
 	}
@@ -699,29 +782,61 @@ func nilIfEmpty(s string) any {
 	}
 	return s
 }
+
+// requestName is Yaak's resolvedModelName: the name, else for a request
+// what its URL or kind says.
 func requestName(m engine.Object) string {
-	if s(m, "name") != "" {
+	if _, request := m["url"]; !request || s(m, "name") != "" {
 		return s(m, "name")
 	}
-	if s(m, "url") != "" {
-		return s(m, "url")
+	// Template tags show what is inside them.
+	url := s(m, "url")
+	r := []rune(url)
+	var b strings.Builder
+	at := 0
+	for _, tag := range templateTags(url) {
+		b.WriteString(string(r[at:tag.Start]))
+		b.WriteString(strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(string(r[tag.Start:tag.End]), "${["), "]}")))
+		at = tag.End
 	}
-	return "New Request"
+	b.WriteString(string(r[at:]))
+	url = b.String()
+	if strings.TrimSpace(url) == "" {
+		switch {
+		case s(m, "model") == "http_request" && s(m, "bodyType") == "graphql":
+			return "GraphQL Request"
+		case s(m, "model") == "http_request":
+			return "HTTP Request"
+		case s(m, "model") == "websocket_request":
+			return "WebSocket Request"
+		}
+		return "gRPC Request"
+	}
+	// gRPC requests are named by their method.
+	if s(m, "model") == "grpc_request" && s(m, "service") != "" && s(m, "method") != "" {
+		service := s(m, "service")
+		return service[strings.LastIndex(service, ".")+1:] + "/" + s(m, "method")
+	}
+	for _, scheme := range []string{"http://", "https://", "ws://", "wss://"} {
+		if strings.HasPrefix(url, scheme) {
+			return strings.TrimPrefix(url, scheme)
+		}
+	}
+	return url
 }
+
+// sizeText is Yaak's formatSize: decimal units, to one place.
 func sizeText(n float64) string {
-	if n < 1024 {
-		return fmt.Sprintf("%.0f B", n)
+	num, unit := n, "B"
+	switch {
+	case n > 1000*1000*1000:
+		num, unit = n/1000/1000/1000, "GB"
+	case n > 1000*1000:
+		num, unit = n/1000/1000, "MB"
+	case n > 1000:
+		num, unit = n/1000, "KB"
 	}
-	if n < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", n/1024)
-	}
-	return fmt.Sprintf("%.1f MB", n/(1024*1024))
-}
-func durationText(ms float64) string {
-	if ms < 1000 {
-		return fmt.Sprintf("%.0f ms", ms)
-	}
-	return fmt.Sprintf("%.2f s", ms/1000)
+	return strconv.FormatFloat(math.Round(num*10)/10, 'f', -1, 64) + " " + unit
 }
 
 func stringifyDraft(d *Draft) string {

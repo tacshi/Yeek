@@ -3,9 +3,11 @@ package engine
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
+	"regexp"
 	"strconv"
-	"sync"
+	"strings"
 	"time"
 )
 
@@ -27,48 +29,97 @@ func WithTemplatePrompter(ctx context.Context, prompter TemplatePrompter) contex
 	return context.WithValue(ctx, templatePrompterKey{}, prompter)
 }
 
-type promptEntry struct {
-	value   string
-	expires time.Time
+// How prompt.text stores what was entered, as Yaak's prompt plugin does.
+const (
+	promptStoreNone    = "none"
+	promptStoreExpire  = "expire"
+	promptStoreForever = "forever"
+)
+
+// promptNamespace is where prompt.text keeps stored values, as Yaak's
+// plugin store keeps them for its prompt plugin.
+const promptNamespace = "plugin:@yaak/template-function-prompt"
+
+type savedPrompt struct {
+	Value     string `json:"value"`
+	CreatedAt int64  `json:"createdAt"`
 }
 
-// promptCache keeps remembered answers in memory only, so entered secrets never reach disk.
-type promptCache struct {
-	mu      sync.Mutex
-	entries map[string]promptEntry
+var slugRemove = regexp.MustCompile(`[^\w\s$*_+~.()'"!\-:@]+`)
+
+// slugify is the npm slugify package as Yaak calls it: lower case and
+// trimmed, with runs of spaces as dashes.
+func slugify(s string) string {
+	s = slugRemove.ReplaceAllString(strings.ToLower(strings.TrimSpace(s)), "")
+	return strings.Join(strings.Fields(s), "-")
 }
 
-func (c *promptCache) get(key string, now time.Time) (string, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	entry, ok := c.entries[key]
+// promptKey is Yaak's buildKey: the namespace and the key, else the label.
+func promptKey(args map[string]string) (string, error) {
+	if args["key"] == "" && args["label"] == "" {
+		return "", errors.New("A label or key is required when storing values") //nolint:staticcheck // Yaak's wording, shown as is.
+	}
+	var parts []string
+	for _, part := range []string{args["namespace"], cmp.Or(args["key"], args["label"])} {
+		if part != "" {
+			parts = append(parts, slugify(part))
+		}
+	}
+	return strings.Join(parts, "."), nil
+}
+
+// PromptKey is where prompt.text stores a value, for its form's banner.
+func PromptKey(args map[string]string) (string, error) { return promptKey(args) }
+
+func promptStore(args map[string]string) string {
+	switch store := cmp.Or(args["store"], promptStoreNone); store {
+	case "session": // Yeek's earlier names
+		return promptStoreForever
+	case "ttl":
+		return promptStoreExpire
+	default:
+		return store
+	}
+}
+
+func (e *Engine) storedPrompt(ctx context.Context, key string) (Object, savedPrompt, bool) {
+	models, err := e.Store.Find(ctx, "key_value", "key", key)
+	if err != nil {
+		return nil, savedPrompt{}, false
+	}
+	for _, m := range models {
+		if str(m, "namespace") != promptNamespace {
+			continue
+		}
+		var saved savedPrompt
+		if json.Unmarshal([]byte(str(m, "value")), &saved) == nil {
+			return m, saved, true
+		}
+	}
+	return nil, savedPrompt{}, false
+}
+
+// maybeGetValue is Yaak's: a stored value, unless it expired.
+func (e *Engine) maybeGetValue(ctx context.Context, args map[string]string, store, key string) (string, bool) {
+	if store == promptStoreNone {
+		return "", false
+	}
+	m, saved, ok := e.storedPrompt(ctx, key)
 	if !ok {
 		return "", false
 	}
-	if !entry.expires.IsZero() && !now.Before(entry.expires) {
-		delete(c.entries, key)
+	if store == promptStoreForever {
+		return saved.Value, true
+	}
+	ttl, _ := strconv.Atoi(args["ttl"])
+	if age := time.Since(time.UnixMilli(saved.CreatedAt)); age.Seconds() > float64(ttl) {
+		_ = e.Store.Delete(ctx, str(m, "id"), Object{"type": "background"})
 		return "", false
 	}
-	return entry.value, true
+	return saved.Value, true
 }
 
-func (c *promptCache) set(key, value string, expires time.Time) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.entries == nil {
-		c.entries = map[string]promptEntry{}
-	}
-	c.entries[key] = promptEntry{value, expires}
-}
-
-// ForgetPrompts clears remembered prompt.text answers.
-func (e *Engine) ForgetPrompts() {
-	e.prompts.mu.Lock()
-	defer e.prompts.mu.Unlock()
-	clear(e.prompts.entries)
-}
-
-func (e *Engine) promptTemplate(ctx context.Context, workspace string, args map[string]string) (string, error) {
+func (e *Engine) promptTemplate(ctx context.Context, args map[string]string) (string, error) {
 	prompt := TemplatePrompt{
 		Title:       cmp.Or(args["title"], "Enter Value"),
 		Label:       cmp.Or(args["label"], "Value"),
@@ -76,23 +127,22 @@ func (e *Engine) promptTemplate(ctx context.Context, workspace string, args map[
 		Default:     args["defaultValue"],
 		Password:    args["password"] == "true",
 	}
-	store := cmp.Or(args["store"], "none")
-	key := workspace + "\x00" + cmp.Or(args["key"], prompt.Title+"\x00"+prompt.Label)
-	var ttl time.Duration
+	store := promptStore(args)
 	switch store {
-	case "none", "session":
-	case "ttl":
-		seconds, err := strconv.Atoi(args["ttl"])
-		if err != nil || seconds <= 0 {
-			return "", errors.New("prompt.text cache duration must be a positive number of seconds")
-		}
-		ttl = time.Duration(seconds) * time.Second
+	case promptStoreNone, promptStoreExpire, promptStoreForever:
 	default:
-		return "", errors.New("prompt.text store must be none, session, or ttl")
+		return "", errors.New("prompt.text store must be none, expire, or forever")
 	}
-	now := time.Now()
-	if store != "none" {
-		if value, ok := e.prompts.get(key, now); ok {
+	key := ""
+	if store != promptStoreNone {
+		if args["namespace"] == "" {
+			return "", errors.New("Namespace is required when storing values") //nolint:staticcheck // Yaak's wording, shown as is.
+		}
+		var err error
+		if key, err = promptKey(args); err != nil {
+			return "", err
+		}
+		if value, ok := e.maybeGetValue(ctx, args, store, key); ok {
 			return value, nil
 		}
 	}
@@ -107,11 +157,11 @@ func (e *Engine) promptTemplate(ctx context.Context, workspace string, args map[
 	if err != nil {
 		return "", err
 	}
-	switch store {
-	case "session":
-		e.prompts.set(key, value, time.Time{})
-	case "ttl":
-		e.prompts.set(key, value, time.Now().Add(ttl))
+	if store != promptStoreNone {
+		data, _ := json.Marshal(savedPrompt{Value: value, CreatedAt: time.Now().UnixMilli()})
+		if _, err := e.Save(ctx, Object{"model": "key_value", "namespace": promptNamespace, "key": key, "value": string(data)}); err != nil {
+			return "", err
+		}
 	}
 	return value, nil
 }

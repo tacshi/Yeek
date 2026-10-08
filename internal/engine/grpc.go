@@ -28,6 +28,8 @@ type GRPCMethod struct {
 	Name                             string
 	ClientStreaming, ServerStreaming bool
 	Example                          string
+	// Input is the shape of the request message.
+	Input *GRPCMessage
 }
 type GRPCService struct {
 	Name    string
@@ -153,7 +155,7 @@ func (e *Engine) ReflectGRPC(ctx context.Context, id, environment string, files 
 			if err != nil {
 				return nil, err
 			}
-			s.Methods = append(s.Methods, GRPCMethod{Name: string(method.Name()), ClientStreaming: method.IsStreamingClient(), ServerStreaming: method.IsStreamingServer(), Example: string(example)})
+			s.Methods = append(s.Methods, GRPCMethod{Name: string(method.Name()), ClientStreaming: method.IsStreamingClient(), ServerStreaming: method.IsStreamingServer(), Example: string(example), Input: grpcMessage(method.Input(), 0)})
 		}
 		result = append(result, s)
 	}

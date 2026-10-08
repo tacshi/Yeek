@@ -11,13 +11,19 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/egoist/mygo/yeekui"
+	"yeek/internal/engine"
 )
 
 type documentEditor struct {
-	completionProvider                                     string
-	graphqlCompletion                                      graphQLCompletionState
-	completionSource                                       string
-	completion                                             templateCompletion
+	completionProvider string
+	graphqlCompletion  graphQLCompletionState
+	completionSource   string
+	completion         templateCompletion
+	// presets complete the whole field once presetMin characters are typed.
+	presets   []completionPreset
+	presetMin int
+	// jsonSchema completes and checks a gRPC message's fields.
+	jsonSchema                                             *engine.GRPCMessage
 	state                                                  ui.CodeEditorState
 	find, replace, goTo                                    bool
 	query, replacement, lineTarget                         string
@@ -45,9 +51,15 @@ func (a *App) editorDocument(label string) *documentEditor {
 	return doc
 }
 func (a *App) nativeEditor(c *ui.Context, p colors, value *string, label, language string, readOnly bool) bool {
-	doc := a.editorDocument(label)
+	return a.keyedEditor(c, p, value, label, label, language, readOnly)
+}
+
+// keyedEditor is nativeEditor with its own editor state (caret, scroll,
+// folds, find) under stateKey, like a Yaak Editor's stateKey.
+func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKey, language string, readOnly bool) bool {
+	doc := a.editorDocument(stateKey)
 	changed := false
-	scope := ui.Column(c).Key(a.active + ":" + label).Grow(1).MinHeight(0).MinWidth(0)
+	scope := ui.Column(c).Key(a.active + ":" + stateKey).Grow(1).MinHeight(0).MinWidth(0)
 	scope.Children(func() {
 		if scope.Shortcut(ui.Cmd, ui.KeyF) {
 			doc.find = true
@@ -107,6 +119,13 @@ func (a *App) nativeEditor(c *ui.Context, p colors, value *string, label, langua
 		options := ui.CodeEditorOptions{Font: font, FontSize: size, Wrap: b(a.settings, "editorSoftWrap"), ReadOnly: readOnly, LineNumbers: language != "markdown", TabSize: 2, AutoIndent: !readOnly, CloseBrackets: !readOnly && language != "text", CommentPrefix: commentPrefix(language)}
 		ui.Column(c).Key("document").Grow(1).MinHeight(0).MinWidth(0).Children(func() {
 			editor := ui.CodeEditor(c, value, &doc.state, options).Label(label).Grow(1).MinHeight(0)
+			// Yaak's message and GraphQL editors.
+			switch label {
+			case "Message body", "GraphQL query":
+				editor.Placeholder("...")
+			case "GraphQL variables":
+				editor.Placeholder("{}")
+			}
 			palette := fmt.Sprint(p.text, p.accent, p.orange, p.blue, p.muted)
 			if doc.source != *value || doc.syntaxLanguage != language || doc.palette != palette {
 				doc.source = *value
@@ -120,7 +139,13 @@ func (a *App) nativeEditor(c *ui.Context, p colors, value *string, label, langua
 			}
 			editor.Syntax(doc.spans)
 			if !readOnly {
-				editor.Diagnostics(a.graphQLMarks(label, p))
+				marks := a.graphQLMarks(label, p)
+				if doc.jsonSchema != nil {
+					for _, problem := range checkJSONMessage(doc.jsonSchema, *value) {
+						marks = append(marks, ui.CodeMark{Start: problem.start, End: problem.end, Color: p.red})
+					}
+				}
+				editor.Diagnostics(marks)
 			}
 			if doc.find {
 				doc.updateMatches(*value)

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
@@ -21,6 +22,12 @@ type templateVariableCache struct {
 type templateOption struct {
 	name     string
 	function *engine.TemplateDefinition
+	// A preset (genericOptions) or a message field (jsonSchemaOptions)
+	// replaces from up to end with apply; detail, when set, says what it is.
+	generic     bool
+	apply, info string
+	detail      string
+	from, end   int
 }
 type templateCompletion struct {
 	analyzedSource  string
@@ -46,8 +53,6 @@ func (a *App) templateScope() templateScope {
 		switch a.dialog {
 		case "environments":
 			scope.environment, scope.folder, scope.request = a.dialogID, "", ""
-		case "folder_variables":
-			scope.folder, scope.request = s(a.models[a.dialogID], "parentId"), ""
 		case "scope":
 			if a.scopeDraft != nil {
 				scope.request = ""
@@ -185,12 +190,25 @@ func templateOptions(prefix string, variables map[string]string, definitions []e
 	return options
 }
 
-func (a *App) templateInput(c *ui.Context, p colors, value *string, key, label, placeholder string, readOnly bool) *ui.Element {
+// templateDoc is the editor state of the template input with key, in the open dialog's context.
+func (a *App) templateDoc(key string) *documentEditor {
 	context := ""
 	if a.dialogOpen {
 		context = a.dialog + ":" + a.dialogID
 	}
-	doc := a.editorDocument("input:" + context + ":" + key)
+	return a.editorDocument("input:" + context + ":" + key)
+}
+
+// revealRow shows or masks one obscured value.
+func (a *App) revealRow(id string, on bool) {
+	if a.revealed == nil {
+		a.revealed = map[string]bool{}
+	}
+	a.revealed[id] = on
+}
+
+func (a *App) templateInput(c *ui.Context, p colors, value *string, key, label, placeholder string, readOnly bool) ui.Element {
+	doc := a.templateDoc(key)
 	input := ui.CodeEditor(c, value, &doc.state, ui.CodeEditorOptions{SingleLine: true, Font: "monospace", FontSize: 12, ReadOnly: readOnly}).Label(label).Placeholder(placeholder)
 	palette := fmt.Sprint(p.accent)
 	if doc.source != *value || doc.palette != palette {
@@ -239,7 +257,7 @@ func (a *App) templateMenu(menu *ui.Menu, doc *documentEditor, source string) {
 	}
 }
 
-func (a *App) templateCompletion(c *ui.Context, p colors, editor *ui.Element, doc *documentEditor, source string) {
+func (a *App) templateCompletion(c *ui.Context, p colors, editor ui.Element, doc *documentEditor, source string) {
 	doc.completionSource = source
 	v := &doc.completion
 	requested, dismissed, chosen := doc.state.CompletionEvent()
@@ -250,12 +268,7 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor *ui.Element, do
 	if chosen >= 0 && chosen < len(v.options) {
 		option := v.options[chosen]
 		if source != v.analyzedSource || doc.state.Caret != v.analyzedCaret {
-			start, end, prefix, ok := completionRange(source, doc.state.Caret, v.explicit)
-			if !ok {
-				doc.state.Completions("", 0)
-				return
-			}
-			options := templateOptions(prefix, a.templateVariables(a.templateScope()), a.Engine.TemplateDefinitions())
+			options, start, end, _ := a.completionOptions(doc, source, doc.state.Caret, v.explicit, a.templateScope())
 			if len(options) == 0 {
 				doc.state.Completions("", 0)
 				return
@@ -275,15 +288,12 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor *ui.Element, do
 	}
 	scope := a.templateScope()
 	if !v.analyzed || requested || source != v.analyzedSource || doc.state.Caret != v.analyzedCaret || a.modelVersion != v.analyzedVersion || scope != v.analyzedScope {
-		start, end, prefix, ok := completionRange(source, doc.state.Caret, v.explicit)
+		options, start, end, ok := a.completionOptions(doc, source, doc.state.Caret, v.explicit, scope)
 		v.analyzed, v.valid = true, ok
 		v.analyzedSource, v.analyzedCaret, v.analyzedVersion, v.analyzedScope = source, doc.state.Caret, a.modelVersion, scope
 		v.start, v.end = start, end
-		v.options = nil
-		if ok {
-			v.options = templateOptions(prefix, a.templateVariables(scope), a.Engine.TemplateDefinitions())
-		}
-		v.signature = fmt.Sprintf("%d:%d:%s:%d", start, end, prefix, len(v.options))
+		v.options = options
+		v.signature = fmt.Sprintf("%d:%d:%d:%d", start, end, doc.state.Caret, len(v.options))
 	}
 	if !v.valid {
 		v.explicit = false
@@ -308,7 +318,12 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor *ui.Element, do
 				row.Children(func() {
 					ui.Text(c, option.name).Font("monospace").FontSize(12).Grow(1).MaxLines(1)
 					kind := "variable"
-					if option.function != nil {
+					switch {
+					case option.detail != "":
+						kind = option.detail
+					case option.generic:
+						kind = "constant"
+					case option.function != nil:
 						kind = "function"
 					}
 					ui.Text(c, kind).TextColor(p.muted).FontSize(10)
@@ -331,6 +346,17 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor *ui.Element, do
 
 func (a *App) acceptTemplate(doc *documentEditor, source string, option templateOption) {
 	v := &doc.completion
+	if option.generic {
+		doc.state.Replace(option.from, option.end, option.apply)
+		doc.state.Focus()
+		v.options, v.explicit = nil, false
+		// Until the field changes again, as the caret ends after the preset.
+		r := []rune(source)
+		v.suppressed = string(r[:option.from]) + option.apply + string(r[option.end:])
+		v.suppressedCaret = option.from + utf8.RuneCountInString(option.apply)
+		v.isSuppressed = true
+		return
+	}
 	expression := engine.TemplateExpression{Kind: "variable", Value: option.name}
 	if option.function != nil {
 		expression.Kind = "function"
@@ -380,4 +406,18 @@ func templateSyntax(spans []ui.CodeSpan, source string, color ui.Color) []ui.Cod
 		}
 	}
 	return out
+}
+
+// completionOptions lists a field's presets, matching all of it, before
+// the variables and functions matching the word at the caret.
+func (a *App) completionOptions(doc *documentEditor, source string, caret int, explicit bool, scope templateScope) (options []templateOption, start, end int, ok bool) {
+	options = genericOptions(doc.presets, doc.presetMin, source, caret, explicit)
+	if doc.jsonSchema != nil {
+		options = append(options, jsonSchemaOptions(doc.jsonSchema, source, caret)...)
+	}
+	start, end, prefix, inWord := completionRange(source, caret, explicit)
+	if inWord {
+		options = append(options, templateOptions(prefix, a.templateVariables(scope), a.Engine.TemplateDefinitions())...)
+	}
+	return options, start, end, inWord || len(options) > 0
 }

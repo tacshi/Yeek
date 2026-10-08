@@ -17,6 +17,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// SyncNewest resolves each conflict with the copy updated last, as Yaak's
+// sync does.
+const SyncNewest = "newest"
+
 type SyncChange struct {
 	ID, Path, Direction, LocalHash, RemoteHash string
 	Local, Remote                              Object
@@ -192,7 +196,7 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 		if c.LocalHash != v.LocalHash || c.RemoteHash != v.RemoteHash {
 			return errors.New("workspace changed during sync; refresh the preview")
 		}
-		if c.Conflict && resolve != "push" && resolve != "pull" {
+		if c.Conflict && resolve != "push" && resolve != "pull" && resolve != SyncNewest {
 			return fmt.Errorf("%s changed both locally and on disk; choose which copy to keep", c.Path)
 		}
 	}
@@ -203,7 +207,7 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 	pending := []SyncChange{}
 	for _, change := range plan {
 		if change.Conflict {
-			change.Direction = resolve
+			change.Direction = conflictDirection(change, resolve)
 		}
 		if change.Direction == "pull" && change.Remote != nil {
 			pending = append(pending, change)
@@ -232,7 +236,7 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 		}
 		for _, change := range plan {
 			if change.Conflict {
-				change.Direction = resolve
+				change.Direction = conflictDirection(change, resolve)
 			}
 			if change.Direction == "pull" && change.Remote == nil && change.Local != nil {
 				if err := t.delete(ctx, change.ID); err != nil {
@@ -250,7 +254,7 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 	}
 	for _, change := range plan {
 		if change.Conflict {
-			change.Direction = resolve
+			change.Direction = conflictDirection(change, resolve)
 		}
 		if filepath.Base(change.Path) != change.Path {
 			return errors.New("sync filename must stay in its directory")
@@ -378,7 +382,7 @@ func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, onError f
 				tick = nil
 				plan, err := e.PlanSync(ctx, workspace, dir)
 				if err == nil {
-					err = e.ApplySync(ctx, workspace, dir, plan, "")
+					err = e.ApplySync(ctx, workspace, dir, plan, SyncNewest)
 				}
 				if err != nil {
 					onError(err)
@@ -387,4 +391,45 @@ func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, onError f
 		}
 	}()
 	return cancel, nil
+}
+
+// conflictDirection is how a conflict resolves: as chosen, or for
+// SyncNewest with the copy updated last, as Yaak's sync does.
+func conflictDirection(change SyncChange, resolve string) string {
+	if resolve != SyncNewest {
+		return resolve
+	}
+	if str(change.Remote, "updatedAt") > str(change.Local, "updatedAt") {
+		return "pull"
+	}
+	return "push"
+}
+
+// SyncDirWorkspace is the workspace whose files are in dir, as Yaak's
+// openWorkspaceFromSyncDir finds it.
+func (e *Engine) SyncDirWorkspace(dir string) (string, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = root.Close() }()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if entry.IsDir() || ext != ".yaml" && ext != ".yml" && ext != ".json" {
+			continue
+		}
+		data, err := root.ReadFile(entry.Name())
+		if err != nil {
+			continue
+		}
+		var m Object
+		if yaml.Unmarshal(data, &m) == nil && str(m, "model") == "workspace" && str(m, "id") != "" {
+			return str(m, "id"), nil
+		}
+	}
+	return "", errors.New("No workspace found in directory") //nolint:staticcheck // Yaak's wording, shown as is.
 }

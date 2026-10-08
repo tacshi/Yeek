@@ -67,7 +67,7 @@ func (ed *editor) completionKey(key Key, mods Modifiers) bool {
 
 // AttachToCaret positions a popup beside a native editor's caret and keeps it
 // within the same focus scope, including when the editor is inside a dialog.
-func (e *Element) AttachToCaret(target *Element) *Element {
+func (e *node) AttachToCaret(target *node) *node {
 	e.AttachTo(target, AnchorBottomLeft, AnchorTopLeft)
 	e.attachCaret = true
 	return e
@@ -75,14 +75,14 @@ func (e *Element) AttachToCaret(target *Element) *Element {
 
 // EditorSuggestions keeps pointer presses in a completion popup from ending
 // the editor's focus, and exposes its items as an accessibility list.
-func (e *Element) EditorSuggestions(target *Element) *Element {
+func (e *node) EditorSuggestions(target *node) *node {
 	e.AttachToCaret(target).Role(RoleList)
 	e.flags |= flagKeepFocus | flagClickable
 	target.expanded = true
 	return e
 }
 
-func (e *Element) EditorSuggestion(target *Element, index, count int, selected bool) *Element {
+func (e *node) EditorSuggestion(target *node, index, count int, selected bool) *node {
 	e.Role(RoleListItem)
 	e.flags |= flagClickable | flagHover | flagChoosable
 	e.setPos, e.setSize = index+1, count

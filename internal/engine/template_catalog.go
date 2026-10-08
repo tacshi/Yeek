@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -15,12 +14,27 @@ import (
 type TemplateField struct {
 	Name, Label, Kind, Default string
 	Options                    []string
-	Secret                     bool
+	// OptionLabels name Options in a select, when they differ.
+	OptionLabels []string
+	Placeholder  string
+	Secret       bool
+	// Advanced fields are under Yaak's Advanced accordion; Visible, when
+	// set, shows the field only for some values of the others.
+	Advanced bool
+	Visible  func(values map[string]string) bool
+	// Describe, when set, names the field for the others' values, or hides it.
+	Describe func(values map[string]string) (label, description string, secret, visible bool)
+	// Dynamic, when set, lists a select's options, and their labels, for
+	// the others' values (rendered); it hides the select while it fails.
+	Dynamic func(ctx context.Context, values map[string]string) (options, labels []string, err error)
 }
 type TemplateDefinition struct {
 	Name, Description string
 	Fields            []TemplateField
 	Preview           bool
+	// Banner, when set, explains the values below the fields, or what is
+	// wrong with them.
+	Banner func(values map[string]string) (text string, danger bool)
 }
 
 func templateField(name, label string) TemplateField {
@@ -35,8 +49,13 @@ func builtinTemplateDefinitions() []TemplateDefinition {
 	result := templateChoice("result", "Return", "first", "first", "all", "join")
 	request := TemplateField{Name: "request", Label: "Request", Kind: "request"}
 	fields := []TemplateDefinition{
-		{Name: "uuid.v4", Description: "Random UUID", Preview: true},
-		{Name: "uuid.v7", Description: "Time-ordered UUID", Preview: true},
+		{Name: "uuid.v1", Description: "Generate a UUID V1", Preview: true},
+		{Name: "uuid.v3", Description: "Generate a UUID V3", Preview: true, Fields: []TemplateField{templateField("name", "Name"), {Name: "namespace", Label: "Namespace UUID", Kind: "text", Placeholder: "24ced880-3bf4-11f0-8329-cd053d577f0e"}}},
+		{Name: "uuid.v4", Description: "Generate a UUID V4", Preview: true},
+		{Name: "uuid.v5", Description: "Generate a UUID V5", Preview: true, Fields: []TemplateField{templateField("name", "Name"), templateField("namespace", "Namespace")}},
+		{Name: "uuid.v6", Description: "Generate a UUID V6", Preview: true, Fields: []TemplateField{{Name: "timestamp", Label: "Timestamp", Kind: "text", Placeholder: "2025-05-28T11:15:00Z"}}},
+		{Name: "uuid.v7", Description: "Generate a UUID V7", Preview: true},
+		onePasswordDefinition(),
 		{Name: "random", Description: "Random hexadecimal text", Fields: []TemplateField{{Name: "length", Label: "Length", Default: "16", Kind: "text"}}, Preview: true},
 		{Name: "random.range", Description: "Random number in a range", Fields: []TemplateField{{Name: "min", Label: "Minimum", Default: "0", Kind: "text"}, {Name: "max", Label: "Maximum", Default: "1", Kind: "text"}, templateField("decimals", "Decimal places")}, Preview: true},
 		{Name: "base64.encode", Description: "Encode text as Base64", Fields: []TemplateField{value, templateChoice("encoding", "Encoding", "base64", "base64", "base64url")}, Preview: true},
@@ -51,7 +70,7 @@ func builtinTemplateDefinitions() []TemplateDefinition {
 		{Name: "regex.replace", Description: "Replace regular-expression matches", Fields: []TemplateField{input, templateField("regex", "Regular expression"), templateField("replacement", "Replacement"), {Name: "flags", Label: "Flags", Default: "g", Kind: "text"}}, Preview: true},
 		{Name: "fs.readFile", Description: "Read a local file", Fields: []TemplateField{{Name: "path", Label: "File", Kind: "file"}, templateChoice("encoding", "Encoding", "utf8", "utf8", "base64", "hex"), {Name: "trim", Label: "Trim whitespace", Kind: "boolean"}}},
 		{Name: "secure", Description: "Encrypt a value using the workspace key", Fields: []TemplateField{{Name: "value", Label: "Value", Kind: "multiline", Secret: true}}},
-		{Name: "prompt.text", Description: "Ask for a value when the request is sent", Fields: []TemplateField{templateField("title", "Title"), templateField("label", "Label"), templateField("defaultValue", "Default value"), templateField("placeholder", "Placeholder"), {Name: "password", Label: "Hide input", Kind: "boolean"}, templateChoice("store", "Remember answer", "none", "none", "session", "ttl"), templateField("key", "Remember as"), {Name: "ttl", Label: "Cache duration (seconds)", Default: "300", Kind: "text"}}},
+		promptTextDefinition(),
 		{Name: "keychain", Description: "Read a value from the OS keychain", Fields: []TemplateField{templateField("service", "Service"), templateField("account", "Account")}},
 		{Name: "cookie.value", Description: "Read a stored cookie", Fields: []TemplateField{templateField("name", "Cookie name"), templateField("domain", "Domain")}, Preview: true},
 		{Name: "ctx.workspace", Description: "Current workspace ID", Preview: true},
@@ -139,14 +158,14 @@ func ParseTemplateExpression(source string) (TemplateExpression, error) {
 		}
 		source = strings.TrimSpace(source[3 : len(source)-2])
 	}
-	p := valueParser{text: []rune(source)}
-	value, err := p.value(0)
+	p := templateParser{chars: []rune(source)}
+	value, err := p.value()
 	if err != nil {
 		return TemplateExpression{}, err
 	}
 	p.space()
-	if p.pos != len(p.text) {
-		return TemplateExpression{}, errors.New("unexpected text after template value")
+	if value == nil || p.pos != len(p.chars) {
+		return TemplateExpression{}, errors.New("unexpected text in template value")
 	}
 	var convert func(templateValue) TemplateExpression
 	convert = func(v templateValue) TemplateExpression {
@@ -159,7 +178,7 @@ func ParseTemplateExpression(source string) (TemplateExpression, error) {
 		}
 		return out
 	}
-	return convert(value), nil
+	return convert(*value), nil
 }
 func FormatTemplateExpression(value TemplateExpression) string {
 	switch value.Kind {
@@ -172,11 +191,15 @@ func FormatTemplateExpression(value TemplateExpression) string {
 	case "function":
 		parts := []string{}
 		for _, key := range slices.Sorted(maps.Keys(value.Arguments)) {
+			// Like Yaak, null arguments are left out.
+			if value.Arguments[key].Kind == "null" {
+				continue
+			}
 			parts = append(parts, key+"="+FormatTemplateExpression(value.Arguments[key]))
 		}
 		return value.Value + "(" + strings.Join(parts, ", ") + ")"
 	default:
-		return strconv.Quote(value.Value)
+		return formatTemplateString(value.Value)
 	}
 }
 func FormatTemplateTag(value TemplateExpression) string {
@@ -210,4 +233,34 @@ func (e *Engine) templatePreviewAllowed(name string) error {
 		}
 	}
 	return fmt.Errorf("%s is evaluated when the request is sent", name)
+}
+
+// promptTextDefinition is the prompt.text of Yaak's prompt plugin.
+func promptTextDefinition() TemplateDefinition {
+	storing := func(v map[string]string) bool { return promptStore(v) != promptStoreNone }
+	return TemplateDefinition{
+		Name:        "prompt.text",
+		Description: "Prompt the user for input when sending a request",
+		Fields: []TemplateField{
+			templateField("label", "Label"),
+			{Name: "store", Label: "Store Input", Kind: "select", Default: promptStoreNone, Options: []string{promptStoreNone, promptStoreExpire, promptStoreForever}, OptionLabels: []string{"Never", "Expire", "Forever"}},
+			{Name: "namespace", Label: "Namespace", Kind: "text", Default: "${[ctx.workspace()]}", Visible: storing},
+			{Name: "key", Label: "Key (defaults to Label)", Kind: "text", Visible: storing},
+			{Name: "ttl", Label: "TTL (seconds)", Kind: "text", Default: "0", Placeholder: "0", Visible: func(v map[string]string) bool { return promptStore(v) == promptStoreExpire }},
+			{Name: "title", Label: "Prompt Title", Kind: "text", Placeholder: "Enter Value", Advanced: true},
+			{Name: "defaultValue", Label: "Default Value", Kind: "text", Advanced: true},
+			{Name: "placeholder", Label: "Input Placeholder", Kind: "text", Advanced: true},
+			{Name: "password", Label: "Mask Value", Kind: "boolean", Advanced: true},
+		},
+		Banner: func(v map[string]string) (string, bool) {
+			if !storing(v) {
+				return "", false
+			}
+			key, err := promptKey(v)
+			if err != nil {
+				return err.Error(), true
+			}
+			return "Value will be saved under: " + key, false
+		},
+	}
 }

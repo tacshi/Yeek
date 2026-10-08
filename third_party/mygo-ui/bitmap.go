@@ -95,7 +95,7 @@ func halve(img *scene.Image) *scene.Image {
 		for x := range w {
 			x0, x1 := 4*2*x, 4*min(2*x+1, img.W-1)
 			for c := range 4 {
-				o[4*x+c] = uint8(min(uint32(255), (uint32(r0[x0+c])+uint32(r0[x1+c])+uint32(r1[x0+c])+uint32(r1[x1+c])+2)/4))
+				o[4*x+c] = uint8((uint32(r0[x0+c]) + uint32(r0[x1+c]) + uint32(r1[x0+c]) + uint32(r1[x1+c]) + 2) / 4)
 			}
 		}
 	}

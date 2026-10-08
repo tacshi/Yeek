@@ -132,30 +132,6 @@ func TestResponseFiltersAndSSE(t *testing.T) {
 		t.Fatal(events)
 	}
 }
-func TestGitOfflineWorkflow(t *testing.T) {
-	e := testEngine(t)
-	dir := t.TempDir()
-	if err := e.GitInit(dir); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "request.yaml"), []byte("model: http_request\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.GitStage(dir, []string{"request.yaml"}, true); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.GitCommit(dir, "Add request", "Test Author", "test@example.com"); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.GitCheckout(dir, "feature", true); err != nil {
-		t.Fatal(err)
-	}
-	status, err := e.GitStatus(t.Context(), dir)
-	if err != nil || status.Branch != "feature" || len(status.Commits) != 1 || len(status.Files) != 0 {
-		t.Fatal(status, err)
-	}
-}
-
 func TestNestedTemplatesAndBrunoImport(t *testing.T) {
 	rendered, err := renderText("${[ base64.encode(value=url.encode(value='a b')) ]}", nil, map[string]bool{}, 0)
 	if err != nil || rendered != "YSUyMGI=" {

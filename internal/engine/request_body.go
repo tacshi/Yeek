@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -126,18 +127,29 @@ func writeRequestBody(ctx context.Context, out io.Writer, m Object) (string, err
 		if strings.EqualFold(str(m, "method"), "GET") {
 			return "", nil
 		}
-		payload := Object{"query": str(body, "query")}
-		if variables := str(body, "variables"); strings.TrimSpace(variables) != "" {
-			var value any
-			if err := json.Unmarshal([]byte(StripJSONComments(variables)), &value); err != nil {
+		// Written by hand so keys keep Yaak's order (query, variables,
+		// operationName) and variables keep the order they were typed in.
+		query, err := json.Marshal(str(body, "query"))
+		if err != nil {
+			return "", err
+		}
+		payload := `{"query":` + string(query)
+		if variables := StripJSONComments(str(body, "variables")); strings.TrimSpace(variables) != "" {
+			value := jsontext.Value(variables)
+			if err := value.Compact(); err != nil {
 				return "", fmt.Errorf("GraphQL variables: %w", err)
 			}
-			payload["variables"] = value
+			payload += `,"variables":` + string(value)
 		}
-		if op := str(body, "operationName"); op != "" {
-			payload["operationName"] = op
+		if op := str(body, "operationName"); strings.TrimSpace(op) != "" {
+			name, err := json.Marshal(op)
+			if err != nil {
+				return "", err
+			}
+			payload += `,"operationName":` + string(name)
 		}
-		return "application/json", json.MarshalWrite(out, payload)
+		_, err = io.WriteString(out, payload+"}")
+		return "application/json", err
 	default:
 		text := str(body, "text")
 		if kind == "application/json" && !boolean(body, "sendJsonComments") {

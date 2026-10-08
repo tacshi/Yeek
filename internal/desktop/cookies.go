@@ -229,7 +229,7 @@ func (a *App) cookiesDialog(c *ui.Context, p colors) {
 		return
 	}
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-		var addButton *ui.Element
+		var addButton ui.Element
 		ui.Row(c).Padding(10, 14).Gap(8).Children(func() {
 			ui.TextInput(c, &manager.filter).Placeholder("Filter cookies").Label("Filter cookies").Grow(1).MinWidth(0)
 			if manager.filter != "" && smallIconButton(c, "close", "Clear cookie filter").Clicked() {

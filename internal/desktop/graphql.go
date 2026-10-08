@@ -122,22 +122,8 @@ func (a *App) fetchGraphQL(d *Draft, showDocs bool) {
 				return
 			}
 			a.applyModel(model)
-			if showDocs {
-				a.openGraphQLDocs(id, "")
-			}
 		}, nil
 	})
-}
-func (a *App) openGraphQLDocs(id, typ string) {
-	state := a.graphQLState(id)
-	if state.index == nil {
-		return
-	}
-	if typ == "" {
-		typ = state.index.Schema.Query.Name
-	}
-	a.graphqlType = typ
-	a.prompt("graphql_docs", "GraphQL Documentation", "", id)
 }
 func (a *App) chooseGraphQLFile(d *Draft) {
 	id, key := d.ID, a.graphQLKey(d)
@@ -183,7 +169,6 @@ func (a *App) chooseGraphQLFile(d *Draft) {
 			a.save(d)
 			a.applyModel(model)
 			state.error = ""
-			a.openGraphQLDocs(id, "")
 		}, nil
 	})
 }
@@ -212,32 +197,77 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 			a.fetchGraphQL(d, false)
 		}
 	}
-	label := "Schema"
-	if state.loading {
-		label = "Loading schema…"
+	// Yaak's GraphQLEditor actions: the operation, the schema menu, the
+	// documentation and Format.
+	if len(state.operations) > 0 {
+		name := d.OperationName
+		if name == "" {
+			name = "Not specified"
+		}
+		ui.MenuButton(c, name, func(menu *ui.Menu) {
+			menu.Item("Operation Name").Disabled(true)
+			for _, op := range append([]string{""}, state.operations...) {
+				label := op
+				if label == "" {
+					label = "Not specified"
+				}
+				if menu.Item(label).Checked(op == d.OperationName).Chosen() {
+					d.OperationName = op
+					d.OperationExplicit = true
+					d.Dirty = true
+				}
+			}
+		}).Label("Select Operation").FontSize(11).Padding(2, 8)
 	}
-	ui.MenuButton(c, label, func(menu *ui.Menu) {
-		if menu.Item("Documentation").Disabled(a.graphQLIndex(d) == nil).Chosen() {
-			a.openGraphQLDocs(d.ID, "")
+	index := a.graphQLIndex(d)
+	label := "No Schema"
+	switch {
+	case state.error != "":
+		label = "Introspection Failed"
+	case state.loading:
+		label = "Loading Schema"
+	case index != nil:
+		label = "Schema"
+	}
+	schema := ui.MenuButton(c, label, func(menu *ui.Menu) {
+		if index != nil && menu.Item("Clear Schema").Chosen() {
+			id := d.ID
+			state.attempted = true
+			a.run(func() (func(), error) {
+				m, err := a.Engine.StoreGraphQLSchema(a.ctx, id, "", key, file)
+				return func() { a.applyModel(m) }, err
+			})
 		}
-		fetch := "Fetch from Server"
 		if file != "" {
-			fetch = "Reload Schema File"
+			menu.Separator()
+			menu.Item(filepath.Base(file)).Disabled(true)
 		}
-		if menu.Item(fetch).Disabled(state.loading).Chosen() {
+		if state.error != "" && menu.Item("Schema introspection failed: View Error").Chosen() {
+			a.ask("Introspection Failed", state.error, "Retry Request", false, nil, func([]string) { a.fetchGraphQL(d, true) })
+		}
+		if menu.Item("Reload Schema").Disabled(state.loading).Chosen() {
 			a.fetchGraphQL(d, true)
 		}
-		if menu.Item("Load Schema File…").Chosen() {
+		loadLabel := "Load Schema from File…"
+		if file != "" {
+			loadLabel = "Load a Different File…"
+		}
+		if menu.Item(loadLabel).Chosen() {
 			a.chooseGraphQLFile(d)
 		}
-		if file != "" && menu.Item("Use Server Schema").Chosen() {
+		if file != "" && menu.Item("Stop Using File").Chosen() {
 			delete(body, "schemaFilePath")
 			d.Dirty = true
 			state.attempted = false
 			state.error = ""
 		}
 		menu.Separator()
-		if menu.Item("Fetch Schema Automatically").Checked(auto).Disabled(file != "").Chosen() {
+		menu.Item("Settings").Disabled(true)
+		autoLabel := "Automatic Introspection"
+		if file != "" {
+			autoLabel = "Automatic Reload"
+		}
+		if menu.Item(autoLabel).Checked(auto).Chosen() {
 			if body == nil {
 				body = engine.Object{}
 				d.Model["body"] = body
@@ -246,15 +276,24 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 			d.Dirty = true
 			state.attempted = false
 		}
-		if menu.Item("Clear Cached Schema").Disabled(state.index == nil).Chosen() {
-			id := d.ID
-			state.attempted = true
-			a.run(func() (func(), error) {
-				m, err := a.Engine.StoreGraphQLSchema(a.ctx, id, "", key, file)
-				return func() { a.applyModel(m) }, err
-			})
+	}).Label("Refetch Schema").FontSize(11).Padding(2, 8)
+	if state.error != "" {
+		schema.TextColor(p.red).Border(1, p.red.Alpha(.5))
+	}
+	docs := "Show Documentation"
+	switch {
+	case index == nil:
+		docs = "Documentation unavailable without a schema"
+	case a.graphQLDocsOpen(d):
+		docs = "Hide Documentation"
+	}
+	if smallIconButton(c, "book", docs).Disabled(index == nil).Clicked() {
+		if a.graphQLDocsOpen(d) {
+			a.closeGraphQLDocs(d.ID)
+		} else {
+			a.openGraphQLDocs(d.ID, "")
 		}
-	}).FontSize(11)
+	}
 }
 func (a *App) graphQLQueryHeader(c *ui.Context, p colors, d *Draft) {
 	state := a.graphQLState(d.ID)
@@ -281,40 +320,6 @@ func (a *App) graphQLQueryHeader(c *ui.Context, p colors, d *Draft) {
 			state.diagnostics = engine.GraphQLDiagnostics(index, d.Query, d.Variables, d.OperationName)
 		}
 	}
-	if state.error != "" {
-		ui.Row(c).Padding(6, 12).Gap(8).Children(func() {
-			ui.Text(c, state.error).TextColor(p.red).FontSize(11).Grow(1).MaxLines(2)
-			if ui.Button(c, "Retry").FontSize(11).Disabled(state.loading).Clicked() {
-				a.fetchGraphQL(d, false)
-			}
-		})
-	}
-	ui.Row(c).Padding(5, 14).Gap(8).Children(func() {
-		ui.Text(c, "Query").TextColor(p.muted).FontSize(11)
-		ui.Spacer(c)
-		if len(state.operations) > 0 {
-			name := d.OperationName
-			if name == "" {
-				name = "Operation not specified"
-			}
-			ui.MenuButton(c, name, func(menu *ui.Menu) {
-				for _, op := range append([]string{""}, state.operations...) {
-					label := op
-					if label == "" {
-						label = "Not specified"
-					}
-					if menu.Item(label).Checked(op == d.OperationName).Chosen() {
-						d.OperationName = op
-						d.OperationExplicit = true
-						d.Dirty = true
-					}
-				}
-			}).Label("GraphQL operation: " + name).FontSize(11)
-		}
-		if file := s(o(d.Model, "body"), "schemaFilePath"); file != "" {
-			ui.Text(c, filepath.Base(file)).FontSize(10).TextColor(p.muted).MaxWidth(190).SingleLine().Tooltip(file)
-		}
-	})
 }
 func (a *App) graphQLProblems(c *ui.Context, p colors, d *Draft) {
 	state := a.graphQLState(d.ID)
@@ -336,86 +341,6 @@ func (a *App) graphQLProblems(c *ui.Context, p colors, d *Draft) {
 				a.editorDocument(editor).state.GoTo(issue.Line, issue.Column)
 			}
 		}
-	})
-}
-func (a *App) graphqlDocs(c *ui.Context, p colors) {
-	state := a.graphQLState(a.dialogID)
-	if state.index == nil {
-		ui.Text(c, "Load a schema to browse its types.").Padding(20)
-		return
-	}
-	schema := state.index.Schema
-	ui.Row(c).Height(520).AlignItems(ui.Stretch).Children(func() {
-		ui.Column(c).Width(205).Padding(10).Gap(8).Background(p.sidebar).Children(func() {
-			ui.TextInput(c, &a.graphqlSearch).Placeholder("Filter types").Label("Filter GraphQL types")
-			ui.Scroll(c).Grow(1).Children(func() {
-				names := []string{}
-				for name := range schema.Types {
-					if !strings.HasPrefix(name, "__") && strings.Contains(strings.ToLower(name), strings.ToLower(a.graphqlSearch)) {
-						names = append(names, name)
-					}
-				}
-				slices.Sort(names)
-				for _, name := range names {
-					if ui.ButtonBase(c).Key(name).FillWidth().Padding(7, 6).Children(func() { ui.Text(c, name).SingleLine().FontSize(12) }).Clicked() {
-						a.graphqlType = name
-					}
-				}
-			})
-		})
-		ui.Scroll(c).Grow(1).Padding(20).Gap(14).Children(func() {
-			typ := schema.Types[a.graphqlType]
-			if typ == nil {
-				return
-			}
-			ui.Text(c, typ.Name).FontSize(21).FontWeight(600)
-			if typ.Description != "" {
-				ui.Text(c, typ.Description).FontSize(12).Selectable()
-			}
-			links := append(slices.Clone(typ.Interfaces), typ.Types...)
-			for _, name := range links {
-				if ui.Button(c, name).FontSize(12).Clicked() {
-					a.graphqlType = name
-				}
-			}
-			for _, field := range typ.Fields {
-				if strings.HasPrefix(field.Name, "__") && !strings.HasPrefix(typ.Name, "__") {
-					continue
-				}
-				ui.Column(c).Key(field.Name).Gap(7).Padding(8, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-					ui.Row(c).Gap(8).Children(func() {
-						ui.Text(c, field.Name).Font("monospace").FontSize(12).TextColor(p.accent)
-						if ui.ButtonBase(c).Children(func() { ui.Text(c, field.Type.String()).Font("monospace").FontSize(12).TextColor(p.blue) }).Clicked() {
-							a.graphqlType = field.Type.Name()
-						}
-					})
-					if field.Description != "" {
-						ui.Text(c, field.Description).FontSize(12).TextColor(p.muted).Selectable()
-					}
-					for _, arg := range field.Arguments {
-						label := arg.Name + ": " + arg.Type.String()
-						if arg.DefaultValue != nil {
-							label += " = " + arg.DefaultValue.String()
-						}
-						ui.Text(c, label).FontSize(11).Font("monospace").TextColor(p.muted)
-						if arg.Description != "" {
-							ui.Text(c, arg.Description).FontSize(11).TextColor(p.muted)
-						}
-					}
-					if field.DefaultValue != nil {
-						ui.Text(c, "Default: "+field.DefaultValue.String()).FontSize(11).TextColor(p.muted)
-					}
-					graphQLDeprecated(c, p, field.Directives)
-				})
-			}
-			for _, value := range typ.EnumValues {
-				ui.Text(c, value.Name).Font("monospace").FontSize(12).TextColor(p.accent)
-				if value.Description != "" {
-					ui.Text(c, value.Description).TextColor(p.muted).FontSize(12)
-				}
-				graphQLDeprecated(c, p, value.Directives)
-			}
-		})
 	})
 }
 func graphQLDeprecated(c *ui.Context, p colors, directives ast.DirectiveList) {

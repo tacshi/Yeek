@@ -11,7 +11,6 @@ import (
 )
 
 // TextRange uses rune offsets, as the native editor does, rather than byte or UTF-16 offsets.
-type TextRange struct{ Start, End int }
 type TextEdit struct {
 	Start, End int
 	Text       string
@@ -49,6 +48,23 @@ type CodeEditorState struct {
 	SelectedText            string
 	actions                 []editorAction
 	focus                   bool
+	paste                   *pasteEvent
+}
+
+type pasteEvent struct {
+	text      string
+	overwrote bool
+}
+
+// Pasted reports, once, the text last pasted into the editor and whether it
+// replaced all of the editor's text.
+func (s *CodeEditorState) Pasted() (text string, overwrote, ok bool) {
+	if s.paste == nil {
+		return "", false, false
+	}
+	p := s.paste
+	s.paste = nil
+	return p.text, p.overwrote, true
 }
 
 func (s *CodeEditorState) Select(start, end int) {
@@ -101,7 +117,7 @@ type CodeEditorOptions struct {
 
 // CodeEditor is a native text area with a fixed gutter and editing commands.
 // Syntax and marks are paint-only: they cannot change the caret or input-method layout.
-func CodeEditor(c *Context, value *string, state *CodeEditorState, options CodeEditorOptions) *Element {
+func coreCodeEditor(c *context, value *string, state *CodeEditorState, options CodeEditorOptions) *node {
 	options.Font = cmp.Or(options.Font, "monospace")
 	if options.FontSize <= 0 {
 		options.FontSize = 12
@@ -119,6 +135,17 @@ func CodeEditor(c *Context, value *string, state *CodeEditorState, options CodeE
 	}, document)
 	e.widget = "CodeEditor"
 	ed := e.st.editor
+	if ed.created {
+		// A new document opens at its first line with the caret there, as
+		// CodeMirror does, not scrolled to a caret at the end like a text
+		// field.
+		ed.created = false
+		ed.caret, ed.anchor = 0, 0
+		if ed.area != nil {
+			ed.area.reveal = false
+		}
+		e.st.scrollY = 0
+	}
 	ed.readOnly = options.ReadOnly
 	e.Font(options.Font).FontSize(options.FontSize).FixedLineHeight(options.FontSize * 1.75)
 	gutter := float32(12)
@@ -163,7 +190,7 @@ func CodeEditor(c *Context, value *string, state *CodeEditorState, options CodeE
 				ed.move(action.end, true)
 			case "goto":
 				line := max(0, min(action.start-1, len(ed.buf.paras)-1))
-				ed.move(min(ed.buf.paras[line].rune+max(0, action.end-1), ed.buf.end(line)), false)
+				ed.move(min(ed.buf.start(line)+max(0, action.end-1), ed.buf.end(line)), false)
 			case "insert":
 				ed.insert(action.text)
 			case "replace":
@@ -196,12 +223,12 @@ func CodeEditor(c *Context, value *string, state *CodeEditorState, options CodeE
 		}
 		if ed.buf.version != before {
 			*value = ed.buf.s
-			e.st.changed = true
+			e.st.markChanged()
 			c.rt.consumed = true
 		}
 		state.Caret, state.Anchor = ed.caret, ed.anchor
 		state.Line = ed.buf.para(ed.caret) + 1
-		state.Column = ed.caret - ed.buf.paras[state.Line-1].rune + 1
+		state.Column = ed.caret - ed.buf.start(state.Line-1) + 1
 		state.LineCount = len(ed.buf.paras)
 		state.Focused = e.Focused()
 		start, end := ed.selection()
@@ -212,7 +239,7 @@ func CodeEditor(c *Context, value *string, state *CodeEditorState, options CodeE
 }
 
 // Syntax applies ordered, non-overlapping color ranges. The caller can cache them by document text.
-func (e *Element) Syntax(spans []CodeSpan) *Element {
+func (e *node) Syntax(spans []CodeSpan) *node {
 	if e.st.editor == nil {
 		return e
 	}
@@ -239,10 +266,10 @@ func (e *Element) Syntax(spans []CodeSpan) *Element {
 	e.codePaint = paint
 	return e
 }
-func (e *Element) Marks(marks []CodeMark) *Element { e.codeMarks = marks; return e }
+func (e *node) Marks(marks []CodeMark) *node { e.codeMarks = marks; return e }
 
 // Diagnostics underlines source ranges without changing text layout or input.
-func (e *Element) Diagnostics(marks []CodeMark) *Element { e.codeDiagnostics = marks; return e }
+func (e *node) Diagnostics(marks []CodeMark) *node { e.codeDiagnostics = marks; return e }
 
 func (ed *editor) indentString() string {
 	if ed.codeOptions.IndentWithTabs {
@@ -253,7 +280,7 @@ func (ed *editor) indentString() string {
 func (ed *editor) selectedLines() (int, int) {
 	start, end := ed.selection()
 	first, last := ed.buf.para(start), ed.buf.para(end)
-	if end > start && end == ed.buf.paras[last].rune {
+	if end > start && end == ed.buf.start(last) {
 		last--
 	}
 	return first, max(first, last)
@@ -280,7 +307,7 @@ func (ed *editor) indent(outdent bool) {
 	}
 	start, end := ed.selection()
 	if start == end && !outdent {
-		column := ed.caret - ed.buf.paras[ed.buf.para(ed.caret)].rune
+		column := ed.caret - ed.buf.start(ed.buf.para(ed.caret))
 		value := ed.indentString()
 		if !ed.codeOptions.IndentWithTabs {
 			value = strings.Repeat(" ", ed.codeOptions.TabSize-column%ed.codeOptions.TabSize)
@@ -292,7 +319,7 @@ func (ed *editor) indent(outdent bool) {
 	edits := []TextEdit{}
 	shiftStart, total := 0, 0
 	for i := first; i <= last; i++ {
-		at := ed.buf.paras[i].rune
+		at := ed.buf.start(i)
 		edit := TextEdit{Start: at, End: at, Text: ed.indentString()}
 		delta := utf8.RuneCountInString(edit.Text)
 		if outdent {
@@ -319,7 +346,7 @@ func (ed *editor) indent(outdent bool) {
 		edits = append(edits, edit)
 	}
 	ed.applyCodeEdits(edits)
-	ed.anchor = max(ed.buf.paras[first].rune, start+shiftStart)
+	ed.anchor = max(ed.buf.start(first), start+shiftStart)
 	ed.caret = max(ed.anchor, min(end+total, ed.buf.n))
 	ed.finishCodeSelection()
 }
@@ -337,7 +364,7 @@ func (ed *editor) duplicateLine() {
 		return
 	}
 	first, last := ed.selectedLines()
-	start, end := ed.buf.paras[first].rune, ed.buf.end(last)
+	start, end := ed.buf.start(first), ed.buf.end(last)
 	text := ed.buf.slice(start, end)
 	ed.record(false)
 	ed.replace(end, end, "\n"+text)
@@ -348,7 +375,7 @@ func (ed *editor) deleteLine() {
 		return
 	}
 	first, last := ed.selectedLines()
-	start, end := ed.buf.paras[first].rune, ed.buf.end(last)
+	start, end := ed.buf.start(first), ed.buf.end(last)
 	if last+1 < len(ed.buf.paras) {
 		end++
 	} else if start > 0 {
@@ -375,7 +402,7 @@ func (ed *editor) toggleComment() {
 		line := ed.buf.text(i)
 		trimmed := strings.TrimLeft(line, " \t")
 		offset := utf8.RuneCountInString(line[:len(line)-len(trimmed)])
-		start := ed.buf.paras[i].rune + offset
+		start := ed.buf.start(i) + offset
 		if remove && strings.HasPrefix(trimmed, prefix) {
 			count := utf8.RuneCountInString(prefix)
 			if strings.HasPrefix(strings.TrimPrefix(trimmed, prefix), " ") {
@@ -401,7 +428,7 @@ func (ed *editor) codeKey(k editEvent) bool {
 	case KeyEnter:
 		if !ed.codeOptions.SingleLine && k.mods&^Shift == 0 && ed.codeOptions.AutoIndent {
 			line := ed.buf.para(ed.caret)
-			start := ed.buf.paras[line].rune
+			start := ed.buf.start(line)
 			before := ed.buf.slice(start, ed.caret)
 			leading := before[:len(before)-len(strings.TrimLeft(before, " \t"))]
 			trimmed := strings.TrimSpace(before)

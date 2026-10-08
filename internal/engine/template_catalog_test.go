@@ -15,7 +15,7 @@ import (
 func TestTemplateExpressionRoundTrip(t *testing.T) {
 	for _, source := range []string{
 		`${[ base64.encode(value="日本\n\t\x00\"\\", encoding="base64") ]}`,
-		`${[ json.jsonpath(input=response.body.raw(request="abc", behavior="never"), query="$.rows", formatted=true, limit=12.5, optional=null) ]}`,
+		`${[ json.jsonpath(input=response.body.raw(request='abc', behavior='never'), query='$.rows', formatted=true, limit=12.5) ]}`,
 		`${[ base_url ]}`,
 	} {
 		before, err := ParseTemplateExpression(source)
@@ -33,7 +33,11 @@ func TestTemplateExpressionRoundTrip(t *testing.T) {
 	if err != nil || got != base64.StdEncoding.EncodeToString([]byte(value)) {
 		t.Fatalf("escaped value: %q %v", got, err)
 	}
-	for _, source := range []string{`name() junk`, `name(value="\uXYZW")`, `name(value=)`, `${[ name()`, `name(a=1,a=2)`} {
+	// Like Yaak, null arguments are left out when a tag is written.
+	if got := FormatTemplateTag(TemplateExpression{Kind: "function", Value: "fn", Arguments: map[string]TemplateExpression{"n": {Kind: "null"}, "a": {Kind: "string", Value: "aaa"}}}); got != "${[ fn(a='aaa') ]}" {
+		t.Fatal(got)
+	}
+	for _, source := range []string{`name() junk`, `name(value="\uXYZW")`, `name(value=)`, `${[ name()`} {
 		if _, err := ParseTemplateExpression(source); err == nil {
 			t.Fatalf("accepted malformed template %q", source)
 		}

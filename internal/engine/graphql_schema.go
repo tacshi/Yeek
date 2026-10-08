@@ -236,7 +236,7 @@ func GraphQLOperations(source string) []string {
 
 func GraphQLDiagnostics(index *GraphQLIndex, query, variables, operation string) []GraphQLDiagnostic {
 	// Dynamic query fragments cannot be validated before template evaluation.
-	if strings.Contains(query, "${[") || strings.Contains(query, "{{") {
+	if strings.Contains(query, "${[") {
 		return nil
 	}
 	source := &ast.Source{Name: "query", Input: query}
@@ -265,7 +265,7 @@ func GraphQLDiagnostics(index *GraphQLIndex, query, variables, operation string)
 	if strings.TrimSpace(variables) == "" {
 		variables = "{}"
 	}
-	if strings.Contains(variables, "${[") || strings.Contains(variables, "{{") {
+	if strings.Contains(variables, "${[") {
 		return result
 	}
 	var values map[string]any

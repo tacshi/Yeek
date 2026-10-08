@@ -20,7 +20,7 @@ type graphQLCompletionState struct {
 	analyzed, open, dismissed bool
 }
 
-func (a *App) graphQLCompletion(c *ui.Context, p colors, editor *ui.Element, doc *documentEditor, source string) {
+func (a *App) graphQLCompletion(c *ui.Context, p colors, editor ui.Element, doc *documentEditor, source string) {
 	doc.completionSource = source
 	provider := "graphql"
 	if _, ok := templateTagAt(source, doc.state.Caret); ok {

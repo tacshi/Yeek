@@ -84,7 +84,7 @@ func markdownBlocks(c *ui.Context, p colors, parent ast.Node, src []byte, depth 
 }
 
 // markdownInline renders a block's inline content as one paragraph.
-func markdownInline(c *ui.Context, p colors, block ast.Node, src []byte) *ui.Element {
+func markdownInline(c *ui.Context, p colors, block ast.Node, src []byte) ui.Element {
 	type style struct {
 		bold, italic, strike bool
 	}

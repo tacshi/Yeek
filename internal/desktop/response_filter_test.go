@@ -22,7 +22,7 @@ func TestResponseFilterOpensFromBodyActions(t *testing.T) {
 	a.openRequest(s(m, "id"))
 	r, _ := e.SendHTTP(t.Context(), s(m, "id"), engine.SendOptions{})
 	a.applyModel(r)
-	a.showResponse(r)
+	a.loadResponseBody(r)
 	tt := ui.NewTester(a.View, 1360, 860)
 	tt.Move(1000, 500)
 	tt.Frame()

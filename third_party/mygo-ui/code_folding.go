@@ -150,28 +150,40 @@ func (a *area) isHidden(line int) bool { return line >= 0 && line < len(a.hidden
 
 var hiddenCodeLine = text.Layout{}
 
-func (ed *editor) pressFold(x, y float32) bool {
-	if !ed.code || ed.codeState == nil || ed.area == nil || !ed.codeOptions.LineNumbers {
-		return false
+// foldAt returns the fold whose marker is at (x, y), relative to the
+// element: its chevron in the gutter, or the ellipsis after a collapsed line.
+func (ed *editor) foldAt(x, y float32) (int, bool) {
+	if !ed.code || ed.codeState == nil || ed.area == nil || !ed.codeOptions.LineNumbers || !ed.laidOut() {
+		return 0, false
 	}
 	line := ed.area.hs.at(float64(y-ed.originY) + ed.area.scroll)
 	index, ok := ed.area.foldStarts[line]
-	if !ok {
-		return false
+	if !ok || index >= len(ed.codeState.folds) {
+		return 0, false
 	}
 	inGutter := x >= ed.originX-19 && x < ed.originX
-	fold := ed.codeState.folds[index]
-	if !inGutter && fold.Collapsed {
+	if !inGutter && ed.codeState.folds[index].Collapsed {
 		layout := ed.area.paraLayout(ed, line)
 		inGutter = x-ed.originX+ed.scrollX >= layout.Width
 	}
-	if !inGutter {
+	return index, inGutter
+}
+
+// overFold reports whether (x, y) is over a fold marker, which takes a
+// pointing-hand cursor as a button does.
+func (ed *editor) overFold(x, y float32) bool {
+	_, ok := ed.foldAt(x, y)
+	return ok
+}
+func (ed *editor) pressFold(x, y float32) bool {
+	index, ok := ed.foldAt(x, y)
+	if !ok {
 		return false
 	}
 	ed.codeState.ToggleFold(index)
 	return true
 }
-func (a *area) paintFold(e *Element, p *Painter, line int, ox, oy float32) {
+func (a *area) paintFold(e *node, p *Painter, line int, ox, oy float32) {
 	ed := e.st.editor
 	if ed.codeState == nil {
 		return

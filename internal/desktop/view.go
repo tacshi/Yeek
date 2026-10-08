@@ -2,13 +2,13 @@ package desktop
 
 import (
 	"cmp"
-	"encoding/hex"
 	"encoding/json/jsontext"
-	"encoding/json/v2"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 	"uuid"
 
 	"github.com/egoist/mygo/yeekui"
@@ -17,30 +17,13 @@ import (
 
 func (a *App) View(c *ui.Context) {
 	a.inView = true
+	c.SetZoom(float32(cmp.Or(n(a.settings, "interfaceScale"), 1)))
 	p := a.theme(c)
-	if !a.dialogOpen && a.templateForm == nil && len(a.valuePrompts) == 0 {
-		if c.Shortcut(ui.Cmd, ui.KeyEnter) {
-			a.send()
-		}
-		if c.Shortcut(ui.Cmd, ui.KeyN) && a.workspace != "" {
-			a.addRequest("http_request", "")
-		}
-		if c.Shortcut(ui.Cmd, ui.KeyS) {
-			a.saveActive()
-		}
-		if c.Shortcut(ui.Cmd, ui.KeyW) {
-			a.closeTab(a.active)
-		}
-		if c.Shortcut(ui.Cmd, ui.KeyP) {
-			a.prompt("palette", "Search Requests", "", "")
-		}
-		if c.Shortcut(ui.Cmd, ui.KeyComma) {
-			a.prompt("settings", "Settings", "", "")
-		}
-		if c.Shortcut(ui.Cmd, ui.KeyD) && a.active != "" {
-			a.duplicate(a.active)
-		}
+	if !a.dialogOpen && a.templateForm == nil && len(a.valuePrompts) == 0 && !a.palette.open && !a.switcher.open {
+		a.handleHotkeys(c)
 	}
+	// The sidebar sets this again while it builds, for the next frame's ⌘B and ⌘F.
+	a.sidebarFocused, a.tree.focused = false, false
 	ui.Column(c).Fill().Background(p.background).Children(func() {
 		a.header(c, p)
 		if len(a.list("workspace")) == 0 {
@@ -67,7 +50,10 @@ func (a *App) View(c *ui.Context) {
 		a.imports.busy = false
 	}
 	a.templateDialog(c, p)
+	a.paletteView(c, p)
+	a.switcherView(c, p)
 	a.valuePromptDialog(c, p)
+	a.toastsView(c, p)
 	a.inView = false
 	actions := a.afterInput
 	a.afterInput = nil
@@ -104,6 +90,14 @@ const headerHeight = 40
 func (a *App) header(c *ui.Context, p colors) {
 	bar := c.TitleBar()
 	ui.Row(c).Height(max(headerHeight, bar.Height)).Shrink(0).Padding(0, bar.Right+6, 0, bar.Left+6).Gap(2).Background(p.header).BorderWidth(0, 0, 1, 0).BorderColor(p.border).DragWindow().Children(func() {
+		// The active environment's color tints the header, as in Yaak.
+		if color, ok := envColor(s(a.models[a.environment], "color"), p); ok {
+			tint := func(alpha float32) ui.LinearGradient {
+				return ui.LinearGradient{From: color.Alpha(alpha), To: color.Alpha(0), Angle: 90, Start: .15, End: .4}
+			}
+			ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).LinearGradient(tint(.07))
+			ui.Box(c).Absolute().Left(0).Right(0).Bottom(-1).Height(1).LinearGradient(tint(.2))
+		}
 		ui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(2).Children(func() {
 			glyph := "panelOpen"
 			if a.hideSidebar {
@@ -123,7 +117,7 @@ func (a *App) header(c *ui.Context, p colors) {
 			headerMenu(c, name, func(m *ui.Menu) {
 				for _, w := range a.list("workspace") {
 					if m.Item(s(w, "name")).Checked(s(w, "id") == a.workspace).Chosen() {
-						a.switchWorkspace(s(w, "id"))
+						a.openWorkspace(s(w, "id"))
 					}
 				}
 				m.Separator()
@@ -154,7 +148,7 @@ func (a *App) header(c *ui.Context, p colors) {
 		})
 		ui.Row(c).Shrink(1).MinWidth(0).MaxWidthPercent(30).Justify(ui.Center).Children(func() {
 			active := a.models[a.active]
-			if active == nil {
+			if active == nil || a.activeFolder != "" {
 				return
 			}
 			headerMenu(c, requestName(active), func(m *ui.Menu) {
@@ -176,33 +170,31 @@ func (a *App) header(c *ui.Context, p colors) {
 				a.vertical = !a.vertical
 				a.requestWidth = 400
 			}
-			if iconButton(c, "search", "Search or execute a command (⌘P)").Clicked() {
-				a.prompt("palette", "Search Requests", "", "")
+			if iconButton(c, "search", "Search or execute a command ("+a.hotkeyText("command_palette.toggle")+")").Clicked() {
+				a.togglePalette()
 			}
+			// Yaak's SettingsDropdown, less its update, license, CLI and feedback items.
 			iconButton(c, "gear", "Settings").Menu(func(m *ui.Menu) {
-				if m.Item("Settings…").Shortcut(ui.Cmd, ui.KeyComma).Chosen() {
+				if a.hotkeyItem(m.Item("Settings"), "settings.show").Chosen() {
 					a.prompt("settings", "Settings", "", "")
 				}
-				if m.Item("Keyboard Shortcuts").Chosen() {
+				if a.hotkeyItem(m.Item("Keyboard shortcuts"), "hotkeys.showHelp").Chosen() {
 					a.prompt("shortcuts", "Keyboard Shortcuts", "", "")
 				}
-				if m.Item("Request History").Disabled(a.workspace == "").Chosen() {
-					a.prompt("history", "Request History", "", "")
-				}
-				if m.Item("Forget Prompted Values").Chosen() {
-					a.Engine.ForgetPrompts()
+				if m.Item("Plugins").Chosen() {
+					a.prompt("settings", "Settings", "", "")
+					a.modalTab = settingsPlugins
 				}
 				m.Separator()
-				if m.Item("Import Data…").Chosen() {
+				m.Item("Share Workspace(s)").Disabled(true)
+				if m.Item("Import Data").Chosen() {
 					a.importFile()
 				}
-				if m.Item("Export Data…").Disabled(a.workspace == "").Chosen() {
+				if m.Item("Export Data").Disabled(a.workspace == "").Chosen() {
 					a.exportFile()
 				}
 				m.Separator()
-				if m.Item("About Yeek").Chosen() {
-					a.prompt("about", "About Yeek", "", "")
-				}
+				m.Item("Yeek v" + appVersion).Disabled(true)
 			})
 		})
 	})
@@ -236,17 +228,26 @@ func (a *App) environmentButton(c *ui.Context, p colors) {
 	case hasBaseVars:
 		label = "Environment"
 	}
-	var button *ui.Element
+	color, colored := envColor(s(active, "color"), p)
+	var button ui.Element
 	if len(subs) == 0 {
-		button = ui.ButtonBase(c).Label(label).Padding(4, 8).Radius(5)
+		button = ui.ButtonBase(c).Label(label).Padding(4, 8).Gap(6).Radius(5)
 		if button.Hovered() {
 			button.Background(p.border.Alpha(.4))
 		}
-		button.Children(func() { ui.Text(c, label).FontSize(13).SingleLine() })
+		button.Children(func() {
+			if colored {
+				colorDot(c, color, 8)
+			}
+			ui.Text(c, label).FontSize(13).SingleLine()
+		})
 		if button.Clicked() {
 			a.openEnvironments()
 		}
 	} else {
+		if colored {
+			colorDot(c, color, 8)
+		}
 		button = headerMenu(c, label, func(m *ui.Menu) {
 			for _, env := range subs {
 				if m.Item(s(env, "name")).Checked(a.environment == s(env, "id")).Chosen() {
@@ -266,13 +267,14 @@ func (a *App) environmentButton(c *ui.Context, p colors) {
 }
 
 // headerMenu is the borderless dropdown button Yaak uses in its app header.
-func headerMenu(c *ui.Context, label string, build func(m *ui.Menu)) *ui.Element {
+func headerMenu(c *ui.Context, label string, build func(m *ui.Menu)) ui.Element {
 	return ui.MenuButton(c, label, build).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(13).Padding(4, 8)
 }
 
-// createMenu lists what Yaak's "Add Resource" dropdown creates, inside folder when it is set.
-func (a *App) createMenu(m *ui.Menu, folder string) {
-	for _, item := range []struct{ name, kind string }{{"HTTP Request", "http_request"}, {"GraphQL Request", "graphql"}, {"gRPC Request", "grpc_request"}, {"WebSocket Request", "websocket_request"}} {
+// createMenu is Yaak's getCreateDropdownItems: what it creates goes inside
+// folder when it is set, and a folder is offered unless hideFolder.
+func (a *App) createMenu(m *ui.Menu, folder string, hideFolder ...bool) {
+	for _, item := range []struct{ name, kind string }{{"HTTP", "http_request"}, {"GraphQL", "graphql"}, {"gRPC", "grpc_request"}, {"WebSocket", "websocket_request"}} {
 		if m.Item(item.name).Chosen() {
 			if item.kind == "graphql" {
 				a.newGraphQL(folder)
@@ -284,15 +286,12 @@ func (a *App) createMenu(m *ui.Menu, folder string) {
 			}
 		}
 	}
-	m.Separator()
-	if m.Item("Folder…").Chosen() {
-		a.prompt("folder", "New Folder", "", folder)
+	if len(hideFolder) > 0 && hideFolder[0] {
+		return
 	}
-	if folder == "" {
-		m.Separator()
-		if m.Item("Import cURL…").Chosen() {
-			a.prompt("curl", "Import cURL", "", "")
-		}
+	m.Separator()
+	if m.Item("Folder").Chosen() {
+		a.prompt("folder", "New Folder", "Folder", folder)
 	}
 }
 func (a *App) emptyWorkspace(c *ui.Context, p colors) {
@@ -314,7 +313,14 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 		if len(a.treeItems("")) > 0 {
 			ui.Row(c).Shrink(0).Padding(12, 2, 0, 12).Gap(2).Children(func() {
 				ui.Row(c).Grow(1).MinWidth(0).Height(28).Radius(4).Border(1, p.border).Background(p.background).Padding(0, 2, 0, 0).Children(func() {
-					ui.TextInput(c, &a.search).Placeholder("Search").Label("Filter requests").Grow(1).MinWidth(0).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(12)
+					filter := ui.TextInput(c, &a.search).Placeholder("Search").Label("Filter requests").Grow(1).MinWidth(0).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(12)
+					if a.focusFilter {
+						a.focusFilter = false
+						filter.Focus()
+					}
+					if filter.Focused() {
+						a.sidebarFocused = true
+					}
 					if a.search != "" && smallIconButton(c, "close", "Clear filter").Clicked() {
 						a.search = ""
 					}
@@ -335,7 +341,7 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 			})
 		}
 		ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 12, 8, 8).Gap(1).Children(func() {
-			if !a.requestTree(c, p, "", 0) && a.search != "" {
+			if !a.requestTree(c, p) && a.search != "" {
 				ui.Column(c).Padding(12).Center().Children(func() {
 					ui.Text(c, "No results for “"+a.search+"”").FontSize(12).TextColor(p.muted).MaxLines(2)
 				})
@@ -350,162 +356,6 @@ func (a *App) revealInSidebar(id string) {
 	for parent, depth := s(a.models[id], "folderId"), 0; parent != "" && depth < 32; parent, depth = s(a.models[parent], "folderId"), depth+1 {
 		a.expanded[parent] = true
 	}
-}
-
-// gitButton is the sidebar footer Yaak uses for filesystem sync and Git.
-func (a *App) gitButton(c *ui.Context, p colors) {
-	syncDir := ""
-	for _, meta := range a.list("workspace_meta") {
-		if dir := s(meta, "settingSyncDir"); dir != "" {
-			syncDir = dir
-		}
-	}
-	label, glyph := "Setup FS Sync or Git", "wrench"
-	if syncDir != "" {
-		label, glyph = "Git & Sync", "branch"
-		if a.gitState != nil && a.gitState.Branch != "" {
-			label = a.gitState.Branch
-		}
-	}
-	button := ui.ButtonBase(c).Label(label).Height(32).Shrink(0).Padding(0, 12).Gap(8).BorderWidth(1, 0, 0, 0).BorderColor(p.border)
-	if button.Hovered() {
-		button.Background(p.border.Alpha(.35))
-	}
-	button.Children(func() {
-		icon(c, glyph).FontSize(13).TextColor(p.subtle)
-		ui.Text(c, label).FontSize(12).TextColor(p.muted).SingleLine().Grow(1)
-	})
-	if button.Clicked() {
-		a.prompt("git", "Git & Sync", "", "")
-	}
-}
-func (a *App) requestTree(c *ui.Context, p colors, parent string, depth int) bool {
-	if depth > 32 {
-		return false
-	}
-	shown := false
-	items := a.treeItems(parent)
-	for _, m := range items {
-		id := s(m, "id")
-		folder := s(m, "model") == "folder"
-		name := requestName(m)
-		if !a.treeMatch(m, 0) {
-			continue
-		}
-		shown = true
-		row := ui.Row(c).Key(id).Height(28).Padding(0, 6, 0, float32(6+depth*12)).Gap(6).Radius(4).Focusable().Label(name).Drag(id)
-		selected := id == a.active
-		if selected {
-			row.Background(p.border.Alpha(.55))
-		} else if row.Hovered() {
-			row.Background(p.border.Alpha(.3))
-		}
-		row.Children(func() {
-			if folder {
-				glyph := "chevron"
-				if a.expanded[id] || a.search != "" {
-					glyph = "down"
-				}
-				icon(c, glyph).FontSize(11).TextColor(p.subtle)
-				icon(c, "folder").FontSize(14).TextColor(p.muted)
-			} else {
-				method := requestMethod(m)
-				tag := ui.Text(c, shortMethod(method)).SingleLine().Shrink(0).Tooltip(method).Font("monospace").FontSize(11).TextColor(a.methodColor(method, p))
-				if !selected {
-					tag.Opacity(.75)
-				}
-			}
-			label := ui.Text(c, name).FontSize(13).SingleLine().Grow(1).MinWidth(0)
-			if !selected {
-				label.TextColor(p.text.Alpha(.85))
-			}
-			if a.running[id] {
-				ui.Spinner(c).Size(12, 12).TextColor(p.subtle)
-			} else if response := a.responses[id]; response != nil && !folder {
-				ui.Text(c, statusLabel(response, true)).Font("monospace").FontSize(11).TextColor(statusColor(response, p))
-			}
-		})
-		if row.Clicked() {
-			if folder {
-				a.expanded[id] = !a.expanded[id]
-			} else {
-				a.openRequest(id)
-			}
-		}
-		row.ContextMenu(func(menu *ui.Menu) {
-			if folder && menu.Item("Folder Settings…").Chosen() {
-				a.openScope(m)
-			}
-			if folder && menu.Item("Folder Variables…").Chosen() {
-				a.openFolderVariables(m)
-			}
-			if folder && menu.Item("Send All").Disabled(len(a.folderRequests(id)) == 0).Chosen() {
-				a.sendFolder(id)
-			}
-			if !folder && menu.Item("Copy as cURL").Chosen() {
-				a.openRequest(id)
-				a.copyCurl()
-			}
-			if folder {
-				menu.Submenu("New", func(sub *ui.Menu) { a.createMenu(sub, id) })
-			}
-			if menu.Item("Rename…").Chosen() {
-				a.prompt("rename", "Rename", name, id)
-			}
-			if menu.Item("Duplicate").Chosen() {
-				a.duplicate(id)
-			}
-			menu.Submenu("Move to", func(sub *ui.Menu) {
-				if sub.Item("Workspace").Chosen() {
-					m := deepCopy(m)
-					m["folderId"] = nil
-					a.saveModel(m)
-				}
-				for _, f := range a.list("folder") {
-					if s(f, "id") == id {
-						continue
-					}
-					if sub.Item(s(f, "name")).Chosen() {
-						copy := deepCopy(m)
-						copy["folderId"] = s(f, "id")
-						a.saveModel(copy)
-					}
-				}
-			})
-			for _, action := range a.Engine.PluginActions() {
-				if menu.Item(action.Label).Chosen() {
-					name, wid, rid := action.Name, a.workspace, id
-					a.run(func() (func(), error) { return nil, a.Engine.RunPluginAction(a.ctx, name, wid, rid) })
-				}
-			}
-			menu.Separator()
-			if menu.Item("Delete…").Chosen() {
-				a.prompt("delete", "Delete "+name, name, id)
-			}
-		})
-		if folder {
-			if moving, ok := ui.Drop[string](row); ok && moving != id {
-				if original := a.models[moving]; original != nil {
-					copy := deepCopy(original)
-					copy["folderId"] = id
-					a.saveModel(copy)
-					a.expanded[id] = true
-				}
-			}
-			if a.expanded[id] || a.search != "" {
-				a.requestTree(c, p, id, depth+1)
-			}
-		}
-	}
-	if len(items) == 0 && parent == "" && a.search == "" {
-		ui.Column(c).Padding(18, 12).Gap(12).Children(func() {
-			ui.Text(c, "No requests yet").TextColor(p.muted).FontSize(12)
-			if ui.Button(c, "New HTTP Request").Clicked() {
-				a.addRequest("http_request", "")
-			}
-		})
-	}
-	return shown
 }
 
 // treeMatch reports whether a sidebar item, or for a folder anything inside it, matches the filter.
@@ -549,13 +399,10 @@ func (a *App) treeItems(parent string) []engine.Object {
 		if n(x, "sortPriority") > n(y, "sortPriority") {
 			return 1
 		}
-		if s(x, "model") == "folder" && s(y, "model") != "folder" {
-			return -1
+		if c := strings.Compare(s(x, "createdAt"), s(y, "createdAt")); c != 0 {
+			return c
 		}
-		if s(y, "model") == "folder" && s(x, "model") != "folder" {
-			return 1
-		}
-		return strings.Compare(s(x, "createdAt"), s(y, "createdAt"))
+		return strings.Compare(s(x, "id"), s(y, "id"))
 	})
 	return items
 }
@@ -581,15 +428,19 @@ func (a *App) folderRequests(folder string) []string {
 	return ids
 }
 func (a *App) workbench(c *ui.Context, p colors) {
+	if folder := a.models[a.activeFolder]; a.activeFolder != "" && folder != nil {
+		a.folderLayout(c, p, folder)
+		return
+	}
 	d := a.drafts[a.active]
 	if d == nil {
 		ui.Column(c).Fill().Children(func() {
-			hotkeyList(c, p, []hotkey{{"New Request", "⌘ N"}, {"Search Requests", "⌘ P"}, {"Settings", "⌘ ,"}}, func() {
+			a.hotkeyList(c, p, []string{"model.create", "sidebar.focus", "settings.show"}, func() {
 				ui.Row(c).Gap(6).Justify(ui.Center).Children(func() {
 					if ui.Button(c, "Import").FontSize(12).Padding(4, 10).Clicked() {
 						a.importFile()
 					}
-					ui.MenuButton(c, "New Request", func(m *ui.Menu) { a.createMenu(m, "") }).FontSize(12).Padding(4, 10)
+					ui.MenuButton(c, "New Request", func(m *ui.Menu) { a.createMenu(m, "", true) }).FontSize(12).Padding(4, 10)
 				})
 			})
 		})
@@ -621,7 +472,20 @@ func (a *App) workbench(c *ui.Context, p colors) {
 			})
 		}
 	}
-	ui.SplitQuiet(c, &a.requestWidth, a.vertical, request, response).Fill()
+	panes := func() { ui.SplitQuiet(c, &a.requestWidth, a.vertical, request, response).Fill() }
+	if !a.graphQLDocsOpen(d) {
+		panes()
+		return
+	}
+	// Yaak's GraphQL layout: the documentation explorer takes a third.
+	if a.docsSplit == 0 {
+		w, _ := c.Size()
+		if !a.hideSidebar {
+			w -= float32(a.sidebarWidth)
+		}
+		a.docsSplit = w * 2 / 3
+	}
+	ui.SplitQuiet(c, &a.docsSplit, false, panes, func() { a.graphQLDocsPane(c, p, d) }).Fill()
 }
 func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 	ui.Row(c).Shrink(0).Children(func() {
@@ -641,21 +505,53 @@ func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 					}
 				}).Label("HTTP method").Height(28).Padding(0, 8).Background(ui.Transparent).Border(0, ui.Transparent).TextColor(a.methodColor(method, p)).Font("monospace").FontSize(12)
 			}
-			input := a.templateInput(c, p, &d.URL, "url", "Request URL", "https://example.com", false).Grow(1).MinWidth(0).Height(28)
+			placeholder := map[string]string{"websocket_request": "wss://example.com", "grpc_request": "localhost:50051"}[d.Kind]
+			if placeholder == "" {
+				placeholder = "https://example.com"
+			}
+			input := a.templateInput(c, p, &d.URL, "url", "Request URL", placeholder, false).Grow(1).MinWidth(0).Height(28)
+			if a.focusURL {
+				// ⌘L focuses the URL and selects it, as Yaak's url_bar.focus does.
+				a.focusURL = false
+				doc := a.editorDocument("input::url")
+				doc.state.Focus()
+				doc.state.Select(0, utf8.RuneCountInString(d.URL))
+			}
 			if input.Changed() {
 				d.Dirty = true
+				a.handleURLPaste(d)
 			}
 			if input.Submitted() {
 				a.send()
 			}
-			name, label := "send", "Send Request"
-			if a.running[d.ID] {
-				name, label = "close", "Cancel Request"
-			}
-			if iconButton(c, name, label).Width(32).Clicked() {
-				a.send()
+			switch d.Kind {
+			case "grpc_request":
+				// Its buttons are beside the bar (grpcControls).
+			case "websocket_request":
+				name, label := "arrowUpDown", "Connect"
+				if a.connected(d) {
+					if smallIconButton(c, "close", "Close connection").Clicked() {
+						id := s(a.connections[d.ID], "id")
+						a.run(func() (func(), error) { return nil, a.Engine.CloseWebSocket(id) })
+					}
+					name, label = "send", "Send Message"
+				}
+				if iconButton(c, name, label).Width(32).Clicked() {
+					a.send()
+				}
+			default:
+				name, label := "send", "Send Request"
+				if a.running[d.ID] {
+					name, label = "close", "Cancel Request"
+				}
+				if iconButton(c, name, label).Width(32).Clicked() {
+					a.send()
+				}
 			}
 		})
+		if d.Kind == "grpc_request" {
+			ui.Row(c).Shrink(0).Gap(6).Margin(0, 0, 0, 6).Children(func() { a.grpcControls(c, p, d) })
+		}
 	})
 }
 
@@ -694,6 +590,11 @@ func badgeDot(on bool) *countBadge {
 // badgePair shows both counts, zeros included.
 func badgePair(a, b int) *countBadge { return &countBadge{count: a, count2: b, pair: true} }
 
+// viewSingle shows only the first count, zero included, as CountBadge's showZero.
+func (b *countBadge) viewSingle(c *ui.Context, p colors) {
+	(&countBadge{count: b.count}).view(c, p)
+}
+
 func (b *countBadge) view(c *ui.Context, p colors) {
 	if b == nil {
 		return
@@ -714,13 +615,6 @@ func (b *countBadge) view(c *ui.Context, p colors) {
 	})
 }
 
-func tabs(c *ui.Context, p colors, index *int, names ...string) {
-	items := make([]tabItem, len(names))
-	for i, name := range names {
-		items[i].Label = name
-	}
-	tabBar(c, p, index, items)
-}
 func tabBar(c *ui.Context, p colors, index *int, items []tabItem) {
 	parts := ui.TabsBase(c, index, len(items))
 	parts.List.Height(32).Padding(0, 4).Gap(1).Children(func() {
@@ -752,6 +646,9 @@ func tabBar(c *ui.Context, p colors, index *int, items []tabItem) {
 	})
 }
 func (a *App) requestPane(c *ui.Context, p colors, d *Draft) {
+	if d.Kind == "http_request" || d.Kind == "websocket_request" {
+		a.syncPathPlaceholders(d)
+	}
 	ui.Column(c).Fill().MinWidth(0).Gap(4).Children(func() {
 		a.urlBar(c, p, d)
 		if d.Kind != "http_request" {
@@ -768,7 +665,9 @@ func (a *App) requestPane(c *ui.Context, p colors, d *Draft) {
 		})
 		switch d.Tab {
 		case 0:
-			a.bodyEditor(c, p, d)
+			if a.confirmLargeRequestBody(c, p, d) {
+				a.bodyEditor(c, p, d)
+			}
 		case 1:
 			a.kvEditor(c, p, &d.Parameters, "Parameter", "Value", &d.Dirty)
 		case 2:
@@ -914,6 +813,13 @@ func (a *App) authTypeMenu(m *ui.Menu, d *Draft) {
 		}
 	}
 	m.Separator()
+	if d.Kind == "workspace" {
+		// A workspace has nothing to inherit from: no type means no authentication.
+		if m.Item("No Auth").Checked(d.AuthType == "" || d.AuthType == "none").Chosen() {
+			choose("")
+		}
+		return
+	}
 	if m.Item("Inherit from Parent").Checked(d.AuthType == "").Chosen() {
 		choose("")
 	}
@@ -972,7 +878,11 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 						glyph = "down"
 					}
 					icon(c, glyph).FontSize(11).TextColor(p.subtle)
-					ui.Text(c, "Inherited").FontSize(12).TextColor(p.muted)
+					label := "Inherited"
+					if d.Kind == "workspace" {
+						label = "Defaults"
+					}
+					ui.Text(c, label).FontSize(12).TextColor(p.muted)
 					ui.Text(c, fmt.Sprint(len(inherited))).FontSize(10).TextColor(p.muted).Padding(0, 5).Radius(8).Border(1, p.border)
 				})
 				if summary.Clicked() {
@@ -1000,7 +910,17 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 		a.kvEditor(c, p, &d.Headers, "Header", "Value", &d.Dirty)
 	})
 }
+
+// kvEditor edits name/value rows; text rows can switch to bulk editing as in
+// Yaak, while multipart rows, which can hold files, stay rows.
 func (a *App) kvEditor(c *ui.Context, p colors, rows *[]KV, name, value string, dirty *bool, files ...bool) {
+	if len(files) > 0 && files[0] {
+		a.pairEditor(c, p, rows, name, value, dirty, files...)
+		return
+	}
+	a.pairOrBulkEditor(c, p, rows, name, value, dirty)
+}
+func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string, dirty *bool, files ...bool) {
 	namePlaceholder := "name"
 	if name == "Header" {
 		namePlaceholder = "Header-Name"
@@ -1008,7 +928,7 @@ func (a *App) kvEditor(c *ui.Context, p colors, rows *[]KV, name, value string, 
 	if len(*rows) == 0 || (*rows)[len(*rows)-1].Name != "" || (*rows)[len(*rows)-1].Value != "" || (*rows)[len(*rows)-1].FileMode || (*rows)[len(*rows)-1].File != "" {
 		*rows = append(*rows, KV{Enabled: true})
 	}
-	ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 0, 8, 2).Gap(4).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 12, 8, 2).Gap(4).Children(func() {
 		deleted := -1
 		for i := range *rows {
 			row := &(*rows)[i]
@@ -1024,23 +944,60 @@ func (a *App) kvEditor(c *ui.Context, p colors, rows *[]KV, name, value string, 
 			if empty {
 				border = p.border.Alpha(.6)
 			}
+			// Secret header values are obscured, as Yaak's password inputs are.
+			mask := a.kvMask || name == "Header" && secretHeader(row.Name)
 			line.Children(func() {
 				if ui.Checkbox(c, &row.Enabled, "").Label(fmt.Sprintf("Enable %s %d", name, i+1)).Width(22).Opacity(map[bool]float32{true: .3, false: 1}[empty]).Changed() {
 					*dirty = true
 				}
-				var nameInput *ui.Element
+				var nameInput ui.Element
+				nameBorder := border
 				if name == "Variable" {
-					nameInput = ui.TextInput(c, &row.Name).Label(fmt.Sprintf("%s %d", name, i+1)).Placeholder("name").Font("monospace").FontSize(12)
+					nameInput = ui.TextInput(c, &row.Name).Label(fmt.Sprintf("%s %d", name, i+1)).Placeholder("VAR_NAME").Font("monospace").FontSize(12)
+					// Yaak's variable names: a letter or underscore, then letters, digits, _ . or -.
+					if row.Name != "" && !variableNameRaw.MatchString(row.Name) {
+						nameBorder = p.red
+					}
 				} else {
+					if name == "Header" {
+						// Yaak's header name and value completions.
+						doc := a.templateDoc(row.ID + ":name")
+						doc.presets, doc.presetMin = headerNameOptions, headerMinMatch
+						doc = a.templateDoc(row.ID + ":value")
+						doc.presets, doc.presetMin = headerValuePresets(row.Name), headerMinMatch
+						if !validHeaderName(row.Name) {
+							nameBorder = p.red
+						}
+					}
 					nameInput = a.templateInput(c, p, &row.Name, row.ID+":name", fmt.Sprintf("%s %d", name, i+1), namePlaceholder, false)
 				}
-				if nameInput.Grow(1).MinWidth(0).Height(28).Background(p.background).Border(1, border).Radius(4).Changed() {
+				if nameInput.Grow(1).MinWidth(0).Height(28).Background(p.background).Border(1, nameBorder).Radius(4).Changed() {
 					*dirty = true
 				}
 				if len(files) > 0 && files[0] {
 					a.multipartValue(c, p, rows, i, dirty)
+				} else if mask && !empty && !a.revealed[row.ID] && !a.templateDoc(row.ID+":value").state.Focused {
+					// A masked value, as in Yaak's environment editor until "Show Values":
+					// clicking it edits it as a template again.
+					masked := ui.ButtonBase(c).Label(fmt.Sprintf("%s value %d", name, i+1)).Grow(1).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, border).Background(p.background).Justify(ui.Start)
+					masked.Children(func() {
+						ui.Text(c, strings.Repeat("•", min(utf8.RuneCountInString(row.Value), 24))).Font("monospace").FontSize(12).TextColor(p.muted).SingleLine()
+					})
+					if masked.Clicked() {
+						a.revealRow(row.ID, true)
+						a.templateDoc(row.ID + ":value").state.Focus()
+					}
 				} else if a.templateInput(c, p, &row.Value, row.ID+":value", fmt.Sprintf("%s value %d", name, i+1), "value", false).Grow(1).MinWidth(0).Height(28).Background(p.background).Border(1, border).Radius(4).Changed() {
 					*dirty = true
+				}
+				if mask && !empty {
+					glyph, label := "eye", "Show "+name+" value"
+					if a.revealed[row.ID] {
+						glyph, label = "eyeOff", "Obscure "+name+" value"
+					}
+					if smallIconButton(c, glyph, label).Clicked() {
+						a.revealRow(row.ID, !a.revealed[row.ID])
+					}
 				}
 				smallIconButton(c, "more", fmt.Sprintf("Actions for %s %d", name, i+1)).Menu(func(m *ui.Menu) {
 					if m.Item("Delete").Chosen() {
@@ -1098,7 +1055,7 @@ func (a *App) kvEditor(c *ui.Context, p colors, rows *[]KV, name, value string, 
 	})
 }
 func (a *App) bodyEditor(c *ui.Context, p colors, d *Draft) {
-	if d.BodyType == "application/json" || d.BodyType == "graphql" {
+	if d.BodyType == "application/json" {
 		a.bodyTools(c, p, d)
 	}
 	a.bodyContent(c, p, d)
@@ -1116,9 +1073,6 @@ func (a *App) bodyTools(c *ui.Context, p colors, d *Draft) {
 				}
 			})
 		}
-		if d.BodyType == "graphql" {
-			a.graphQLTools(c, p, d)
-		}
 		if ui.Button(c, "Format").FontSize(11).Clicked() {
 			a.formatRequestBody(d)
 		}
@@ -1135,9 +1089,30 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 	}
 	if d.BodyType == "graphql" {
 		a.graphQLQueryHeader(c, p, d)
-		a.codeInput(c, &d.Query, "GraphQL query", &d.Dirty)
-		ui.Text(c, "Variables").TextColor(p.muted).FontSize(11).Padding(5, 14)
-		ui.Box(c).Height(120).Children(func() { a.codeInput(c, &d.Variables, "GraphQL variables", &d.Dirty) })
+		// Yaak's GraphQLEditor: the query with its actions in the corner,
+		// then the variables under a dashed rule.
+		ui.Box(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
+			a.codeInput(c, &d.Query, "GraphQL query", &d.Dirty)
+			ui.Row(c).Absolute().Top(4).Right(16).Gap(4).Children(func() {
+				a.graphQLTools(c, p, d)
+				if ui.Button(c, "Format").FontSize(11).Padding(2, 8).Clicked() {
+					a.formatRequestBody(d)
+				}
+			})
+		})
+		ui.Row(c).Padding(4, 12).Gap(8).Children(func() {
+			dashed := func() {
+				ui.Box(c).Grow(1).Height(1).Children(func() {}).Draw(func(pt *ui.Painter, r ui.Rect) {
+					for x := r.X; x < r.X+r.W; x += 6 {
+						pt.Fill(ui.Rect{X: x, Y: r.Y, W: 3, H: 1}, p.border, 0)
+					}
+				})
+			}
+			dashed()
+			ui.Text(c, "Variables").FontSize(12).TextColor(p.muted)
+			dashed()
+		})
+		ui.Box(c).Height(120).Shrink(0).Children(func() { a.codeInput(c, &d.Variables, "GraphQL variables", &d.Dirty) })
 		a.graphQLProblems(c, p, d)
 		return
 	}
@@ -1148,47 +1123,53 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 	a.codeInput(c, &d.Body, "Request body", &d.Dirty)
 }
 
-// descriptionEditor is Yaak's Info tab: the name as an editable heading and the
-// description as Markdown, shown rendered until the pencil switches to editing.
+// descriptionEditor is Yaak's Info tab: the name as an editable heading over
+// the description.
 func (a *App) descriptionEditor(c *ui.Context, p colors, d *Draft, label string) {
+	ui.Column(c).Grow(1).MinHeight(0).Gap(4).Padding(4, 0, 0, 0).Children(func() {
+		name := ui.TextInput(c, &d.Name).Label("Name").Placeholder(requestName(d.Model)).FillWidth().Height(36).Padding(0, 4).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(19)
+		if name.Changed() {
+			d.Dirty = true
+		}
+		a.markdownEditor(c, p, d, label)
+	})
+}
+
+// markdownEditor is Yaak's MarkdownEditor: the description rendered until the
+// pencil switches to editing, which it starts in when there is none.
+func (a *App) markdownEditor(c *ui.Context, p colors, d *Draft, label string) {
 	if d.DescriptionMode == "" {
 		d.DescriptionMode = "preview"
 		if strings.TrimSpace(d.Description) == "" {
 			d.DescriptionMode = "edit"
 		}
 	}
-	ui.Column(c).Grow(1).MinHeight(0).Gap(4).Padding(4, 0, 0, 0).Children(func() {
-		name := ui.TextInput(c, &d.Name).Label("Name").Placeholder(requestName(d.Model)).FillWidth().Height(36).Padding(0, 4).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(19)
-		if name.Changed() {
-			d.Dirty = true
-		}
-		area := ui.Box(c).Grow(1).MinHeight(0)
-		area.Children(func() {
-			if d.DescriptionMode == "edit" {
-				ui.Column(c).Fill().Children(func() { a.codeInput(c, &d.Description, label, &d.Dirty) })
-			} else {
-				ui.Scroll(c).Fill().Padding(6, 44, 12, 4).Children(func() {
-					if strings.TrimSpace(d.Description) == "" {
-						ui.Text(c, "No description").FontSize(13).TextColor(p.subtle)
-						return
-					}
-					markdownView(c, p, d.Description)
-				})
-			}
-			if !area.Hovered() && d.DescriptionMode == "preview" {
-				return
-			}
-			ui.Row(c).Absolute().Top(4).Right(4).Gap(2).Padding(2).Radius(6).Background(p.border.Alpha(.45)).Children(func() {
-				for _, mode := range []struct{ value, glyph, label string }{{"preview", "eye", "Preview mode"}, {"edit", "pencil", "Edit mode"}} {
-					button := sizedIconButton(c, mode.glyph, mode.label, 26, 15)
-					if d.DescriptionMode == mode.value {
-						button.Background(p.background).Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, .12))
-					}
-					if button.Clicked() {
-						d.DescriptionMode = mode.value
-					}
+	area := ui.Box(c).Grow(1).MinHeight(0)
+	area.Children(func() {
+		if d.DescriptionMode == "edit" {
+			ui.Column(c).Fill().Children(func() { a.codeInput(c, &d.Description, label, &d.Dirty) })
+		} else {
+			ui.Scroll(c).Fill().Padding(6, 44, 12, 4).Children(func() {
+				if strings.TrimSpace(d.Description) == "" {
+					ui.Text(c, "No description").FontSize(13).TextColor(p.subtle)
+					return
 				}
+				markdownView(c, p, d.Description)
 			})
+		}
+		if !area.Hovered() && d.DescriptionMode == "preview" {
+			return
+		}
+		ui.Row(c).Absolute().Top(4).Right(4).Gap(2).Padding(2).Radius(6).Background(p.border.Alpha(.45)).Children(func() {
+			for _, mode := range []struct{ value, glyph, label string }{{"preview", "eye", "Preview mode"}, {"edit", "pencil", "Edit mode"}} {
+				button := sizedIconButton(c, mode.glyph, mode.label, 26, 15)
+				if d.DescriptionMode == mode.value {
+					button.Background(p.background).Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, .12))
+				}
+				if button.Clicked() {
+					d.DescriptionMode = mode.value
+				}
+			}
 		})
 	})
 }
@@ -1199,7 +1180,7 @@ func (a *App) codeInput(c *ui.Context, value *string, label string, dirty *bool)
 		language = "graphql"
 	case "GraphQL variables":
 		language = "json"
-	case "Request description", "Folder description":
+	case "Request description", "Folder description", "Workspace description":
 		language = "markdown"
 	case "Message body":
 		language = "json"
@@ -1225,118 +1206,105 @@ func (a *App) codeInput(c *ui.Context, value *string, label string, dirty *bool)
 func (a *App) authEditor(c *ui.Context, p colors, d *Draft) {
 	switch d.AuthType {
 	case "":
-		ui.Column(c).Grow(1).Center().Children(func() {
-			ui.Text(c, "Authentication is inherited from the folder or workspace").FontSize(13).TextColor(p.subtle)
-		})
+		message := "Authentication is inherited from the folder or workspace"
+		if d.Kind == "workspace" {
+			message = "No authentication"
+		}
+		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, message).FontSize(13).TextColor(p.subtle) })
 		return
 	case "none":
 		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, "No authentication").FontSize(13).TextColor(p.subtle) })
 		return
 	}
-	ui.Scroll(c).Grow(1).Padding(8, 4).Gap(16).Children(func() {
-		if d.AuthType == "oauth2" {
-			a.oauthEditor(c, p, d)
-			return
+	ui.Scroll(c).Grow(1).Padding(8, 12, 8, 4).Gap(16).Children(func() {
+		a.authEnabledControl(c, p, d)
+		ui.Column(c).Gap(16).Disabled(d.AuthDisabled == true).Children(func() { a.authFields(c, p, d) })
+	})
+}
+
+// authFields is the form for the chosen authentication type.
+func (a *App) authFields(c *ui.Context, p colors, d *Draft) {
+	if d.AuthType == "oauth2" {
+		a.oauthEditor(c, p, d)
+		return
+	}
+	fields := []string{}
+	switch d.AuthType {
+	case "basic":
+		fields = []string{"username", "password"}
+	case "bearer":
+		fields = []string{"token", "prefix"}
+		if _, ok := d.Auth["prefix"]; !ok {
+			d.Auth["prefix"] = "Bearer"
 		}
-		fields := []string{}
-		switch d.AuthType {
-		case "basic":
-			fields = []string{"username", "password"}
-		case "bearer":
-			fields = []string{"token", "prefix"}
-			if _, ok := d.Auth["prefix"]; !ok {
-				d.Auth["prefix"] = "Bearer"
+	case "apikey":
+		fields = []string{"location", "key", "value"}
+	case "oauth1":
+		fields = []string{"consumerKey", "consumerSecret", "tokenKey", "tokenSecret", "signatureMethod", "privateKey"}
+	case "digest":
+		fields = []string{"username", "password", "realm"}
+	case "windows":
+		fields = []string{"username", "password", "domain", "workstation"}
+	case "jwt":
+		fields = []string{"algorithm", "secret", "payload", "headers", "location", "name", "headerPrefix"}
+	case "awsv4":
+		fields = []string{"accessKeyId", "secretAccessKey", "region", "service", "sessionToken"}
+	}
+	for _, auth := range a.Engine.PluginAuthentication() {
+		if auth.Name == d.AuthType {
+			for _, field := range auth.Fields {
+				fields = append(fields, field.Name)
+				if _, ok := d.Auth[field.Name]; !ok {
+					d.Auth[field.Name] = field.Default
+				}
 			}
-		case "apikey":
-			fields = []string{"location", "key", "value"}
-		case "oauth1":
-			fields = []string{"consumerKey", "consumerSecret", "tokenKey", "tokenSecret", "signatureMethod", "privateKey"}
-		case "digest":
-			fields = []string{"username", "password", "realm"}
-		case "windows":
-			fields = []string{"username", "password", "domain", "workstation"}
-		case "jwt":
-			fields = []string{"algorithm", "secret", "payload", "headers", "location", "name", "headerPrefix"}
-		case "awsv4":
-			fields = []string{"accessKeyId", "secretAccessKey", "region", "service", "sessionToken"}
 		}
-		for _, auth := range a.Engine.PluginAuthentication() {
-			if auth.Name == d.AuthType {
-				for _, field := range auth.Fields {
-					fields = append(fields, field.Name)
-					if _, ok := d.Auth[field.Name]; !ok {
-						d.Auth[field.Name] = field.Default
-					}
+	}
+	for _, field := range fields {
+		value := d.Auth[field]
+		ui.Column(c).Key(field).Gap(6).Children(func() {
+			ui.Text(c, fieldLabel(field)).FontSize(12).TextColor(p.muted)
+			options := map[string][]string{"location": {"header", "query"}, "credentials": {"header", "body"}, "grantType": {"client_credentials", "authorization_code", "password", "refresh_token"}, "algorithm": {"HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "EdDSA"}, "signatureMethod": {"HMAC-SHA1", "HMAC-SHA256", "RSA-SHA1", "PLAINTEXT"}}
+			if choices := options[field]; len(choices) > 0 {
+				if value == "" {
+					value = choices[0]
+					d.Auth[field] = value
 				}
-			}
-		}
-		for _, field := range fields {
-			value := d.Auth[field]
-			ui.Column(c).Key(field).Gap(6).Children(func() {
-				ui.Text(c, fieldLabel(field)).FontSize(12).TextColor(p.muted)
-				options := map[string][]string{"location": {"header", "query"}, "credentials": {"header", "body"}, "grantType": {"client_credentials", "authorization_code", "password", "refresh_token"}, "algorithm": {"HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "EdDSA"}, "signatureMethod": {"HMAC-SHA1", "HMAC-SHA256", "RSA-SHA1", "PLAINTEXT"}}
-				if choices := options[field]; len(choices) > 0 {
-					if value == "" {
-						value = choices[0]
-						d.Auth[field] = value
-					}
-					if ui.Select(c, &value, choices).Label(fieldLabel(field)).FillWidth().Changed() {
-						d.Auth[field] = value
-						d.Dirty = true
-					}
-					return
-				}
-				if field == "payload" || field == "headers" || field == "privateKey" || (field == "secret" && !strings.HasPrefix(d.Auth["algorithm"], "HS") && d.Auth["algorithm"] != "") {
-					if ui.TextArea(c, &value).Height(100).Label(fieldLabel(field)).Font("monospace").FontSize(12).Changed() {
-						d.Auth[field] = value
-						d.Dirty = true
-					}
-					return
-				}
-				entry := a.templateInput(c, p, &value, d.ID+":auth:"+field, fieldLabel(field), "", false).FillWidth().Height(32).Border(1, p.border).Radius(4)
-				if field == "password" || strings.Contains(strings.ToLower(field), "secret") {
-					entry.Password()
-				}
-				if entry.Changed() {
+				if ui.Select(c, &value, choices).Label(fieldLabel(field)).FillWidth().Changed() {
 					d.Auth[field] = value
 					d.Dirty = true
 				}
-			})
-		}
-		if d.AuthType == "" {
-			ui.Text(c, "Authentication is inherited from the parent folder or workspace.").FontSize(12).TextColor(p.muted)
-		}
-	})
-}
-func (a *App) requestSettings(c *ui.Context, p colors, d *Draft) {
-	ui.Scroll(c).Grow(1).Padding(10, 4).Gap(8).Children(func() {
-		for _, field := range []struct{ key, label string }{{"settingFollowRedirects", "Follow redirects"}, {"settingValidateCertificates", "Validate TLS certificates"}, {"settingSendCookies", "Send cookies"}, {"settingStoreCookies", "Store cookies"}} {
-			if d.Kind == "grpc_request" && field.key != "settingValidateCertificates" {
-				continue
+				return
 			}
-			value := "Inherit"
-			setting := o(d.Model, field.key)
-			if b(setting, "enabled") {
-				value = "Enabled"
-				if !b(setting, "value") {
-					value = "Disabled"
-				}
-			}
-			settingRow(c, p, field.label, func() {
-				if ui.Select(c, &value, []string{"Inherit", "Enabled", "Disabled"}).Width(settingControlWidth).Label(field.label).Changed() {
-					d.Model[field.key] = engine.Object{"enabled": value != "Inherit", "value": value == "Enabled"}
+			if field == "payload" || field == "headers" || field == "privateKey" || (field == "secret" && !strings.HasPrefix(d.Auth["algorithm"], "HS") && d.Auth["algorithm"] != "") {
+				if ui.TextArea(c, &value).Height(100).Label(fieldLabel(field)).Font("monospace").FontSize(12).Changed() {
+					d.Auth[field] = value
 					d.Dirty = true
 				}
-			})
-		}
-		a.networkRequestOverrides(c, p, d)
-	})
+				return
+			}
+			entry := a.templateInput(c, p, &value, d.ID+":auth:"+field, fieldLabel(field), "", false).FillWidth().Height(32).Border(1, p.border).Radius(4)
+			if field == "password" || strings.Contains(strings.ToLower(field), "secret") {
+				entry.Password()
+			}
+			if entry.Changed() {
+				d.Auth[field] = value
+				d.Dirty = true
+			}
+		})
+	}
+	if d.AuthType == "" {
+		ui.Text(c, "Authentication is inherited from the parent folder or workspace.").FontSize(12).TextColor(p.muted)
+	}
+}
+func (a *App) requestSettings(c *ui.Context, p colors, d *Draft) {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, 16, 0, 4).Children(func() { a.modelSettingsEditor(c, p, d, false) })
 }
 func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
-	response := a.responses[d.ID]
+	response := a.activeResponse(d.ID)
 	ui.Column(c).Fill().MinWidth(0).Background(p.response).Radius(6).Border(1, p.border).Children(func() {
 		if response == nil {
-			hotkeyList(c, p, sendHotkeys)
+			a.hotkeyList(c, p, []string{"request.send", "model.create", "sidebar.focus", "url_bar.focus"})
 			return
 		}
 		ui.Row(c).Height(36).Shrink(0).Padding(0, 6, 0, 12).Gap(8).Children(func() {
@@ -1348,11 +1316,11 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 			}
 			mono(statusLabel(response, false), statusColor(response, p))
 			mono("•", p.subtle)
-			mono(durationText(n(response, "elapsed")), p.muted)
+			mono(formatMillis(n(response, "elapsed")), p.muted)
 			mono("•", p.subtle)
 			mono(sizeText(n(response, "contentLength")), p.muted)
 			ui.Spacer(c)
-			iconButton(c, "history", "Response history").Menu(func(m *ui.Menu) { a.responseHistoryMenu(m, d.ID, response) })
+			a.historyIcon(c, d.ID, response).Menu(func(m *ui.Menu) { a.responseHistoryMenu(m, d.ID, response) })
 		})
 		if message := s(response, "error"); message != "" {
 			ui.Text(c, message).Margin(4, 12, 0, 12).Padding(8, 10).Radius(5).Background(p.red.Alpha(.1)).Border(1, p.red.Alpha(.35)).TextColor(p.red).FontSize(12).MaxLines(6).Selectable()
@@ -1366,96 +1334,22 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 				{Label: "Request", Badge: badgeDot(n(response, "requestContentLength") > 0)},
 				{Label: "Headers", Badge: badgePair(len(oslice(response, "requestHeaders")), len(oslice(response, "headers")))},
 				{Label: "Cookies", Badge: cookieBadge(response)},
-				{Label: "Timeline", Badge: badgeCount(a.responseEventCount(response))},
+				{Label: timelineTabLabel(d), Badge: badgeCount(a.responseEventCount(response)), Menu: func(m *ui.Menu) { timelineMenu(m, d) }},
 			})
 		})
-		body := a.bodies[s(response, "id")]
-		if n(response, "contentLength") > 2<<20 {
-			ui.Text(c, "Showing the first 2 MB. Save the response to inspect the complete body.").FontSize(11).TextColor(p.muted).Padding(8, 12)
-		}
 		switch d.ResponseTab {
 		case 0:
-			if d.PrettySource != body {
-				d.PrettySource = body
-				d.PrettyBody = body
-				var data any
-				if json.Unmarshal([]byte(body), &data) == nil {
-					pretty, _ := json.Marshal(data, json.Deterministic(true), jsontext.WithIndent("  "))
-					d.PrettyBody = string(pretty)
-				}
+			if !a.confirmLargeResponse(c, p, response) {
+				break
 			}
-			body = d.PrettyBody
-			if strings.Contains(body, "\x00") {
-				body = hex.Dump([]byte(body))
+			if n(response, "contentLength") > 2<<20 {
+				ui.Text(c, "Showing the first 2 MB. Save the response to inspect the complete body.").FontSize(11).TextColor(p.muted).Padding(8, 12)
 			}
-			if d.ResponseMode == "Raw" {
-				body = a.bodies[s(response, "id")]
-			}
-			if d.ResponseMode == "Hex" {
-				body = hex.Dump([]byte(a.bodies[s(response, "id")]))
-			}
-			filterable := d.ResponseMode == "Pretty" || d.ResponseMode == "Raw"
-			if filterable && d.ResponseFilter != "" {
-				source := body + "\x00" + d.ResponseFilter + "\x00" + d.FilterProvider
-				if d.FilterSource != source {
-					d.FilterSource = source
-					d.FilterPending = true
-					input, expression, provider, workspace := body, d.ResponseFilter, d.FilterProvider, a.workspace
-					a.background(func() (func(), error) {
-						filtered, err := a.Engine.Filter(a.ctx, input, expression, provider, workspace)
-						return func() {
-							if d.FilterSource != source {
-								return
-							}
-							d.FilterPending = false
-							d.FilteredBody = filtered
-							d.FilterError = ""
-							if err != nil {
-								d.FilterError = err.Error()
-							}
-						}, nil
-					})
-				}
-				switch {
-				case d.FilterError != "":
-					body = ""
-				case !d.FilterPending:
-					body = d.FilteredBody
-				}
-			}
-
-			switch d.ResponseMode {
-			case "Preview":
-				a.previewResponse(c, p, d, response, a.bodies[s(response, "id")])
-			case "Events":
-				events := engine.ParseSSE(a.bodies[s(response, "id")])
-				ui.Scroll(c).Grow(1).Padding(12).Gap(8).Children(func() {
-					for i, event := range events {
-						ui.Column(c).Key(i).Padding(10).Border(1, p.border).Radius(4).Gap(6).Children(func() {
-							ui.Text(c, event.Event+" "+event.ID).FontSize(11).TextColor(p.muted)
-							ui.Text(c, event.Data).Font("monospace").FontSize(12).Selectable()
-						})
-					}
-				})
-			default:
-				language := ""
-				kind := responseMIME(response)
-				if strings.Contains(kind, "json") {
-					language = "json"
-				}
-				if strings.Contains(kind, "xml") {
-					language = "xml"
-				}
-				if strings.Contains(kind, "html") {
-					language = "html"
-				}
-				area := ui.Box(c).Grow(1).MinHeight(0)
-				area.Children(func() {
-					a.codeView(c, p, body, language, "Response body")
-					a.responseBodyActions(c, p, d, response, filterable, area.Hovered())
-				})
-			}
+			a.responseBody(c, p, d, response)
 		case 1:
+			if !a.confirmLargeResponseRequest(c, p, response) {
+				break
+			}
 			rid := s(response, "id") + ".request"
 			if _, loaded := a.bodies[rid]; !loaded {
 				a.bodies[rid] = ""
@@ -1468,59 +1362,187 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 					return func() { a.bodies[rid] = string(data) }, nil
 				})
 			}
-			requestBody := a.bodies[rid]
-			ui.Column(c).Grow(1).MinHeight(0).Padding(8, 4, 0, 4).Gap(12).Children(func() {
-				section := func(title string) { ui.Text(c, title).FontSize(12).TextColor(p.muted) }
-				ui.Column(c).Gap(6).Children(func() {
-					section("URL")
-					ui.Text(c, s(response, "url")).Font("monospace").FontSize(12).Selectable()
-				})
-				ui.Column(c).Gap(4).Children(func() {
-					section("Headers")
-					for _, h := range oslice(response, "requestHeaders") {
-						ui.Row(c).Gap(6).Children(func() {
-							ui.Text(c, s(h, "name")+":").Font("monospace").FontSize(12).TextColor(p.muted).Selectable()
-							ui.Text(c, s(h, "value")).Font("monospace").FontSize(12).Grow(1).MinWidth(0).Selectable()
-						})
-					}
-				})
-				section("Body")
-				if requestBody == "" {
-					ui.Text(c, "No request body").FontSize(12).TextColor(p.subtle)
-					return
-				}
+			// Yaak's Request tab is the body that was sent; its URL and headers are under Headers.
+			if requestBody := a.bodies[rid]; requestBody == "" {
+				emptyState(c, p, "No request body")
+			} else {
 				a.codeView(c, p, requestBody, "json", "Sent request body")
-			})
+			}
 		case 2:
-			ui.Scroll(c).Grow(1).Children(func() {
-				for _, h := range oslice(response, "headers") {
-					ui.Row(c).Padding(7, 14).Gap(14).BorderWidth(0, 0, 1, 0).BorderColor(p.border.Alpha(.5)).Children(func() {
-						ui.Text(c, s(h, "name")).Width(160).Font("monospace").FontSize(11).TextColor(p.muted).Selectable()
-						ui.Text(c, s(h, "value")).Grow(1).Font("monospace").FontSize(11).Selectable()
-					})
-				}
-			})
+			a.responseHeaders(c, p, response)
 		case 3:
 			a.responseCookies(c, p, response)
 		case 4:
-			ui.Scroll(c).Grow(1).Padding(12).Gap(8).Children(func() {
-				ui.Text(c, s(response, "version")+" · "+s(response, "remoteAddr")).Font("monospace").FontSize(11).TextColor(p.muted)
-				for _, m := range a.list("http_response_event") {
-					if s(m, "responseId") != s(response, "id") {
-						continue
+			a.timelineView(c, p, d, response)
+		}
+	})
+}
+
+// responseText is Yaak's HTMLOrTextViewer text path: the body, formatted
+// when pretty, with the filter, breadcrumb and floating actions.
+func responseBodyKey(response engine.Object) string {
+	return "Response body:" + s(response, "id")
+}
+
+func (a *App) responseText(c *ui.Context, p colors, d *Draft, response engine.Object, pretty bool) {
+	body := a.bodies[s(response, "id")]
+	if d.PrettySource != body {
+		d.PrettySource = body
+		d.PrettyBody = body
+		// Reformat in place, as Yaak does: keys keep their order, numbers
+		// keep their digits, and escapes such as \u00e9 and \/ read plainly.
+		formatted := jsontext.Value(body)
+		if formatted.Indent(jsontext.WithIndent("  "), jsontext.PreserveRawStrings(false)) == nil {
+			d.PrettyBody = string(formatted)
+		}
+	}
+	body = d.PrettyBody
+	if !pretty {
+		body = a.bodies[s(response, "id")]
+	}
+	language := ""
+	switch kind := responseMIME(response); {
+	case strings.Contains(kind, "json") || jsontext.Value(body).IsValid():
+		language = "json"
+	case strings.Contains(kind, "xml"):
+		language = "xml"
+	case strings.Contains(kind, "html"):
+		language = "html"
+	}
+	// Yaak filters JSON with JSONPath and XML or HTML with XPath.
+	filterable := language != ""
+	if filterable && d.ResponseFilter != "" {
+		source := body + "\x00" + d.ResponseFilter + "\x00" + d.FilterProvider
+		if d.FilterSource != source {
+			d.FilterSource = source
+			d.FilterPending = true
+			input, expression, provider, workspace := body, d.ResponseFilter, d.FilterProvider, a.workspace
+			a.background(func() (func(), error) {
+				filtered, err := a.Engine.Filter(a.ctx, input, expression, provider, workspace)
+				return func() {
+					if d.FilterSource != source {
+						return
 					}
-					event := o(m, "event")
-					text := s(event, "message")
-					if text == "" {
-						text = s(event, "name") + ": " + s(event, "value")
+					d.FilterPending = false
+					d.FilteredBody = filtered
+					d.FilterError = ""
+					if err != nil {
+						d.FilterError = err.Error()
 					}
-					if s(event, "type") == "chunk_received" {
-						text = "Received " + sizeText(n(event, "bytes"))
-					}
-					ui.Text(c, text).Font("monospace").FontSize(11).Selectable()
-				}
+				}, nil
 			})
 		}
+		switch {
+		case d.FilterError != "":
+			body = ""
+		case !d.FilterPending:
+			body = d.FilteredBody
+		}
+	}
+
+	area := ui.Box(c).Grow(1).MinHeight(0)
+	area.Children(func() {
+		// Like Yaak's response.body.<id> state key, each response opens at
+		// the top and keeps its own scroll and caret.
+		a.keyedEditor(c, p, &body, "Response body", responseBodyKey(response), language, true)
+		if filterable {
+			a.responseBreadcrumbs(c, p, d, body, language, responseBodyKey(response))
+		}
+		a.responseBodyActions(c, p, d, response, filterable, area.Hovered())
+	})
+}
+
+// responseBreadcrumbs is Yaak's ResponseBreadcrumbBar: the JSON path of the
+// line under the caret, where a crumb filters the response to that path and
+// "$" clears the filter. An applied plain-path filter starts the trail, and
+// the bar is tinted while a filter applies.
+func (a *App) responseBreadcrumbs(c *ui.Context, p colors, d *Draft, body, language, stateKey string) {
+	var cursor []pathSegment
+	if language == "json" {
+		if d.outline == nil || d.outlineSource != body {
+			d.outline, d.outlineSource = newJSONOutline(body), body
+		}
+		cursor = d.outline.pathAt(body, a.editorDocument(stateKey).state.Caret)
+	}
+	applied := strings.TrimSpace(d.ResponseFilter)
+	appliedPath, plain := []pathSegment(nil), false
+	if applied != "" && language == "json" {
+		appliedPath, plain = parseJSONPath(applied)
+	}
+	if applied == "" && len(cursor) == 0 {
+		return
+	}
+	path := cursor
+	if plain {
+		// Filter output is an array of matches, so the caret's leading index is the match itself.
+		path = slices.Clone(appliedPath)
+		if len(cursor) > 1 {
+			path = append(path, cursor[1:]...)
+		}
+	}
+	filtered := applied != ""
+	failed := filtered && d.FilterError != ""
+	border, background, tint := p.border, p.response, p.accent
+	switch {
+	case failed:
+		border, background, tint = p.red.Alpha(.4), p.red.Alpha(.1), p.red
+	case filtered:
+		border, background = p.accent.Alpha(.4), p.accent.Alpha(.1)
+	}
+	selectPath := func(count int) {
+		d.ResponseFilter = ""
+		if count > 0 {
+			d.ResponseFilter = jsonPathString(path, count)
+		}
+		d.FilterSource = ""
+	}
+	crumb := func(label, tooltip string, isApplied, clickable bool, count int) ui.Element {
+		color := p.muted
+		if isApplied {
+			color = tint
+		}
+		if !clickable {
+			return ui.Text(c, label).Font("monospace").FontSize(12).TextColor(color).Padding(0, 5).Shrink(0)
+		}
+		button := ui.ButtonBase(c).Label(tooltip).Tooltip(tooltip).Height(20).Padding(0, 5).Radius(3).Shrink(0)
+		if button.Hovered() {
+			button.Background(p.border.Alpha(.5))
+			color = p.text
+		}
+		button.Children(func() { ui.Text(c, label).Font("monospace").FontSize(12).TextColor(color) })
+		if button.Clicked() {
+			selectPath(count)
+		}
+		return button
+	}
+	ui.Row(c).Absolute().Top(4).Right(16).MaxWidthPercent(70).Height(24).Padding(0, 2).Radius(4).Border(1, border).Background(p.response).Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, .1)).Children(func() {
+		ui.Row(c).Fill().MinWidth(0).Radius(3).Background(background).Children(func() {
+			if filtered && !plain {
+				ui.Text(c, applied).Font("monospace").FontSize(12).TextColor(tint).SingleLine().MinWidth(0).Padding(0, 6)
+				return
+			}
+			crumb("$", "Clear filter", filtered, len(appliedPath) > 0, 0)
+			key := jsonPathString(path, len(path))
+			ui.ScrollHorizontal(c).MinWidth(0).Shrink(1).Children(func() {
+				ui.Row(c).Children(func() {
+					for i, seg := range path {
+						count := i + 1
+						label, tooltip := seg.key, "Filter to "+seg.key
+						if seg.isIndex {
+							label, tooltip = "["+strconv.Itoa(seg.index)+"]", "Filter to element "+strconv.Itoa(seg.index)
+						}
+						ui.Row(c).Key(i).Shrink(0).Children(func() {
+							icon(c, "chevron").FontSize(10).TextColor(p.subtle)
+							last := crumb(label, tooltip, plain && count <= len(appliedPath), count != len(appliedPath) || !plain, count)
+							if count == len(path) && d.crumbKey != key {
+								d.crumbKey = key
+								last.ScrollIntoView()
+							}
+						})
+					}
+				})
+			})
+		})
 	})
 }
 
@@ -1535,7 +1557,7 @@ func (a *App) responseBodyActions(c *ui.Context, p colors, d *Draft, response en
 		bar.Left(12)
 	}
 	bar.Children(func() {
-		action := func(glyph, label string) *ui.Element {
+		action := func(glyph, label string) ui.Element {
 			button := sizedIconButton(c, glyph, label, 28, 15).Border(1, p.border).Background(p.response).Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, .12))
 			if button.Hovered() {
 				button.Background(p.border.Alpha(.4))
@@ -1597,12 +1619,10 @@ func (a *App) responseBodyActions(c *ui.Context, p colors, d *Draft, response en
 	}
 }
 
+// responseModes are Yaak's Response tab views: formatted, and the raw text.
 var responseModes = []struct{ mode, label, short string }{
 	{"Pretty", "Response", "Response"},
-	{"Preview", "Response (Preview)", "Preview"},
 	{"Raw", "Response (Raw)", "Raw"},
-	{"Hex", "Response (Hex)", "Hex"},
-	{"Events", "Event Stream", "Events"},
 }
 
 func responseTabLabel(mode string) string {
@@ -1615,12 +1635,16 @@ func responseTabLabel(mode string) string {
 }
 func (a *App) responseViewMenu(c *ui.Context, m *ui.Menu, d *Draft, response engine.Object) {
 	for _, option := range responseModes {
+		// An image has no raw text to show.
+		if option.mode == "Raw" && strings.HasPrefix(responseMIME(response), "image/") {
+			continue
+		}
 		if m.Item(option.label).Checked(d.ResponseMode == option.mode).Chosen() {
 			d.ResponseMode = option.mode
 		}
 	}
 	m.Separator()
-	if m.Item("Save to File…").Chosen() {
+	if m.Item("Save to File").Chosen() {
 		a.saveResponse(response)
 	}
 	if m.Item("Copy Body").Chosen() {
@@ -1628,33 +1652,8 @@ func (a *App) responseViewMenu(c *ui.Context, m *ui.Menu, d *Draft, response eng
 	}
 }
 
-// responseHistoryMenu lists earlier responses for a request, newest first, like Yaak's response dropdown.
-func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, current engine.Object) {
-	responses := []engine.Object{}
-	for _, response := range a.list("http_response") {
-		if s(response, "requestId") == requestID {
-			responses = append(responses, response)
-		}
-	}
-	slices.SortFunc(responses, func(x, y engine.Object) int { return strings.Compare(s(y, "createdAt"), s(x, "createdAt")) })
-	for i, response := range responses[:min(len(responses), 20)] {
-		label := fmt.Sprintf("%s  •  %s", statusLabel(response, false), durationText(n(response, "elapsed")))
-		if created, err := time.Parse(time.RFC3339Nano, s(response, "createdAt")); err == nil {
-			label += "  •  " + created.Local().Format("Jan 2 15:04:05")
-		}
-		if m.Item(label).Checked(s(response, "id") == s(current, "id")).Chosen() {
-			a.showResponse(responses[i])
-		}
-	}
-	m.Separator()
-	if m.Item("All Request History…").Chosen() {
-		a.prompt("history", "Request History", "", "")
-	}
-}
-
-// showResponse pins a stored response as the one shown for its request and loads its body.
-func (a *App) showResponse(response engine.Object) {
-	a.responses[s(response, "requestId")] = response
+// loadResponseBody loads the preview of a response's body once.
+func (a *App) loadResponseBody(response engine.Object) {
 	id := s(response, "id")
 	if _, loaded := a.bodies[id]; loaded {
 		return
@@ -1665,19 +1664,15 @@ func (a *App) showResponse(response engine.Object) {
 	})
 }
 
-type hotkey struct{ name, keys string }
-
-var sendHotkeys = []hotkey{{"Send Request", "⌘ ↩"}, {"New Request", "⌘ N"}, {"Search Requests", "⌘ P"}, {"Settings", "⌘ ,"}}
-
 // hotkeyList is the shortcut table Yaak shows in empty panes, centred in
 // the room left, with bottom (when set) below it.
-func hotkeyList(c *ui.Context, p colors, keys []hotkey, bottom ...func()) {
+func (a *App) hotkeyList(c *ui.Context, p colors, actions []string, bottom ...func()) {
 	ui.Column(c).Grow(1).MinHeight(0).Center().Gap(14).Children(func() {
 		ui.Column(c).Gap(8).Children(func() {
-			for _, key := range keys {
-				ui.Row(c).Key(key.name).Gap(32).Children(func() {
-					ui.Text(c, key.name).FontSize(13).TextColor(p.muted).Grow(1)
-					ui.Text(c, key.keys).FontSize(12).Font("monospace").TextColor(p.subtle)
+			for _, h := range hotkeyTable(actions...) {
+				ui.Row(c).Key(h.action).Gap(32).Children(func() {
+					ui.Text(c, h.label).FontSize(13).TextColor(p.muted).Grow(1)
+					ui.Text(c, a.hotkeyText(h.action)).FontSize(12).Font("monospace").TextColor(p.subtle)
 				})
 			}
 		})

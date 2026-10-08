@@ -141,6 +141,14 @@ func templateFunction(name string, args map[string]string) (string, error) {
 			return uuid.NewV7().String(), nil
 		}
 		return uuid.NewV4().String(), nil
+	case "uuid.v1":
+		return timeUUID(1, time.Now()), nil
+	case "uuid.v6":
+		return timeUUID(6, uuidTimestamp(args["timestamp"])), nil
+	case "uuid.v3":
+		return nameUUID(3, args["name"], args["namespace"])
+	case "uuid.v5":
+		return nameUUID(5, args["name"], args["namespace"])
 	case "timestamp":
 		switch args["format"] {
 		case "unix", "seconds":
@@ -219,8 +227,10 @@ func (e *Engine) functions(ctx context.Context, workspace string, environmentIDs
 			return e.DecryptValue(ctx, workspace, args["value"])
 		case "keychain", "keyring":
 			return keyring.Get(args["service"], args["account"])
+		case "1password.item":
+			return onePasswordValue(ctx, args)
 		case "prompt.text", "prompt":
-			return e.promptTemplate(ctx, workspace, args)
+			return e.promptTemplate(ctx, args)
 		case "ctx.workspace":
 			return workspace, nil
 		case "ctx.environment":

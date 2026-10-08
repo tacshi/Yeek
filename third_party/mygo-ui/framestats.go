@@ -35,7 +35,7 @@ func frameStatsSetting(v string) (threshold time.Duration, on bool) {
 	}
 	ms, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 	if err != nil || ms < 0 {
-		log.Printf("mygo: MYGO_FRAME_STATS=%q is not a number of milliseconds: logging frames over 8 ms", v) // #nosec G706 -- %q escapes control characters in this diagnostic.
+		log.Printf("mygo: MYGO_FRAME_STATS=%q is not a number of milliseconds: logging frames over 8 ms", v)
 		return 8 * time.Millisecond, true
 	}
 	return time.Duration(ms * float64(time.Millisecond)), true
