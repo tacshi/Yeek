@@ -1,0 +1,8 @@
+Yeek is a native Go API client built with MyGo.
+Framework: https://github.com/egoist/mygo (MIT). See MyGo-LICENSE.
+
+Behavior and model compatibility are adapted from Yaak:
+https://github.com/mountain-loop/yaak
+Copyright (c) 2024 Yaak (MIT). See Yaak-LICENSE.
+
+The native UI package is extended locally in third_party/mygo-ui, based on MyGo v0.2.16.

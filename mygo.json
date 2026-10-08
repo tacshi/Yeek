@@ -1,0 +1,25 @@
+{
+  "name": "Yeek",
+  "identifier": "app.yeek.desktop",
+  "version": "0.1.0",
+  "out": "build",
+  "resources": [
+    "third_party/NOTICE",
+    "third_party/MyGo-LICENSE",
+    "third_party/Yaak-LICENSE",
+    "third_party/DEPENDENCY_LICENSES.txt"
+  ],
+  "urlSchemes": [
+    "yeek"
+  ],
+  "fileAssociations": [
+    {
+      "ext": [
+        "yeek",
+        "yaak"
+      ],
+      "name": "API Workspace",
+      "mimeType": "application/json"
+    }
+  ]
+}
