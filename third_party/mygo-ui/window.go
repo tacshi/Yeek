@@ -3,6 +3,7 @@ package ui
 import (
 	"log"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/egoist/mygo/internal/platform"
@@ -97,6 +98,13 @@ type windowHost struct {
 	idleAt    time.Time
 	idleArmed bool
 	detached  bool
+	// shown tells that a frame was presented, which makes the window
+	// ready to show.
+	shown bool
+	// placed is where the surface shows the window's web views, views
+	// the web views.
+	placed []platform.WebViewPlacement
+	views  []NativeWebView
 }
 
 func (h *windowHost) framePath() string { return h.path }
@@ -107,6 +115,23 @@ var newGPU = newGPURenderer
 // event handles an event of the surface, noting when it asks for a frame:
 // only then may renderers draw (OpenGL's context is current only then).
 func (h *windowHost) event(ev platform.SurfaceEvent) bool {
+	if ev.Kind == platform.SurfaceRenew {
+		// The next frame makes the renderer again, for the surface's new
+		// native objects.
+		if h.gpu != nil {
+			h.gpu.Release()
+			h.gpu = nil
+		}
+		h.gpuTried, h.retryAt = false, time.Time{}
+		h.conn.Surface.RequestFrame()
+		return false
+	}
+	if ev.Kind == platform.WebViewTabOut {
+		if i := slices.IndexFunc(h.placed, func(p platform.WebViewPlacement) bool { return p.WebView == ev.WebView }); i >= 0 {
+			h.rt.webViewTabOut(h.views[i], ev.Mods&platform.ModShift != 0)
+		}
+		return false
+	}
 	if ev.Kind == platform.SurfaceFrame {
 		h.framing = true
 		defer func() { h.framing = false }()
@@ -184,6 +209,7 @@ func (h *windowHost) present(s *scene.Scene) {
 	h.lastFrame = now
 	h.armIdle(frameIdle)
 	h.useWide(s, now)
+	defer h.ready()
 	if h.render(s) {
 		h.path = "drawn on the GPU"
 		if h.degraded {
@@ -198,6 +224,18 @@ func (h *windowHost) present(s *scene.Scene) {
 		d.PresentDamage(m.Pix, m.Stride, m.W, m.H, damage)
 	} else {
 		h.conn.Surface.PresentPixels(m.Pix, m.Stride, m.W, m.H)
+	}
+}
+
+// ready tells the window, after the first frame, that it is ready to show:
+// once the frame returns, as its listeners may show the window.
+func (h *windowHost) ready() {
+	if h.shown {
+		return
+	}
+	h.shown = true
+	if h.conn.Ready != nil && h.conn.Post != nil {
+		h.conn.Post(h.conn.Ready)
 	}
 }
 
@@ -456,6 +494,40 @@ func (h *windowHost) invalidate() { h.conn.Invalidate() }
 func (h *windowHost) openURL(u string, done func(error)) {
 	if h.conn.OpenURL != nil {
 		h.conn.OpenURL(u, done)
+	}
+}
+
+// placeWebViews gives the surface where the frame shows the window's web
+// views, unless it is where the last frame showed them.
+func (h *windowHost) placeWebViews(views []placedWebView) {
+	list := make([]platform.WebViewPlacement, 0, len(views))
+	natives := make([]NativeWebView, 0, len(views))
+	for _, v := range views {
+		if n := v.v.SurfaceWebView(h.conn); n != nil {
+			list = append(list, platform.WebViewPlacement{WebView: n, Frame: v.frame, Clip: v.clip, Covers: v.covers})
+			natives = append(natives, v.v)
+		}
+	}
+	if slices.EqualFunc(list, h.placed, func(a, b platform.WebViewPlacement) bool {
+		return a.WebView == b.WebView && a.Frame == b.Frame && a.Clip == b.Clip && slices.Equal(a.Covers, b.Covers)
+	}) {
+		return
+	}
+	h.placed, h.views = list, natives
+	if h.conn.PlaceWebViews != nil {
+		h.conn.PlaceWebViews(list)
+	} else {
+		h.conn.Surface.PlaceWebViews(list)
+	}
+}
+
+func (h *windowHost) platformWebView(v NativeWebView) platform.WebView {
+	return v.SurfaceWebView(h.conn)
+}
+
+func (h *windowHost) tabIntoWebView(v NativeWebView, back bool) {
+	if n := v.SurfaceWebView(h.conn); n != nil {
+		n.TabInto(back)
 	}
 }
 

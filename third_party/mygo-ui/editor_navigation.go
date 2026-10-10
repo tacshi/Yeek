@@ -198,6 +198,18 @@ func (ed *editor) key(c *context, st *state, k editEvent) {
 	word := (!mac && m == Ctrl) || (mac && m == Alt)
 	b := &ed.buf
 	a, z := ed.selection()
+	if len(ed.chips) > 0 {
+		// The caret steps over chips.
+		from := ed.caret
+		defer func() {
+			if to := ed.skipChip(ed.caret, from); to != ed.caret {
+				ed.caret = to
+				if !shift {
+					ed.anchor = to
+				}
+			}
+		}()
+	}
 	switch k.key {
 	case KeyLeft, KeyRight:
 		left := k.key == KeyLeft
@@ -263,9 +275,12 @@ func (ed *editor) key(c *context, st *state, k editEvent) {
 		}
 		return
 	case KeyBackspace:
+		chip, onChip := ed.chipBeside(ed.caret, false)
 		switch {
 		case a != z:
 			ed.insert("")
+		case onChip && m == 0:
+			ed.deleteRange(chip.Start, chip.End)
 		case mac && m == Super:
 			s, _ := ed.lineEdges(ed.caret)
 			ed.deleteRange(s, ed.caret)
@@ -278,9 +293,12 @@ func (ed *editor) key(c *context, st *state, k editEvent) {
 		ed.hasDesired = false
 		return
 	case KeyDelete:
+		chip, onChip := ed.chipBeside(ed.caret, true)
 		switch {
 		case a != z:
 			ed.insert("")
+		case onChip && m == 0:
+			ed.deleteRange(chip.Start, chip.End)
 		case word:
 			ed.deleteRange(ed.caret, b.nextWord(ed.caret))
 		case ed.caret < b.n:
@@ -361,7 +379,18 @@ func (ed *editor) command(c *context, name string) {
 			ed.insert("")
 		}
 	case "paste":
-		if s := h.readClipboard(); s != "" {
+		s := h.readClipboard()
+		if ed.onPaste != nil {
+			// The frame builds again, showing what fn changed in the
+			// elements built before the input, as an attachment.
+			c.rt.consumed = true
+			if ed.onPaste(s) {
+				// Taken: the text and its selection stay, as when a web
+				// page prevents a paste's default.
+				break
+			}
+		}
+		if s != "" {
 			// A code editor tells its state what was pasted and whether it
 			// replaced the whole text, as Yaak's onPasteOverwrite needs.
 			overwrote := ed.buf.n == 0 || a == 0 && b == ed.buf.n
@@ -390,7 +419,7 @@ func (ed *editor) press(x, y float32, clicks, button int) {
 		return
 	}
 	ed.commitCompose()
-	if ed.pressFold(x, y) {
+	if ed.pressFold(x, y) || ed.pressChip(x, y, clicks) {
 		return
 	}
 	p := ed.hitPosition(x, y)
@@ -421,7 +450,7 @@ func (ed *editor) press(x, y float32, clicks, button int) {
 	}
 }
 
-func (ed *editor) release() { ed.dragging = false }
+func (ed *editor) release() { ed.dragging = false; ed.releaseChip() }
 
 // laidOut reports whether a frame laid the editor's text out.
 func (ed *editor) laidOut() bool { return ed.layout != nil || ed.area != nil && ed.area.version != 0 }
@@ -455,6 +484,9 @@ func (ed *editor) drag(x, y float32) {
 		}
 	case 3:
 	default:
+		if to := ed.skipChip(p.Index, ed.caret); to != p.Index {
+			p.Index = to
+		}
 		ed.movePosition(p, true)
 	}
 	if ed.area != nil {

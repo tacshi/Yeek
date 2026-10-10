@@ -214,10 +214,9 @@ func (e *Engine) functions(ctx context.Context, workspace string, environmentIDs
 		environment = environmentIDs[0]
 	}
 	return func(name string, args map[string]string) (string, error) {
-		if isTemplatePreview(ctx) {
-			if err := e.templatePreviewAllowed(name); err != nil {
-				return "", err
-			}
+		// Yaak's prompt plugin renders nothing but when sending.
+		if isTemplatePreview(ctx) && (name == "prompt.text" || name == "prompt") {
+			return "", nil
 		}
 		if strings.HasPrefix(name, "request.") || strings.HasPrefix(name, "response.") || name == "cookie.value" {
 			return e.referenceTemplate(ctx, name, args, workspace, environment)

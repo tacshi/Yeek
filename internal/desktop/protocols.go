@@ -421,7 +421,7 @@ func (a *App) grpcSchemaDialog(c *ui.Context, p colors) {
 		}
 		return strings.Join(list, "")
 	}
-	ui.Column(c).Padding(20).Gap(16).Children(func() {
+	ui.Column(c).Padding(8, 24, 16, 24).Gap(20).Children(func() {
 		if schema.err != "" && !schema.unimplemented() {
 			url := d.URL
 			if url == "" {
@@ -435,44 +435,36 @@ func (a *App) grpcSchemaDialog(c *ui.Context, p colors) {
 		case len(files) == 0 && len(schema.services) > 0:
 			banner(p.border, "Server reflection found services "+names()+". You can override this schema by manually selecting *.proto files.")
 		}
-		ui.Column(c).Gap(4).Children(func() {
-			for _, path := range files {
-				ui.Row(c).Key(path).Height(30).Gap(8).Padding(0, 8).Radius(4).Border(1, p.border).Children(func() {
-					glyph := "fileCode"
-					if !strings.HasSuffix(path, ".proto") {
-						glyph = "folder"
-					}
-					icon(c, glyph).FontSize(13).TextColor(p.muted)
-					ui.Text(c, path).Font("monospace").FontSize(12).SingleLine().Grow(1).MinWidth(0)
-					if smallIconButton(c, "close", "Remove "+path).Clicked() {
-						a.setProtoFiles(d.ID, slices.DeleteFunc(slices.Clone(files), func(f string) bool { return f == path }))
-					}
-				})
+		// Yaak's PathList of the proto files and import folders.
+		var items []pathListItem
+		for _, path := range files {
+			glyph := "fileCode"
+			if !strings.HasSuffix(path, ".proto") {
+				glyph = "folderCode"
 			}
-			ui.MenuButton(c, "Add proto files or an import folder", func(m *ui.Menu) {
-				if m.Item("Proto files").Chosen() {
-					a.chooseProtoFiles(d.ID, false)
-				}
-				if m.Item("Import folder").Chosen() {
-					a.chooseProtoFiles(d.ID, true)
-				}
-			}).FontSize(12).AlignSelf(ui.Start)
-		})
+			items = append(items, pathListItem{path: path, icon: glyph})
+		}
+		pathList(c, p, items, func(path string) {
+			a.setProtoFiles(d.ID, slices.DeleteFunc(slices.Clone(files), func(f string) bool { return f == path }))
+		}, []pathListAdd{
+			{"Proto files", func() { a.chooseProtoFiles(d.ID, false) }},
+			{"Import folder", func() { a.chooseProtoFiles(d.ID, true) }},
+		}, "Add proto files or an import folder", "", false, false, nil)
 		if schema.unimplemented() && len(files) == 0 {
 			banner(p.border, d.URL+" doesn't implement Server Reflection. Please manually add the .proto file to get started.")
 		}
-		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			label := "Refresh Schema"
-			if schema.loading {
-				label = "Refreshing…"
-			}
-			if ui.Button(c, label).Disabled(schema.loading).Clicked() {
-				a.reloadSchema(d)
-			}
-			if ui.PrimaryButton(c, "Done").Clicked() {
-				a.dialogOpen = false
-			}
-		})
+	})
+	dialogFooter(c, p, nil, func() {
+		label := "Refresh Schema"
+		if schema.loading {
+			label = "Refreshing…"
+		}
+		if ui.Button(c, label).Disabled(schema.loading).Clicked() {
+			a.reloadSchema(d)
+		}
+		if ui.PrimaryButton(c, "Done").Clicked() {
+			a.dialogOpen = false
+		}
 	})
 }
 

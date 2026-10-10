@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -72,8 +73,25 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 			paths[str(m, "modelId")] = str(m, "relPath")
 		}
 	}
+	// tracked are the files of models synced before that the workspace
+	// still has. Yaak's get_fs_candidates (#725): such a file that can't be
+	// read as its model stops the sync, where skipping it would make the
+	// model look deleted and delete it.
+	tracked := map[string]Object{}
+	for id, rel := range paths {
+		if l := local[id]; l != nil && base[id] != "" {
+			tracked[rel] = l
+		}
+	}
 	for _, entry := range entries {
-		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+		previous := tracked[entry.Name()]
+		invalid := func(reason string) error {
+			return fmt.Errorf("Invalid sync file: %s: %s", filepath.Join(dir, entry.Name()), reason)
+		}
+		if !entry.Type().IsRegular() {
+			if previous != nil {
+				return nil, invalid("expected a regular sync file")
+			}
 			continue
 		}
 		ext := strings.ToLower(filepath.Ext(entry.Name()))
@@ -82,19 +100,35 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		}
 		data, err := root.ReadFile(entry.Name())
 		if err != nil {
-			return nil, err
+			if previous != nil {
+				return nil, invalid(err.Error())
+			}
+			continue
 		}
 		var m Object
 		if err = yaml.Unmarshal(data, &m); err != nil {
-			if strings.HasPrefix(entry.Name(), "yaak.") {
-				return nil, fmt.Errorf("%s: %w", entry.Name(), err)
+			if previous != nil {
+				return nil, invalid(err.Error())
 			}
 			continue
 		}
 		if !syncKind(str(m, "model")) || str(m, "id") == "" {
+			if previous != nil {
+				return nil, invalid("file does not contain a Yaak model")
+			}
 			continue
 		}
-		if str(m, "id") != workspace && str(m, "workspaceId") != workspace {
+		if previous != nil {
+			switch {
+			case str(m, "id") != str(previous, "id"):
+				return nil, invalid(fmt.Sprintf("expected model ID %s, found %s", str(previous, "id"), str(m, "id")))
+			case modelWorkspace(m) != workspace:
+				return nil, invalid(fmt.Sprintf("expected workspace ID %s, found %s", workspace, modelWorkspace(m)))
+			case str(m, "model") != str(previous, "model"):
+				return nil, invalid("model type does not match the tracked model")
+			}
+		}
+		if modelWorkspace(m) != workspace {
 			continue
 		}
 		defaults, err := defaultModel(str(m, "model"))
@@ -274,7 +308,8 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 				if err != nil {
 					return err
 				}
-				if err = atomicWrite(path, data); err != nil {
+				// Sync files are created as any file is, as Yaak's are.
+				if err = atomicWrite(path, data, 0o666); err != nil {
 					return err
 				}
 			}
@@ -303,15 +338,44 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 	}
 	return err
 }
-func atomicWrite(path string, data []byte) error {
-	f, err := os.CreateTemp(filepath.Dir(path), ".yeek-*")
+
+// modelWorkspace is the workspace a synced model belongs to: a workspace's
+// own ID, else its workspaceId.
+func modelWorkspace(m Object) string {
+	if str(m, "model") == "workspace" {
+		return str(m, "id")
+	}
+	return str(m, "workspaceId")
+}
+
+// atomicWrite replaces path with data through a temporary file beside it,
+// so a failed write leaves the previous file whole and readers never see
+// part of it (Yaak's write_sync_file). It keeps an existing file's
+// permissions and won't replace a read-only one; a new file gets perm,
+// less the umask.
+func atomicWrite(path string, data []byte, perm os.FileMode) error {
+	var keep os.FileMode
+	if existing, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
+		info, err := existing.Stat()
+		_ = existing.Close()
+		if err != nil {
+			return err
+		}
+		keep = info.Mode().Perm()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	tmp := filepath.Join(filepath.Dir(path), fmt.Sprintf(".%s.%d-%d.tmp", filepath.Base(path), os.Getpid(), atomicWrites.Add(1)))
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm) // #nosec G302 G304 -- the caller's file, beside it.
 	if err != nil {
 		return err
 	}
-	defer func() { _ = os.Remove(f.Name()) }()
-	if err = f.Chmod(0600); err != nil {
-		_ = f.Close()
-		return err
+	defer func() { _ = os.Remove(tmp) }()
+	if keep != 0 {
+		if err = f.Chmod(keep); err != nil {
+			_ = f.Close()
+			return err
+		}
 	}
 	if _, err = f.Write(data); err != nil {
 		_ = f.Close()
@@ -324,8 +388,11 @@ func atomicWrite(path string, data []byte) error {
 	if err = f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), path)
+	return os.Rename(tmp, path)
 }
+
+var atomicWrites atomic.Int64
+
 func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, onError func(error)) (func(), error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {

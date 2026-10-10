@@ -119,3 +119,59 @@ func TestEnvironmentColors(t *testing.T) {
 		t.Fatal("unknown theme color")
 	}
 }
+
+// Yaak's EnvironmentEditDialog with one base environment: the base offers a
+// sub-environment, which opens selected without becoming active (#714).
+func TestBaseEnvironmentMenuAndNewSubEnvironment(t *testing.T) {
+	a, _ := cookieApp(t)
+	base, _ := a.environmentsBreakdown()
+	active := a.environment
+	a.openEnvironmentsAt(s(base, "id"))
+	tt := ui.NewTester(a.View, 1360, 860)
+	if err := tt.RightClick(s(base, "name")); err != nil {
+		t.Fatal(err)
+	}
+	menu := tt.Menu()
+	if !contains(menu, "Make Private") || !contains(menu, "Create Sub Environment") || contains(menu, "Delete") || contains(menu, "Rename") {
+		t.Fatalf("base menu = %v", menu)
+	}
+	if err := tt.ChooseMenuItem("Create Sub Environment"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("QA")
+	if err := tt.Click("Create Environment"); err != nil {
+		t.Fatal(err)
+	}
+	if a.dialog != "environments" || s(a.models[a.dialogID], "name") != "QA" || a.environment != active {
+		t.Fatalf("dialog %s selected %v active %q", a.dialog, a.models[a.dialogID], a.environment)
+	}
+}
+
+// With several base environments Yaak shows only them, each with a
+// warning, asks for all but one to be deleted, and offers no
+// sub-environment.
+func TestMultipleBaseEnvironments(t *testing.T) {
+	a, e := cookieApp(t)
+	base, _ := a.environmentsBreakdown()
+	other, _ := e.Save(t.Context(), engine.Object{"model": "environment", "workspaceId": a.workspace, "parentModel": "workspace", "name": "Second Base", "variables": []any{}})
+	a.applyModel(other)
+	sub, _ := e.Save(t.Context(), engine.Object{"model": "environment", "workspaceId": a.workspace, "parentModel": "environment", "name": "Hidden Sub", "variables": []any{}})
+	a.applyModel(sub)
+	a.openEnvironmentsAt(s(base, "id"))
+	tt := ui.NewTester(a.View, 1360, 860)
+	tt.Frame()
+	if !tt.HasText("There are multiple base environments for this workspace. Please delete the environments you no longer need.") || !tt.HasText("Second Base") || tt.HasText("Hidden Sub") {
+		t.Fatalf("texts = %v", tt.Texts())
+	}
+	if _, found := tt.Find("Add Sub-Environment"); found {
+		t.Fatal("offers a sub-environment")
+	}
+	if err := tt.RightClick("Second Base"); err != nil {
+		t.Fatal(err)
+	}
+	menu := tt.Menu()
+	if !contains(menu, "Delete") || !contains(menu, "Make Sharable") && !contains(menu, "Make Private") || contains(menu, "Create Sub Environment") {
+		t.Fatalf("menu = %v", menu)
+	}
+	envShot(t, tt, "multiple-bases")
+}

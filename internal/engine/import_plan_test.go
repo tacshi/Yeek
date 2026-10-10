@@ -363,7 +363,7 @@ func TestImportRejectsParentCycles(t *testing.T) {
 func TestImportFileLinksPersistAndTemplatesRemap(t *testing.T) {
 	e := testEngine(t)
 	doc := importDocumentForTest()
-	doc.Models = append(doc.Models, Object{"model": "http_request", "id": "second", "workspaceId": "w", "url": `${[ response.body(request='r') ]}`})
+	doc.Models = append(doc.Models, Object{"model": "http_request", "id": "second", "workspaceId": "w", "url": `${[ response.body.raw(request='r') ]}`})
 	resources := Object{}
 	for collection, kind := range resourceKinds {
 		for _, m := range doc.Models {
@@ -410,5 +410,80 @@ func TestImportFileLinksPersistAndTemplatesRemap(t *testing.T) {
 	}
 	if _, err = e.Store.Get(t.Context(), rid); err != nil {
 		t.Fatal("unlink removed requests", err)
+	}
+}
+
+// Yaak's warn_if_imported_elsewhere and resolve_linked_source.
+func TestImportLinksByKeysAndWarnsLikeYaak(t *testing.T) {
+	e := testEngine(t)
+	doc := importDocumentForTest()
+	first := testImportPlan(t, e, doc, "")
+	commitTestImport(t, e, first)
+	wid := str(first.NewWorkspaces()[0], "id")
+	if len(first.Warnings) != 0 {
+		t.Fatalf("first import warned: %v", first.Warnings)
+	}
+
+	// The same file into a new workspace: a second copy.
+	again := testImportPlan(t, e, importDocumentForTest(), "")
+	if !slices.ContainsFunc(again.Warnings, func(w ImportWarning) bool {
+		return w.Title == "Already imported into API" && w.Detail == "Importing here makes a second copy" && w.Level == "warning"
+	}) {
+		t.Fatalf("warnings %v", again.Warnings)
+	}
+	// Back into its workspace it isn't.
+	if back := testImportPlan(t, e, importDocumentForTest(), wid); len(back.Warnings) != 0 {
+		t.Fatalf("warned importing back: %v", back.Warnings)
+	}
+
+	// Moved: a new origin, the same keys, still links.
+	moved := importDocumentForTest()
+	moved.Origin = "/moved/collection.yaak"
+	plan := testImportPlan(t, e, moved, wid)
+	if item := planItem(t, plan, "http_request:r"); item.Action != "unchanged" {
+		t.Fatalf("moved file not linked: %s", item.Action)
+	}
+
+	// Two sources holding the same keys, neither from this origin: new.
+	sources, _ := e.Store.List(t.Context(), "import_source", wid)
+	bindings, _ := e.Store.List(t.Context(), "import_source_resource", wid)
+	copySource := clone(sources[0])
+	copySource["id"], copySource["origin"], copySource["originLabel"] = newID("import_source"), "/copy.yaak", "copy.yaak"
+	if err := e.Store.Write(t.Context(), Object{"type": "test"}, func(tx *modelTx) error {
+		if _, err := tx.upsert(t.Context(), copySource); err != nil {
+			return err
+		}
+		for _, binding := range bindings {
+			b := clone(binding)
+			b["id"], b["importSourceId"] = newID("import_source_resource"), copySource["id"]
+			if _, err := tx.upsert(t.Context(), b); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	elsewhere := importDocumentForTest()
+	elsewhere.Origin = "/third.yaak"
+	ambiguous := testImportPlan(t, e, elsewhere, wid)
+	if !slices.ContainsFunc(ambiguous.Warnings, func(w ImportWarning) bool {
+		return w.Title == "Imported as new" && strings.HasSuffix(w.Detail, " already contain these resources") && w.Level == "warning"
+	}) {
+		t.Fatalf("warnings %v", ambiguous.Warnings)
+	}
+	if item := planItem(t, ambiguous, "http_request:r"); item.Action != "create" {
+		t.Fatalf("ambiguous import merged: %s", item.Action)
+	}
+}
+
+func TestDisplayListMatchesYaak(t *testing.T) {
+	for _, c := range []struct {
+		items []string
+		want  string
+	}{{nil, ""}, {[]string{"A"}, "A"}, {[]string{"B", "A"}, "A and B"}, {[]string{"C", "A", "B", "A"}, "A, B, and C"}} {
+		if got := displayList(c.items); got != c.want {
+			t.Errorf("%v: %q", c.items, got)
+		}
 	}
 }

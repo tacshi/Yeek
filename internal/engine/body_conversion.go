@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"net/url"
 	"strings"
+	"unicode"
 )
 
 func prettyBodyJSON(value any) string {
@@ -114,106 +115,156 @@ func ConvertRequestBody(body Object, from, to string) Object {
 	return body
 }
 
+// StripJSONComments is Yaak's strip_json_comments: it removes // and /* */
+// comments from JSONC, outside strings and template tags, with the spaces
+// before them, then the lines left empty and trailing commas before } or ].
+// Like Rust's str::lines, it ends lines at \n and drops a \r before one.
 func StripJSONComments(text string) string {
-	output := make([]byte, 0, len(text))
-	quoted, escaped, tagQuote := false, false, byte(0)
-	inTag := false
-	for i := 0; i < len(text); i++ {
-		ch := text[i]
-		if quoted || inTag {
-			output = append(output, ch)
-			if escaped {
-				escaped = false
-				continue
-			}
-			if ch == '\\' {
-				escaped = true
-				continue
-			}
-			if quoted {
-				if ch == '"' {
-					quoted = false
-				}
-				continue
-			}
-			if tagQuote != 0 {
-				if ch == tagQuote {
-					tagQuote = 0
-				}
-				continue
-			}
-			if ch == '\'' || ch == '"' {
-				tagQuote = ch
-				continue
-			}
-			if ch == ']' && i+1 < len(text) && text[i+1] == '}' {
-				output = append(output, '}')
+	r := []rune(text)
+	var result []rune
+	var quoted tagStrings
+	inString, inTag := false, false
+	trim := func() {
+		for len(result) > 0 && (result[len(result)-1] == ' ' || result[len(result)-1] == '\t') {
+			result = result[:len(result)-1]
+		}
+	}
+	for i := 0; i < len(r); i++ {
+		c := r[i]
+		switch {
+		case inString:
+			result = append(result, c)
+			if c == '"' {
+				inString = false
+			} else if c == '\\' && i+1 < len(r) {
 				i++
+				result = append(result, r[i])
+			}
+		case inTag:
+			result = append(result, c)
+			// A quoted argument is allowed to contain ]}, so skip over strings whole.
+			if c == '\'' {
+				if end, ok := quoted.take(r, i+1); ok {
+					result = append(result, r[i+1:end]...)
+					i = end - 1
+				}
+				continue
+			}
+			if c == ']' && i+1 < len(r) && r[i+1] == '}' {
+				i++
+				result = append(result, '}')
 				inTag = false
 			}
-			continue
-		}
-		if ch == '"' {
-			quoted = true
-			output = append(output, ch)
-			continue
-		}
-		if strings.HasPrefix(text[i:], "${[") {
-			output = append(output, '$', '{', '[')
-			i += 2
+		case c == '$' && i+2 < len(r) && r[i+1] == '{' && r[i+2] == '[':
 			inTag = true
-			continue
-		}
-		if ch == '/' && i+1 < len(text) && text[i+1] == '/' {
-			for len(output) > 0 && (output[len(output)-1] == ' ' || output[len(output)-1] == '\t') {
-				output = output[:len(output)-1]
-			}
+			result = append(result, '$', '{', '[')
 			i += 2
-			for i < len(text) && text[i] != '\n' && text[i] != '\r' {
+		case c == '/' && i+1 < len(r) && r[i+1] == '/':
+			i += 2
+			for i < len(r) && r[i] != '\n' {
 				i++
 			}
 			i--
-			continue
-		}
-		if ch == '/' && i+1 < len(text) && text[i+1] == '*' {
-			end := strings.Index(text[i+2:], "*/")
-			if end < 0 {
-				return text
+			trim()
+		case c == '/' && i+1 < len(r) && r[i+1] == '*':
+			i += 2
+			for i < len(r) && (r[i] != '*' || i+1 >= len(r) || r[i+1] != '/') {
+				i++
 			}
-			output = append(output, ' ')
-			i += end + 3
-			continue
+			i++ // the closing /
+			trim()
+		default:
+			if c == '"' {
+				inString = true
+			}
+			result = append(result, c)
 		}
-		output = append(output, ch)
 	}
-	quoted, escaped = false, false
-	for i, ch := range output {
-		if quoted {
-			if escaped {
-				escaped = false
-			} else if ch == '\\' {
-				escaped = true
-			} else if ch == '"' {
-				quoted = false
+	// Remove lines that are now empty (were comment-only lines).
+	var lines []string
+	for _, line := range rustLines(string(result)) {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
+		}
+	}
+	return stripTrailingCommas([]rune(strings.Join(lines, "\n")))
+}
+
+// tagStrings is Yaak's TagStrings: it reads the single-quoted strings in
+// template tags, left to right through one text, remembering when a scan
+// ran off its end, after which no string can close.
+type tagStrings struct{ noneLeft bool }
+
+// take reads the body of a string whose opening quote is before from: it
+// returns the index just past the closing quote, or false when the quote
+// never closes, which leaves it an ordinary character. \ escapes what
+// follows it.
+func (t *tagStrings) take(r []rune, from int) (int, bool) {
+	if t.noneLeft {
+		return 0, false
+	}
+	for i := from; i < len(r); i++ {
+		switch r[i] {
+		case '\\':
+			if i+1 >= len(r) {
+				t.noneLeft = true
+				return 0, false
+			}
+			i++
+		case '\'':
+			return i + 1, true
+		}
+	}
+	t.noneLeft = true
+	return 0, false
+}
+
+// rustLines is Rust's str::lines.
+func rustLines(text string) []string {
+	if text == "" {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimSuffix(line, "\r")
+	}
+	return lines
+}
+
+// stripTrailingCommas is Yaak's strip_trailing_commas: a comma before } or
+// ], past whitespace, goes, outside strings.
+func stripTrailingCommas(r []rune) string {
+	var result []rune
+	inString := false
+	for i := 0; i < len(r); i++ {
+		c := r[i]
+		if inString {
+			result = append(result, c)
+			if c == '"' {
+				inString = false
+			} else if c == '\\' && i+1 < len(r) {
+				i++
+				result = append(result, r[i])
 			}
 			continue
 		}
-		if ch == '"' {
-			quoted = true
-			continue
+		if c == '"' {
+			inString = true
 		}
-		if ch == ',' {
+		if c == ',' {
 			j := i + 1
-			for j < len(output) && strings.ContainsRune(" \t\r\n", rune(output[j])) {
+			for j < len(r) && unicode.IsSpace(r[j]) {
 				j++
 			}
-			if j < len(output) && (output[j] == '}' || output[j] == ']') {
-				output[i] = ' '
+			if j < len(r) && (r[j] == '}' || r[j] == ']') {
+				continue
 			}
 		}
+		result = append(result, c)
 	}
-	return string(output)
+	return string(result)
 }
+
 func FixJSONBody(text string) string {
 	fixed := StripJSONComments(text)
 	if jsontext.Value(fixed).IsValid(jsontext.AllowDuplicateNames(true)) {

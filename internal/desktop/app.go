@@ -62,22 +62,27 @@ type Draft struct {
 }
 
 type App struct {
-	oauthBrowserCount          int
-	oauthEditors               map[string]*oauthEditorState
-	methodError                string
-	partEditor                 *multipartPartEditor
-	exports                    *exportDialog
-	imports                    *importDialog
-	certificates               *certificateEditor
-	proxyEditor                *proxyEditor
-	workspaceNetworkEditors    map[string]*workspaceNetworkEditor
-	inView                     bool
-	afterInput                 []func()
-	cookieSelections           map[string]string
-	cookies                    *cookieManager
-	modelVersion               uint64
-	templateCache              templateVariableCache
-	templateForm               *templateForm
+	oauthBrowserCount       int
+	oauthEditors            map[string]*oauthEditorState
+	methodError             string
+	partEditor              *multipartPartEditor
+	exports                 *exportDialog
+	imports                 *importDialog
+	importCounts            map[string]int
+	createWorkspace         *createWorkspaceForm
+	cloneGit                *cloneGitForm
+	certificates            *certificateEditor
+	proxyEditor             *proxyEditor
+	workspaceNetworkEditors map[string]*workspaceNetworkEditor
+	inView                  bool
+	afterInput              []func()
+	cookieSelections        map[string]string
+	cookies                 *cookieManager
+	modelVersion            uint64
+	templateCache           templateVariableCache
+	templateForm            *templateForm
+	// encryptionGate waits for Workspace Encryption to be set up.
+	encryptionGate             *encryptionGate
 	editors                    map[string]*documentEditor
 	workerDone                 chan struct{}
 	backgroundWorkers          sync.WaitGroup
@@ -151,6 +156,13 @@ type App struct {
 	folderEnvRows                              []KV
 	valuePrompts                               []*valuePrompt
 	testMode                                   bool
+	// preview is the web view of response previews; openPreview makes it
+	// in place of the window, for tests.
+	preview     *responsePreview
+	openPreview func() (ui.NativeWebView, func(string), func(float64), error)
+	// confirmMessage answers confirmNative in place of the system's
+	// message box, for tests.
+	confirmMessage func(message, confirm string) bool
 }
 
 func New(e *engine.Engine) (*App, error) {
@@ -202,6 +214,10 @@ func (a *App) OpenWindow() {
 		a.run(func() (func(), error) { return func() { a.closing = true; a.Window.Close() }, nil })
 	})
 	a.Window.OnFileDrop(func(event *mygo.FileDropEvent) {
+		// The Import Data dialog's source list takes the files dropped on it.
+		if a.dialogOpen && a.dialog == "imports" {
+			return
+		}
 		for _, path := range event.Paths {
 			a.ImportPath(path)
 		}
@@ -258,7 +274,7 @@ func (a *App) OpenWindow() {
 		}
 	}()
 }
-func (a *App) Close() { a.closeOnce.Do(func() { a.cancel() }) }
+func (a *App) Close() { a.closeOnce.Do(func() { a.closePreview(); a.cancel() }) }
 func (a *App) worker() {
 	defer close(a.workerDone)
 	for {

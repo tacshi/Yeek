@@ -30,6 +30,7 @@ type documentEditor struct {
 	matchCase, regex                                       bool
 	source, syntaxLanguage, palette, findSource, findQuery string
 	spans                                                  []ui.CodeSpan
+	chips                                                  []ui.CodeChip
 	matches                                                []ui.TextRange
 	captures                                               [][]int
 	pattern                                                *regexp.Regexp
@@ -126,18 +127,31 @@ func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKe
 			case "GraphQL variables":
 				editor.Placeholder("{}")
 			}
+			// Yaak's description editor takes no template tags.
+			templating := !readOnly && label != "Request description"
 			palette := fmt.Sprint(p.text, p.accent, p.orange, p.blue, p.muted)
+			if templating {
+				palette += a.templateSyntaxKey(p)
+			}
 			if doc.source != *value || doc.syntaxLanguage != language || doc.palette != palette {
+				if doc.source != *value || doc.syntaxLanguage != language {
+					doc.state.SetFolds(editorFolds(*value, language))
+				}
 				doc.source = *value
 				doc.syntaxLanguage = language
 				doc.palette = palette
-				doc.spans = syntaxSpans(*value, language, p)
-				if !readOnly {
-					doc.spans = templateSyntax(doc.spans, *value, p.accent)
+				doc.spans, doc.chips = syntaxSpans(*value, language, p), nil
+				if templating {
+					tags := a.templateTagKinds(*value)
+					doc.spans = templateSyntax(doc.spans, tags, p)
+					doc.chips = templateChips(tags, p)
 				}
-				doc.state.SetFolds(editorFolds(*value, language))
 			}
 			editor.Syntax(doc.spans)
+			if templating {
+				editor.Chips(doc.chips)
+				a.templateChipClicked(doc, *value)
+			}
 			if !readOnly {
 				marks := a.graphQLMarks(label, p)
 				if doc.jsonSchema != nil {
@@ -203,9 +217,6 @@ func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKe
 					}
 				}
 				if !readOnly {
-					if label != "Request description" {
-						a.templateMenu(menu, doc, *value)
-					}
 					menu.Separator()
 					if menu.Item("Indent").Chosen() {
 						doc.state.Command("indent")

@@ -138,6 +138,7 @@ const (
 type shadow struct {
 	x, y, blur, spread float32
 	color              Color
+	inset              bool
 }
 
 // textStyle is the text styling of an element; descendants inherit what is
@@ -287,8 +288,12 @@ type node struct {
 	ellipsis  string
 	image     *Bitmap
 	svg       *SVG // of an Icon, or an Image in its own colors
+	webView   NativeWebView
 	fit       Fit
 	gray      bool
+	// dismissed: Escape or a click outside closed the dialog or popover
+	// whose panel this is, in this frame (Dismissed).
+	dismissed bool
 	rotate    float32 // of an Icon, in degrees
 	label     string
 	// widget names the widget that used the element's state as it created
@@ -308,12 +313,9 @@ type node struct {
 	// highlighted is set on the option of a select the pointer or the
 	// arrows are on.
 	highlighted bool
-	// place moves an overlay element to fit in the window, as keepInWindow
-	// asked.
-	place    placement
-	accValue string
-	accRange [3]float64
-	hasRange bool
+	accValue    string
+	accRange    [3]float64
+	hasRange    bool
 	// accStep is how far the keys move the value of a range.
 	accStep float64
 
@@ -641,8 +643,11 @@ func (e *node) MaxHeightPercent(p float32) *node { e.maxH = percent(p); return e
 // filling the rest of a window.
 func (e *node) Grow(f float32) *node {
 	e.grow = f
+	// As CSS's flex: 1, a basis of 0%: none in a parent of a known size,
+	// the content's in one whose size the content sets, so that a child
+	// growing in a column as high as its content keeps its height.
 	if e.basis.u == unitAuto {
-		e.basis = px(0)
+		e.basis = percent(0)
 	}
 	return e
 }
@@ -870,7 +875,17 @@ func (e *node) Radius(r ...float32) *node {
 // spread DIPs. As CSS's box-shadow, it shows only outside the box: a
 // translucent background does not show it through.
 func (e *node) Shadow(x, y, blur, spread float32, c Color) *node {
-	e.shadows = append(e.shadows, shadow{x, y, blur, spread, c})
+	e.shadows = append(e.shadows, shadow{x, y, blur, spread, c, false})
+	return e
+}
+
+// InsetShadow adds an inner box shadow, as CSS's box-shadow: inset: offset
+// by x and y, blurred by blur and grown inward by spread DIPs. It shows
+// only inside the box's padding edge, within its border and rounded
+// corners, above the background and below the content. Inner shadows
+// stack in the order they are added, as outer ones do.
+func (e *node) InsetShadow(x, y, blur, spread float32, c Color) *node {
+	e.shadows = append(e.shadows, shadow{x, y, blur, spread, c, true})
 	return e
 }
 

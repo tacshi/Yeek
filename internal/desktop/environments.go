@@ -93,23 +93,60 @@ func (a *App) openEnvironmentsAt(id string) {
 // tree on the left, the selected one's editor on the right.
 func (a *App) environmentDialog(c *ui.Context, p colors) {
 	base, subs := a.environmentsBreakdown()
+	bases := a.baseEnvironments()
+	// Yaak leaves sub-environments out while a workspace has several base
+	// environments, which it asks to be deleted down to one.
+	multiple := len(bases) > 1
 	if a.models[a.dialogID] == nil && base != nil {
 		a.dialogID = s(base, "id")
 		a.envDraft = kvRows(base, "variables")
 	}
 	ui.Row(c).Height(470).AlignItems(ui.Stretch).Children(func() {
-		ui.Scroll(c).Width(220).Shrink(0).Padding(8, 8).Gap(1).Background(p.sidebar).BorderWidth(0, 1, 0, 0).BorderColor(p.border).Children(func() {
+		sidebar := ui.Scroll(c).Width(220).Shrink(0).Padding(8, 8).Gap(1).Background(p.sidebar).BorderWidth(0, 1, 0, 0).BorderColor(p.border).Children(func() {
+			if multiple {
+				for _, env := range bases {
+					a.environmentRow(c, p, env, 0, true)
+				}
+				return
+			}
 			if base != nil {
-				a.environmentRow(c, p, base, 0)
+				a.environmentRow(c, p, base, 0, false)
 			}
 			for _, env := range subs {
-				a.environmentRow(c, p, env, 1)
+				a.environmentRow(c, p, env, 1, false)
 			}
 		})
-		if env := a.models[a.dialogID]; env != nil {
-			a.environmentEditor(c, p, env)
-		}
+		// Right-clicking empty space offers a sub-environment, while there can be one.
+		sidebar.ContextMenu(func(m *ui.Menu) {
+			if !multiple && base != nil && m.Item("Create Sub Environment").Chosen() {
+				a.newEnvironment()
+			}
+		})
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			if multiple {
+				ui.Box(c).Padding(12).Children(func() {
+					ui.Row(c).Padding(8, 10).Radius(6).Border(1, p.notice.Alpha(.5)).Background(p.notice.Alpha(.1)).Children(func() {
+						ui.Text(c, "There are multiple base environments for this workspace. Please delete the environments you no longer need.").FontSize(12).Grow(1).MinWidth(0)
+					})
+				})
+			}
+			if env := a.models[a.dialogID]; env != nil {
+				a.environmentEditor(c, p, env)
+			}
+		})
 	})
+}
+
+// baseEnvironments are the workspace's environments of its own, which
+// should be one.
+func (a *App) baseEnvironments() []engine.Object {
+	var bases []engine.Object
+	for _, env := range a.list("environment") {
+		if s(env, "parentModel") == "workspace" {
+			bases = append(bases, env)
+		}
+	}
+	return bases
 }
 
 func (a *App) selectEnvironment(id string) {
@@ -118,7 +155,9 @@ func (a *App) selectEnvironment(id string) {
 	a.envDraft = kvRows(a.models[id], "variables")
 }
 
-func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth int) {
+// environmentRow is a row of Yaak's environment tree. With several base
+// environments each shows a warning, and none takes a sub-environment.
+func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth int, multiple bool) {
 	id := s(env, "id")
 	isBase := s(env, "parentModel") == "workspace"
 	selected := id == a.dialogID
@@ -130,14 +169,16 @@ func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth i
 		row.Background(p.border.Alpha(.3))
 	}
 	row.Children(func() {
-		if color, ok := envColor(s(env, "color"), p); ok {
+		if multiple {
+			icon(c, "alert").FontSize(13).TextColor(p.notice)
+		} else if color, ok := envColor(s(env, "color"), p); ok {
 			colorDot(c, color, 8)
 		}
 		if b(env, "public") && !isBase {
 			icon(c, "eye").FontSize(13).TextColor(p.subtle).Tooltip("Sharable environments are included in Directory Sync and data export.")
 		}
 		ui.Text(c, s(env, "name")).FontSize(13).SingleLine().Grow(1).MinWidth(0)
-		if isBase && smallIconButton(c, "plusCircle", "Add Sub-Environment").Opacity(.6).Clicked() {
+		if isBase && !multiple && smallIconButton(c, "plusCircle", "Add Sub-Environment").Opacity(.6).Clicked() {
 			a.newEnvironment()
 		}
 	})
@@ -145,9 +186,6 @@ func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth i
 		a.selectEnvironment(id)
 	}
 	row.ContextMenu(func(m *ui.Menu) {
-		if isBase && m.Item("Create Sub Environment").Chosen() {
-			a.newEnvironment()
-		}
 		if !isBase {
 			if m.Item("Rename").Chosen() {
 				a.saveEnvironment()
@@ -173,17 +211,24 @@ func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth i
 				a.environmentColor = s(env, "color")
 				a.prompt("environment_color", "Environment Color", "", id)
 			}
-			label = "Make Sharable"
-			if b(env, "public") {
-				label = "Make Private"
-			}
-			if m.Item(label).Chosen() {
-				a.setEnvironmentField(id, "public", !b(env, "public"))
-			}
+		}
+		// Yaak's menu: a base environment is only shared, or deleted while
+		// there are several, and takes a sub-environment while there's one.
+		label := "Make Sharable"
+		if b(env, "public") {
+			label = "Make Private"
+		}
+		if m.Item(label).Chosen() {
+			a.setEnvironmentField(id, "public", !b(env, "public"))
+		}
+		if (!isBase || multiple) && m.Item("Delete").Chosen() {
+			a.saveEnvironment()
+			a.prompt("delete", "Delete "+s(env, "name"), s(env, "name"), id)
+		}
+		if isBase && !multiple {
 			m.Separator()
-			if m.Item("Delete").Chosen() {
-				a.saveEnvironment()
-				a.prompt("delete", "Delete "+s(env, "name"), s(env, "name"), id)
+			if m.Item("Create Sub Environment").Chosen() {
+				a.newEnvironment()
 			}
 		}
 	})
@@ -293,8 +338,8 @@ func allSecure(rows []KV) bool {
 // encryptEnvironment replaces each plain value with a secure() template.
 func (a *App) encryptEnvironment(id string) {
 	workspace := s(a.models[id], "workspaceId")
-	if a.models[workspace]["encryptionKeyChallenge"] == nil {
-		a.prompt("workspace_settings", "Workspace Settings", "", workspace)
+	if !a.workspaceKeySet(workspace) {
+		a.withEncryptionEnabled(workspace, func() { a.encryptEnvironment(id) })
 		return
 	}
 	rows := slices.Clone(a.envDraft)

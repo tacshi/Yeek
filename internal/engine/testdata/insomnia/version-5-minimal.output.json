@@ -1,0 +1,128 @@
+{
+  "resources": {
+    "environments": [
+      {
+        "createdAt": "2025-05-14T04:45:24.903",
+        "id": "GENERATE_ID::env_e46dc73e8ccda30ca132153e8f11183bd08119ce",
+        "model": "environment",
+        "name": "Base Environment",
+        "public": true,
+        "updatedAt": "2025-05-14T04:45:24.903",
+        "variables": [],
+        "workspaceId": "GENERATE_ID::wrk_9717dd1c9e0c4b2e9ed6d2abcf3bd45c",
+        "parentId": null,
+        "parentModel": "workspace"
+      },
+      {
+        "createdAt": "2025-05-16T16:48:12.298",
+        "id": "GENERATE_ID::fld_296933ea4ea84783a775d199997e9be7folder",
+        "model": "environment",
+        "name": "Folder Environment",
+        "parentId": "GENERATE_ID::fld_296933ea4ea84783a775d199997e9be7",
+        "parentModel": "folder",
+        "public": true,
+        "updatedAt": "2025-05-16T16:49:02.427",
+        "variables": [
+          {
+            "enabled": true,
+            "name": "folder_env_var",
+            "value": "testing"
+          }
+        ],
+        "workspaceId": "GENERATE_ID::wrk_9717dd1c9e0c4b2e9ed6d2abcf3bd45c"
+      }
+    ],
+    "folders": [
+      {
+        "createdAt": "2025-05-16T16:48:12.298",
+        "folderId": null,
+        "id": "GENERATE_ID::fld_296933ea4ea84783a775d199997e9be7",
+        "model": "folder",
+        "name": "My Folder",
+        "sortPriority": -1747414092298,
+        "updatedAt": "2025-05-16T16:49:02.427",
+        "workspaceId": "GENERATE_ID::wrk_9717dd1c9e0c4b2e9ed6d2abcf3bd45c",
+        "authentication": {},
+        "authenticationType": null,
+        "headers": [
+          {
+            "enabled": true,
+            "name": "foo",
+            "value": "bar"
+          }
+        ]
+      }
+    ],
+    "grpcRequests": [],
+    "httpRequests": [
+      {
+        "authentication": {},
+        "authenticationType": null,
+        "body": {},
+        "bodyType": null,
+        "createdAt": "2025-05-14T04:45:28.502",
+        "folderId": "GENERATE_ID::fld_296933ea4ea84783a775d199997e9be7",
+        "headers": [
+          {
+            "enabled": true,
+            "name": "User-Agent",
+            "value": "insomnia/11.1.0"
+          }
+        ],
+        "id": "GENERATE_ID::req_9a80320365ac4509ade406359dbc6a71",
+        "method": "GET",
+        "model": "http_request",
+        "name": "New Request",
+        "sortPriority": -1747414129276,
+        "updatedAt": "2025-05-16T16:48:49.313",
+        "url": "https://httpbin.org/post",
+        "urlParameters": [],
+        "workspaceId": "GENERATE_ID::wrk_9717dd1c9e0c4b2e9ed6d2abcf3bd45c"
+      },
+      {
+        "authentication": {},
+        "authenticationType": null,
+        "body": {},
+        "bodyType": null,
+        "createdAt": "2025-05-16T16:49:20.497",
+        "folderId": null,
+        "headers": [
+          {
+            "enabled": true,
+            "name": "User-Agent",
+            "value": "insomnia/11.1.0"
+          }
+        ],
+        "id": "GENERATE_ID::req_e3f8cdbd58784a539dd4c1e127d73451",
+        "method": "GET",
+        "model": "http_request",
+        "name": "New Request",
+        "sortPriority": -1747414160498,
+        "updatedAt": "2025-05-16T16:49:20.497",
+        "urlParameters": [],
+        "workspaceId": "GENERATE_ID::wrk_9717dd1c9e0c4b2e9ed6d2abcf3bd45c"
+      }
+    ],
+    "websocketRequests": [],
+    "workspaces": [
+      {
+        "createdAt": "2025-05-14T04:45:24.902",
+        "id": "GENERATE_ID::wrk_9717dd1c9e0c4b2e9ed6d2abcf3bd45c",
+        "model": "workspace",
+        "name": "Debugging",
+        "updatedAt": "2025-05-14T04:45:24.902",
+        "authentication": {},
+        "authenticationType": null,
+        "headers": []
+      }
+    ]
+  },
+  "sourceKeys": {
+    "GENERATE_ID::env_e46dc73e8ccda30ca132153e8f11183bd08119ce": "env_e46dc73e8ccda30ca132153e8f11183bd08119ce",
+    "GENERATE_ID::fld_296933ea4ea84783a775d199997e9be7folder": "fld_296933ea4ea84783a775d199997e9be7folder",
+    "GENERATE_ID::fld_296933ea4ea84783a775d199997e9be7": "fld_296933ea4ea84783a775d199997e9be7",
+    "GENERATE_ID::req_9a80320365ac4509ade406359dbc6a71": "req_9a80320365ac4509ade406359dbc6a71",
+    "GENERATE_ID::req_e3f8cdbd58784a539dd4c1e127d73451": "req_e3f8cdbd58784a539dd4c1e127d73451",
+    "GENERATE_ID::wrk_9717dd1c9e0c4b2e9ed6d2abcf3bd45c": "wrk_9717dd1c9e0c4b2e9ed6d2abcf3bd45c"
+  }
+}

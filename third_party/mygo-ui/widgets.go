@@ -596,7 +596,8 @@ func coreOverlay(c *context, fn func()) {
 }
 
 // Modal shows a dialog built by fn over a dimmed window while *open is
-// true; clicking outside it or pressing Escape sets *open to false.
+// true; clicking outside it or pressing Escape sets *open to false, which
+// Dismissed reports.
 func coreModal(c *context, open *bool, fn func()) *node {
 	if !*open {
 		return nil
@@ -611,7 +612,8 @@ func coreModal(c *context, open *bool, fn func()) *node {
 }
 
 // Popover shows fn's elements in a panel below anchor while *open is
-// true; clicking outside it or pressing Escape sets *open to false.
+// true; clicking outside it or pressing Escape sets *open to false, which
+// Dismissed reports.
 func corePopover(c *context, anchor *node, open *bool, fn func()) *node {
 	if !*open {
 		return nil
@@ -687,34 +689,4 @@ func coreMenuButton(c *context, label string, build func(m *Menu)) *node {
 		chevron(c)
 	})
 	return b.Menu(build)
-}
-
-// keepInWindow places an overlay element at (x, y), where the layout,
-// which knows its size, moves it to fit in the window: left when it would
-// overflow the right edge, above, ending at aboveY, when it would
-// overflow the bottom. A top margin keeps it apart from what it is above
-// or below.
-func keepInWindow(e *node, x, y, aboveY float32) {
-	e.Left(x).Top(y)
-	e.place = placement{on: true, above: aboveY}
-}
-
-// placement is where an overlay element goes when it does not fit below
-// what it belongs to: above, its bottom at above.
-type placement struct {
-	on    bool
-	above float32
-}
-
-// fit moves an absolute element w×h at (left, top) in a containing block
-// pw×ph, its placement says, to fit in the block.
-func (p placement) fit(e *node, left, top, w, h, pw, ph float32) (float32, float32) {
-	if left+e.margin[3]+w > pw-4 {
-		left = max(4-e.margin[3], pw-4-w-e.margin[3])
-	}
-	m := e.margin[0]
-	if top+m+h > ph-4 && p.above-m-h > 4 {
-		top = p.above - h - 2*m
-	}
-	return left, top
 }

@@ -49,7 +49,7 @@ func (a *App) paletteGroups() []paletteGroup {
 	actions := []paletteItem{
 		{key: "settings.open", label: "Open Settings", action: "settings.show", run: func() { a.prompt("settings", "Settings", "", "") }},
 		{key: "workspace_settings.open", label: "Open Workspace Settings", action: "workspace_settings.show", run: func() { a.prompt("workspace_settings", "Workspace Settings", "", wid) }},
-		{key: "app.create", label: "Create Workspace", run: func() { a.prompt("workspace", "New Workspace", "", "") }},
+		{key: "app.create", label: "Create Workspace", run: func() { a.newWorkspace() }},
 		{key: "model.create", label: "Create HTTP Request", run: func() { a.addRequest("http_request", "") }},
 		{key: "grpc_request.create", label: "Create GRPC Request", run: func() { a.addRequest("grpc_request", "") }},
 		{key: "websocket_request.create", label: "Create Websocket Request", run: func() { a.addRequest("websocket_request", "") }},

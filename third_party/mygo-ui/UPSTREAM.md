@@ -1,6 +1,6 @@
 # MyGo native UI
 
-Based on `github.com/egoist/mygo/ui` at v0.3.4, under the included MIT license. The framework and CLI are pinned to MyGo v0.3.4 too.
+Based on `github.com/egoist/mygo/ui` at v0.4.0, under the included MIT license. The framework and CLI are pinned to MyGo v0.4.0 too.
 
 As upstream does, the public API (`api_gen.go`) is generated from the private renderer API (`core*` functions and exported methods of `node` and `context`): run `go generate .` here after changing it. `internal/uigen` is upstream's generator, changed only to run from this directory.
 
@@ -10,6 +10,7 @@ Yeek's changes:
 - A new `CodeEditor` document opens at its first line with the caret there, as CodeMirror does, instead of scrolled to a caret at the end like a text field.
 - Carets are 2px wide, as in Yaak. A `CodeEditor`'s is as tall as the text (1.3× the font size), centred in its line, like Yaak's CodeMirror caret.
 - A read-only `CodeEditor` draws its caret where it is clicked, and the pointer becomes a pointing hand over fold markers.
+- `Element.Chips` (`code_chips.go`) draws ranges of a `CodeEditor` as chips, like CodeMirror's atomic replace decorations for Yaak's template tags: a rounded box with hover colors and the default cursor. The caret steps over a chip (`editor_navigation.go`), Backspace and Delete remove it whole, and a click on it is reported by `CodeEditorState.ChipClicked` instead of placing the caret. It hooks into `editor.go`, `editor_layout.go`, `textarea.go` and `runtime.go`.
 - `CodeEditorState.Pasted` reports the text last pasted and whether it replaced the editor's whole text.
 - `Element.SelectAll` selects all of a text input's text, as when a sidebar row opens for an inline rename.
 - `SplitQuiet` is a split whose divider is drawn only while it is hovered or dragged, as in Yaak's pane layout.

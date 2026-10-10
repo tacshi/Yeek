@@ -480,6 +480,14 @@ func (a *App) deleteTreeItems(ids []string) {
 	a.prompt("delete_items", title, "", "")
 }
 
+// pluralize is Yaak's: word, with an s unless count is 1.
+func pluralize(word string, count int) string {
+	if count == 1 {
+		return word
+	}
+	return word + "s"
+}
+
 func pluralizeCount(word string, count int) string {
 	if count == 1 {
 		return "1 " + word

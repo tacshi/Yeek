@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/antchfx/xmlquery"
 	"github.com/ohler55/ojg/jp"
 )
 
@@ -192,30 +191,18 @@ func extendedTemplateFunction(name string, args map[string]string) (string, erro
 	}
 }
 func templatePath(input, path string, args map[string]string) (string, error) {
-	values := []any{}
 	if strings.HasPrefix(strings.TrimSpace(input), "<") {
-		doc, err := xmlquery.Parse(strings.NewReader(input))
-		if err != nil {
-			return "", err
-		}
-		nodes, err := xmlquery.QueryAll(doc, path)
-		if err != nil {
-			return "", err
-		}
-		for _, node := range nodes {
-			values = append(values, node.InnerText())
-		}
-	} else {
-		var data any
-		if err := json.Unmarshal([]byte(input), &data); err != nil {
-			return "", err
-		}
-		expression, err := jp.ParseString(path)
-		if err != nil {
-			return "", err
-		}
-		values = expression.Get(data)
+		return filterXPath(input, path, args["result"], args["join"])
 	}
+	var data any
+	if err := json.Unmarshal([]byte(input), &data); err != nil {
+		return "", err
+	}
+	expression, err := jp.ParseString(path)
+	if err != nil {
+		return "", err
+	}
+	values := expression.Get(data)
 	asString := func(v any) string {
 		if s, ok := v.(string); ok {
 			return s

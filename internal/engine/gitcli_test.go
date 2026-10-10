@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -178,5 +179,31 @@ func TestGitStatusAndCommitStayInSyncDir(t *testing.T) {
 	out, _, _ := gitCommand(t.Context(), repo, "", "diff", "--cached", "--name-only")
 	if out != "outside.txt\n" {
 		t.Fatalf("staged outside the sync dir: %q", out)
+	}
+}
+
+// Yaak's git_clone: a local repository clones into a new folder whose
+// parent is made; a failure says why.
+func TestGitClone(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	e := testEngine(t)
+	source := t.TempDir()
+	for _, args := range [][]string{{"init", "-q"}, {"-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "--allow-empty", "-m", "first"}} {
+		if out, err := exec.Command("git", append([]string{"-C", source}, args...)...).CombinedOutput(); err != nil {
+			t.Fatal(string(out))
+		}
+	}
+	dir := filepath.Join(t.TempDir(), "projects", "repo")
+	result, err := e.GitClone(t.Context(), source, dir)
+	if err != nil || result.Kind != "success" {
+		t.Fatal(result, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.GitClone(t.Context(), filepath.Join(t.TempDir(), "missing"), filepath.Join(t.TempDir(), "x")); err == nil || !strings.HasPrefix(err.Error(), "Failed to clone: ") {
+		t.Fatal(err)
 	}
 }
