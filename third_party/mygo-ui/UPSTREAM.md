@@ -1,6 +1,6 @@
 # MyGo native UI
 
-Based on `github.com/egoist/mygo/ui` at v0.3.4, under the included MIT license. The framework and CLI are pinned to MyGo v0.3.4 too.
+Based on `github.com/egoist/mygo/ui` at v0.4.0, under the included MIT license. The framework and CLI are pinned to MyGo v0.4.0 too.
 
 As upstream does, the public API (`api_gen.go`) is generated from the private renderer API (`core*` functions and exported methods of `node` and `context`): run `go generate .` here after changing it. `internal/uigen` is upstream's generator, changed only to run from this directory.
 

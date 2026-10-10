@@ -48,6 +48,14 @@ type host interface {
 	// popupMenu shows a context menu at (x, y) after the event being
 	// handled; chosen receives the ID of the item chosen.
 	popupMenu(m *platform.Menu, x, y float32, chosen func(id int))
+	// placeWebViews shows the web views where the frame shows them, and
+	// hides the others.
+	placeWebViews(views []placedWebView)
+	// tabIntoWebView gives the page of v the keyboard as Tab does, from
+	// its end when back (platform.WebView.TabInto).
+	tabIntoWebView(v NativeWebView, back bool)
+	// platformWebView returns the web view of the platform v is, if any.
+	platformWebView(v NativeWebView) platform.WebView
 }
 
 // engine runs the user interface of one window: it builds frames with
@@ -87,9 +95,10 @@ type engine struct {
 	svgs         svgs
 	flex         flexScratch
 	grid         gridScratch
-	// under is the painter's stack of opaque backgrounds, kept from one
-	// frame to the next.
-	under []Rect
+	// under is the painter's stack of opaque backgrounds, and holes the
+	// holes it painted, kept from one frame to the next.
+	under []opaqueBox
+	holes []Rect
 
 	states map[uint64]*state
 	// free are states pruned, which new elements take: rows coming into
@@ -110,6 +119,12 @@ type engine struct {
 	// dialog on top, which assistive technology sees with what is above.
 	modalLayer  uint64
 	commitScope focusScope
+	// webPlaces are where the frame shows web views (WebView), and webOut
+	// what the host got of them; webShown tells that the last frame
+	// showed some.
+	webPlaces []webPlace
+	webOut    []placedWebView
+	webShown  bool
 	// The focus groups of the frame, the group of each element of the
 	// focus order in one, and the element of each that had the focus
 	// last.
@@ -217,6 +232,7 @@ type engine struct {
 	incoming    *platform.DataDragEvent
 	dataOver    uint64
 	closed      bool
+	closing     bool // the window closed during a frame, which closes the engine as it ends
 	dropFormats []transfer.Format
 	dropScratch []transfer.Format
 	// kept are the pages of the history that Routers keep, and commitPage
@@ -341,11 +357,11 @@ func (rt *engine) themeChanged() {
 
 // runFrame builds, lays out, paints and presents a frame.
 func (rt *engine) runFrame() {
-	if rt.inFrame {
+	if rt.inFrame || rt.closed {
 		return
 	}
 	rt.inFrame = true
-	defer func() { rt.inFrame = false }()
+	defer rt.endFrame()
 
 	rt.frame++
 	rt.stats.begin(rt)
@@ -388,6 +404,11 @@ func (rt *engine) runFrame() {
 		clear(rt.kept)
 		rt.c.reset(now, appW, h)
 		rt.view(&rt.c)
+		if rt.closing {
+			// The view closed the window, as a close button does: the
+			// window is gone at once, and the frame ends with the view.
+			return
+		}
 		rt.buildToasts(&rt.c)
 		if ov := rt.c.overlay; ov != nil {
 			rt.c.root.add(ov)
@@ -405,6 +426,9 @@ func (rt *engine) runFrame() {
 		rt.prepareSelectable(rt.c.root)
 		rt.resolveMenu()
 		rt.endPass()
+		if rt.closing {
+			return // an action closed it
+		}
 		if !rt.consumed {
 			break
 		}
@@ -437,6 +461,7 @@ func (rt *engine) runFrame() {
 	rt.stats.lap(phasePaint)
 	rt.insp.lap(2)
 	rt.host.present(&rt.scene)
+	rt.placeWebViews()
 	rt.stats.lap(phasePresent)
 	rt.prune()
 	rt.syncDropFormats()
@@ -532,7 +557,7 @@ func (rt *engine) surfaceFrame() {
 // armed them.
 func (rt *engine) repaintFrame(w, h, scale float32) {
 	rt.inFrame = true
-	defer func() { rt.inFrame = false }()
+	defer rt.endFrame()
 	rt.stats.begin(rt)
 	start := time.Now()
 	rt.c.now = rt.now()
@@ -704,8 +729,16 @@ func (rt *engine) armTimer() {
 	}
 }
 
+// close lets the window's state go when the window closes. A window closed
+// during a frame, as a close button's click closes it, keeps it until the
+// frame ends: the rest of the view builds with a Context that still works,
+// and reads the theme, the size and its state as before.
 func (rt *engine) close() {
-	rt.closed = true
+	if rt.inFrame {
+		rt.closing = true
+		return
+	}
+	rt.closed, rt.closing = true, false
 	clear(rt.focusFields)
 	rt.focusFields = nil
 	for _, r := range rt.refs {
@@ -746,10 +779,21 @@ func (rt *engine) close() {
 	}
 }
 
+// endFrame ends a frame, and closes the engine when its window closed
+// during it.
+func (rt *engine) endFrame() {
+	rt.inFrame = false
+	if rt.closing {
+		rt.close()
+	}
+}
+
 // commit records the laid out frame in the elements' states: their
 // boxes, the hit list in paint order, the focus order.
 func (rt *engine) commit(root *node, w, h float32) {
 	rt.hits = rt.hits[:0]
+	clear(rt.webPlaces)
+	rt.webPlaces = rt.webPlaces[:0]
 	rt.focusOrder, rt.focusScopes = rt.focusOrder[:0], rt.focusScopes[:0]
 	rt.modal, rt.modalLayer, rt.commitScope, rt.commitPage = 0, 0, focusScope{}, 0
 	if rt.groups == nil {
@@ -793,6 +837,7 @@ func (rt *engine) commitElement(e *node, clip Rect, hidden bool) {
 		s.flags |= flagDisabled
 	}
 	s.cursor, s.tip = e.cursor, e.tip
+	s.webView = e.webView
 	s.role = e.role
 	s.input, s.caret, s.takesText = e.inputFn, e.caret, e.takesText
 	if s.textClient != e.textClient {
@@ -824,6 +869,9 @@ func (rt *engine) commitElement(e *node, clip Rect, hidden bool) {
 		if rt.focused == e.id {
 			rt.focused = 0
 		}
+	}
+	if e.webView != nil {
+		rt.noteWebView(e, clip, invisible)
 	}
 	switch {
 	case e.flags&flagPassThrough != 0 || invisible:
@@ -889,8 +937,17 @@ func intersect(a, b Rect) Rect {
 	return Rect{x0, y0, x1 - x0, y1 - y0}
 }
 
-// updateCursor shows the cursor of the element under the pointer.
+// updateCursor shows the cursor of the element under the pointer: the
+// innermost one's that sets a cursor, up to the innermost element that
+// takes clicks, whose own cursor is the default unless it sets one, so a
+// button in a text field shows no I-beam.
 func (rt *engine) updateCursor() {
+	if rt.pressed == nil && rt.overWebView() {
+		// The page sets the cursor over it: it is set again as the
+		// pointer comes back.
+		rt.cursor = cursorUnknown
+		return
+	}
 	c := CursorDefault
 	if p := rt.pressed; p != nil && p.editor != nil && p.editor.overFold(rt.pointerX-p.x, rt.pointerY-p.y) {
 		// Pressing a code editor's fold marker keeps the pointing hand.
@@ -911,6 +968,9 @@ func (rt *engine) updateCursor() {
 				c = s.cursor - 1
 				break
 			}
+			if s.flags&flagClickable != 0 {
+				break
+			}
 		}
 	}
 	if c != rt.cursor {
@@ -918,6 +978,10 @@ func (rt *engine) updateCursor() {
 		rt.host.setCursor(c)
 	}
 }
+
+// cursorUnknown is the cursor the engine last set while the pointer is
+// over a web view, whose page set another.
+const cursorUnknown Cursor = 255
 
 func (rt *engine) zoomFactor() float32 {
 	if rt.zoom <= 0 {

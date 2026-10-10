@@ -361,7 +361,18 @@ func (ed *editor) command(c *context, name string) {
 			ed.insert("")
 		}
 	case "paste":
-		if s := h.readClipboard(); s != "" {
+		s := h.readClipboard()
+		if ed.onPaste != nil {
+			// The frame builds again, showing what fn changed in the
+			// elements built before the input, as an attachment.
+			c.rt.consumed = true
+			if ed.onPaste(s) {
+				// Taken: the text and its selection stay, as when a web
+				// page prevents a paste's default.
+				break
+			}
+		}
+		if s != "" {
 			// A code editor tells its state what was pasted and whether it
 			// replaced the whole text, as Yaak's onPasteOverwrite needs.
 			overwrote := ed.buf.n == 0 || a == 0 && b == ed.buf.n
