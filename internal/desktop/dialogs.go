@@ -10,14 +10,17 @@ import (
 )
 
 func (a *App) dialogs(c *ui.Context, p colors) {
-	ui.DialogBase(c, &a.dialogOpen, func(backdrop, panel ui.Element) {
+	a.checkEncryptionGate()
+	// Yaak's Import Data and Import Complete dialogs disable closing.
+	locked := a.dialog == "imports" || a.dialog == "import_complete"
+	dialog := ui.DialogBase(c, &a.dialogOpen, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, .48))
 		panel.Width(660).MaxWidthPercent(90).MaxHeightPercent(88).Padding(0).Radius(10).Background(p.background).Border(1, p.border).Gap(0)
 		// A dialog without a title draws its own heading and close button.
 		if a.dialogTitle != "" {
 			ui.Row(c).Padding(16, 20).Gap(8).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 				ui.Text(c, a.dialogTitle).FontSize(16).FontWeight(600).Grow(1)
-				if iconButton(c, "close", "Close dialog").Clicked() {
+				if !locked && iconButton(c, "close", "Close dialog").Clicked() {
 					a.dialogOpen = false
 				}
 			})
@@ -160,10 +163,28 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 				}
 			})
 		case "exports":
+			// Yaak's md dialog.
+			panel.Width(800)
 			a.exportDialog(c, p)
 		case "imports":
-			panel.Width(1080).Height(720)
+			// Yaak's lg dialog, 36rem tall.
+			panel.Width(1120).Height(576)
 			a.importDialog(c, p)
+		case "create_workspace":
+			// Yaak's sm dialog.
+			panel.Width(480)
+			a.createWorkspaceDialog(c, p)
+		case "clone_git":
+			// Yaak's md dialog.
+			panel.Width(800)
+			a.cloneGitDialog(c, p)
+		case "workspace_encryption":
+			// Yaak's md dialog.
+			panel.Width(800)
+			a.workspaceEncryptionDialog(c, p)
+		case "import_complete":
+			panel.Width(480)
+			a.importCompleteDialog(c, p)
 		case "encryption_key":
 			ui.Column(c).Padding(22).Gap(15).Children(func() {
 				ui.Text(c, a.dialogValue).Font("monospace").FontSize(13).Selectable()
@@ -177,12 +198,19 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 				if ui.PrimaryButton(c, "Set Key").Clicked() {
 					id, value := a.dialogID, a.dialogValue
 					a.run(func() (func(), error) {
-						return func() { a.dialogValue = ""; a.dialogOpen = false }, a.Engine.SetWorkspaceKey(a.ctx, id, value)
+						return func() {
+							a.dialogValue = ""
+							a.dialogOpen = false
+							a.finishEncryptionGate()
+						}, a.Engine.SetWorkspaceKey(a.ctx, id, value)
 					})
 				}
 			})
 		}
 	})
+	if locked && dialog.Dismissed() {
+		a.dialogOpen = true
+	}
 }
 func (a *App) confirmName() {
 	kind, title, id, workspace := a.dialog, strings.TrimSpace(a.dialogValue), a.dialogID, a.workspace

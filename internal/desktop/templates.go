@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -124,47 +125,104 @@ func completionRange(source string, caret int, explicit bool) (start, end int, p
 	return start, end, prefix, true
 }
 
+// templateTags is Yaak's findTemplateTags (#710): every ${[ … ]} in order,
+// in runes. A tag closes at the first ]} outside a terminated '…' string,
+// where \ escapes what follows it; an unterminated quote is an ordinary
+// character, and a ${[ with no ]} after it is no tag. The scan is linear:
+// closing quotes are found once, right to left, and a scan that walks into
+// a position an earlier one ran off the end from stops there.
 func templateTags(source string) []ui.TextRange {
 	r := []rune(source)
 	var out []ui.TextRange
-	for i := 0; i+2 < len(r); i++ {
-		if string(r[i:i+3]) != "${[" {
-			continue
-		}
-		quote, escaped := rune(0), false
-		closed := false
-		for j := i + 3; j+1 < len(r); j++ {
-			if escaped {
-				escaped = false
-				continue
-			}
-			if quote != 0 {
-				switch r[j] {
-				case '\\':
-					escaped = true
-				case quote:
-					quote = 0
-				}
-				continue
-			}
-			if r[j] == '\'' || r[j] == '"' {
-				quote = r[j]
-				continue
-			}
-			if r[j] == ']' && r[j+1] == '}' {
-				out = append(out, ui.TextRange{Start: i, End: j + 2})
-				closed = true
-				i = j + 1
+	var closing []int
+	var deadEnds map[int]bool
+	for from := 0; from < len(r); {
+		start := -1
+		for k := from; k+2 < len(r); k++ {
+			if r[k] == '$' && r[k+1] == '{' && r[k+2] == '[' {
+				start = k
 				break
 			}
 		}
-		if !closed {
-			out = append(out, ui.TextRange{Start: i, End: len(r)})
+		if start < 0 {
 			break
 		}
+		var visited []int
+		end := -1
+		for k := start + 3; k < len(r); {
+			if deadEnds[k] {
+				break
+			}
+			visited = append(visited, k)
+			if r[k] == '\'' {
+				if closing == nil {
+					closing = closingQuotes(r)
+				}
+				if close := closing[k+1]; close >= 0 {
+					k = close + 1
+				} else {
+					k++
+				}
+				continue
+			}
+			if r[k] == ']' && k+1 < len(r) && r[k+1] == '}' {
+				end = k + 2
+				break
+			}
+			k++
+		}
+		if end < 0 {
+			// No tag. One may start inside a string this scan stepped over.
+			if deadEnds == nil {
+				deadEnds = map[int]bool{}
+			}
+			for _, k := range visited {
+				deadEnds[k] = true
+			}
+			from = start + 3
+			continue
+		}
+		out = append(out, ui.TextRange{Start: start, End: end})
+		from = end
 	}
 	return out
 }
+
+// closingQuotes is Yaak's closingQuoteTable: for each rune, the ' that
+// closes a string whose body starts there, or -1.
+func closingQuotes(r []rune) []int {
+	table := make([]int, len(r)+2)
+	table[len(r)], table[len(r)+1] = -1, -1
+	for k := len(r) - 1; k >= 0; k-- {
+		next := table[k+1]
+		if r[k] == '\\' {
+			next = table[k+2]
+		}
+		if r[k] == '\'' {
+			next = k
+		}
+		table[k] = next
+	}
+	return table
+}
+
+// templateOpenAt reports whether caret is in a template tag, or after a
+// ${[ that isn't closed yet, as while one is typed.
+func templateOpenAt(source string, caret int) bool {
+	if _, ok := templateTagAt(source, caret); ok {
+		return true
+	}
+	r := []rune(source)
+	caret = min(max(caret, 0), len(r))
+	from := 0
+	for _, tag := range templateTags(source) {
+		if tag.End <= caret {
+			from = tag.End
+		}
+	}
+	return strings.Contains(string(r[from:caret]), "${[")
+}
+
 func templateTagAt(source string, caret int) (ui.TextRange, bool) {
 	for _, tag := range templateTags(source) {
 		if caret >= tag.Start && caret <= tag.End {
@@ -210,15 +268,21 @@ func (a *App) revealRow(id string, on bool) {
 func (a *App) templateInput(c *ui.Context, p colors, value *string, key, label, placeholder string, readOnly bool) ui.Element {
 	doc := a.templateDoc(key)
 	input := ui.CodeEditor(c, value, &doc.state, ui.CodeEditorOptions{SingleLine: true, Font: "monospace", FontSize: 12, ReadOnly: readOnly}).Label(label).Placeholder(placeholder)
-	palette := fmt.Sprint(p.accent)
+	palette := a.templateSyntaxKey(p)
 	if doc.source != *value || doc.palette != palette {
 		doc.source, doc.palette = *value, palette
-		doc.spans = nil
-		for _, tag := range templateTags(*value) {
-			doc.spans = append(doc.spans, ui.CodeSpan{Start: tag.Start, End: tag.End, Color: p.accent})
+		doc.spans, doc.chips = nil, nil
+		tags := a.templateTagKinds(*value)
+		for _, tag := range tags {
+			doc.spans = append(doc.spans, ui.CodeSpan{Start: tag.Start, End: tag.End, Color: templateTagColor(p, tag.kind)})
 		}
+		doc.chips = templateChips(tags, p)
 	}
 	input.Syntax(doc.spans)
+	if !readOnly {
+		input.Chips(doc.chips)
+		a.templateChipClicked(doc, *value)
+	}
 	input.ContextMenu(func(menu *ui.Menu) {
 		if menu.Item("Undo").Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyZ).Chosen() {
 			doc.state.Command("undo")
@@ -232,9 +296,6 @@ func (a *App) templateInput(c *ui.Context, p colors, value *string, key, label, 
 				doc.state.Command(action.command)
 			}
 		}
-		if !readOnly {
-			a.templateMenu(menu, doc, *value)
-		}
 	})
 	if !readOnly {
 		a.templateCompletion(c, p, input, doc, *value)
@@ -242,18 +303,109 @@ func (a *App) templateInput(c *ui.Context, p colors, value *string, key, label, 
 	return input
 }
 
-func (a *App) templateMenu(menu *ui.Menu, doc *documentEditor, source string) {
-	menu.Separator()
-	if menu.Item("Insert Variable or Function…").Chosen() {
-		a.openTemplateForm(doc, source, min(doc.state.Anchor, doc.state.Caret), max(doc.state.Anchor, doc.state.Caret), nil)
+// templateTag is a tag as Yaak's templateTagsPlugin shows it: a variable
+// or a function it knows, or one that's invalid as it finds neither. A tag
+// that spans lines is no chip.
+type templateTag struct {
+	ui.TextRange
+	kind, name string
+	chip       bool
+}
+
+func (a *App) templateTagKinds(source string) []templateTag {
+	tags := templateTags(source)
+	if len(tags) == 0 {
+		return nil
 	}
-	if tag, ok := templateTagAt(source, doc.state.Caret); ok && menu.Item("Edit Template…").Chosen() {
-		expression, err := engine.ParseTemplateExpression(string([]rune(source)[tag.Start:tag.End]))
-		if err == nil {
-			a.openTemplateForm(doc, source, tag.Start, tag.End, &expression)
-		} else {
-			a.errorMessage = err.Error()
+	variables := a.templateVariables(a.templateScope())
+	definitions := a.Engine.TemplateDefinitions()
+	r := []rune(source)
+	out := make([]templateTag, 0, len(tags))
+	for _, tag := range tags {
+		inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(string(r[tag.Start:tag.End]), "${["), "]}"))
+		name := inner
+		if m := templateFunctionName.FindStringSubmatch(inner); m != nil {
+			name = m[1]
 		}
+		// Yaak's beta named the response function Response.
+		if name == "Response" {
+			name = "response"
+		}
+		t := templateTag{TextRange: tag, kind: "invalid", name: name, chip: !strings.Contains(inner, "\n")}
+		if _, ok := variables[name]; ok {
+			t.kind = "variable"
+		} else if slices.ContainsFunc(definitions, func(d engine.TemplateDefinition) bool { return d.Name == name }) {
+			t.kind = "function"
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+var templateFunctionName = regexp.MustCompile(`([\w.]+)[(]`)
+
+// templateTagColor is the color of a tag: Yaak's primary for a variable,
+// info for a function and danger for one it doesn't find.
+func templateTagColor(p colors, kind string) ui.Color {
+	switch kind {
+	case "variable":
+		return p.accent
+	case "function":
+		return p.blue
+	}
+	return p.red
+}
+
+// templateChips are the chips of Yaak's TemplateTagWidget, in its
+// templateTagColorVariables: a translucent surface and border in the tag's
+// color, which strengthen on hover.
+func templateChips(tags []templateTag, p colors) []ui.CodeChip {
+	var chips []ui.CodeChip
+	for _, tag := range tags {
+		if !tag.chip {
+			continue
+		}
+		color := templateTagColor(p, tag.kind)
+		chips = append(chips, ui.CodeChip{Start: tag.Start, End: tag.End, Background: color.Alpha(.2), Border: color.Alpha(.2), HoverBackground: color.Alpha(.3), HoverBorder: color.Alpha(.4)})
+	}
+	return chips
+}
+
+// templateSyntaxKey is what a document's tag colors depend on besides its
+// text.
+func (a *App) templateSyntaxKey(p colors) string {
+	return fmt.Sprint(p.accent, p.blue, p.red, a.modelVersion, a.templateScope())
+}
+
+// templateChipClicked is Yaak's click on a tag: a function opens its
+// dialog, a variable the environment that has it, and a tag it doesn't find
+// the active environment with a variable of its name added.
+func (a *App) templateChipClicked(doc *documentEditor, source string) {
+	chip, ok := doc.state.ChipClicked()
+	if !ok {
+		return
+	}
+	for _, tag := range a.templateTagKinds(source) {
+		if tag.Start != chip.Start || tag.End != chip.End {
+			continue
+		}
+		switch tag.kind {
+		case "function":
+			expression, err := engine.ParseTemplateExpression(string([]rune(source)[tag.Start:tag.End]))
+			if err != nil {
+				a.errorMessage = err.Error()
+				return
+			}
+			show := func() { a.openTemplateForm(doc, source, tag.Start, tag.End, &expression) }
+			if tag.name == "secure" {
+				a.withEncryptionEnabled(a.workspace, show)
+			} else {
+				show()
+			}
+		default:
+			a.editVariable(tag.name)
+		}
+		return
 	}
 }
 
@@ -282,7 +434,9 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor ui.Element, doc
 		v.explicit = true
 		v.isSuppressed = false
 	}
-	if !doc.state.Focused || editor.Composing() || a.templateForm != nil || doc.state.Anchor != doc.state.Caret || (v.isSuppressed && v.suppressed == source && v.suppressedCaret == doc.state.Caret) {
+	// While a function's dialog is open, its own fields complete, as
+	// Yaak's DynamicForm inputs do; the field it edits waits.
+	if !doc.state.Focused || editor.Composing() || a.templateForm != nil && a.templateForm.doc == doc || doc.state.Anchor != doc.state.Caret || (v.isSuppressed && v.suppressed == source && v.suppressedCaret == doc.state.Caret) {
 		doc.state.Completions("", 0)
 		return
 	}
@@ -316,7 +470,15 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor ui.Element, doc
 					row.Background(p.accent.Alpha(.16))
 				}
 				row.Children(func() {
-					ui.Text(c, option.name).Font("monospace").FontSize(12).Grow(1).MaxLines(1)
+					label := option.name
+					if option.function != nil {
+						// Yaak's completion label: name(…), or name() without arguments.
+						label += "()"
+						if len(option.function.Fields) > 0 {
+							label = option.name + "(…)"
+						}
+					}
+					ui.Text(c, label).Font("monospace").FontSize(12).Grow(1).MaxLines(1)
 					kind := "variable"
 					switch {
 					case option.detail != "":
@@ -360,7 +522,7 @@ func (a *App) acceptTemplate(doc *documentEditor, source string, option template
 	expression := engine.TemplateExpression{Kind: "variable", Value: option.name}
 	if option.function != nil {
 		expression.Kind = "function"
-		if len(option.function.Fields) > 0 {
+		if len(option.function.Fields) > 0 && a.templateForm == nil {
 			a.openTemplateForm(doc, source, v.start, v.end, &expression)
 		} else {
 			doc.state.Replace(v.start, v.end, engine.FormatTemplateTag(expression))
@@ -378,8 +540,8 @@ func (a *App) acceptTemplate(doc *documentEditor, source string, option template
 
 func templateFieldLabel(field engine.TemplateField) string { return cmp.Or(field.Label, field.Name) }
 
-func templateSyntax(spans []ui.CodeSpan, source string, color ui.Color) []ui.CodeSpan {
-	tags := templateTags(source)
+// templateSyntax colors the tags in spans, each in the color of its kind.
+func templateSyntax(spans []ui.CodeSpan, tags []templateTag, p colors) []ui.CodeSpan {
 	if len(tags) == 0 {
 		return spans
 	}
@@ -397,7 +559,7 @@ func templateSyntax(spans []ui.CodeSpan, source string, color ui.Color) []ui.Cod
 				part.Start, part.End = at, tag.Start
 				out = append(out, part)
 			}
-			out = append(out, ui.CodeSpan{Start: max(at, tag.Start), End: min(span.End, tag.End), Color: color, String: true})
+			out = append(out, ui.CodeSpan{Start: max(at, tag.Start), End: min(span.End, tag.End), Color: templateTagColor(p, tag.kind), String: true})
 			at = min(span.End, tag.End)
 		}
 		if at < span.End {

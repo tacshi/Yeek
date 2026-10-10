@@ -7,7 +7,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
-	github.com/antchfx/xpath v1.3.9 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
@@ -55,6 +54,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/andybalholm/brotli v1.2.6
 	github.com/antchfx/xmlquery v1.5.2
+	github.com/antchfx/xpath v1.3.9
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/coder/websocket v1.8.15

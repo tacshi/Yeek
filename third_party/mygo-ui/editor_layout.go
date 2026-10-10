@@ -175,6 +175,7 @@ func (e *node) paintInput(p *Painter) {
 			}
 		}
 	}
+	ed.paintChips(p, func(from, to int) []text.Rect { return l.Selection(ed.displayIndex(from), ed.displayIndex(to)) }, 0, ed.buf.n, ox, oy)
 	var sp *spanPaint
 	if !ed.password {
 		_, sp = ed.rangeSpans(0, ed.buf.n)

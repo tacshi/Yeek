@@ -83,5 +83,5 @@ func (e *Engine) ExportToFile(ctx context.Context, path string, options ExportOp
 	if err != nil {
 		return err
 	}
-	return atomicWrite(path, data)
+	return atomicWrite(path, data, 0o600)
 }

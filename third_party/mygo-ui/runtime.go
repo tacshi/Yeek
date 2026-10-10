@@ -964,6 +964,9 @@ func (rt *engine) updateCursor() {
 				c = CursorPointer
 				break
 			}
+			if s.editor != nil && s.editor.overChip(rt.pointerX-s.x, rt.pointerY-s.y) {
+				break
+			}
 			if s.cursor != 0 {
 				c = s.cursor - 1
 				break

@@ -70,6 +70,12 @@ type editor struct {
 	placeholder string
 	// ranges style runs of the text (TextRanges), sorted by Start.
 	ranges []TextRange
+	// chips are a code editor's CodeChips; hoverChip is the one under the
+	// pointer, or -1, and pressedChip the one a click went down on.
+	chips       []CodeChip
+	hoverChip   int
+	chipsHover  bool
+	pressedChip *CodeChip
 	// layout is what the last frame laid out of a single-line input or a
 	// selectable text; area lays out a text area (textarea.go).
 	layout           *text.Layout
@@ -98,7 +104,7 @@ type editor struct {
 	created bool
 }
 
-func newEditor() *editor { return &editor{} }
+func newEditor() *editor { return &editor{hoverChip: -1} }
 
 func (ed *editor) String() string { return ed.buf.string() }
 

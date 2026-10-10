@@ -94,18 +94,17 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 			break
 		}
 	}
-	send := response == nil && args["behavior"] != "never"
-	if args["behavior"] == "always" {
-		send = true
+	// Yaak's getResponse: previews happen a lot, so "always" is "smart"
+	// in one; "smart" sends without a response, "ttl" once one expires
+	// (0 never does), "never" and anything else don't.
+	behavior := args["behavior"]
+	if behavior == "never" && response == nil {
+		return "", nil
 	}
-	if args["behavior"] == "ttl" && response != nil {
-		ttl, _ := strconv.ParseFloat(args["ttl"], 64)
-		created, _ := time.Parse("2006-01-02T15:04:05.999999999", str(response, "createdAt"))
-		send = time.Since(created).Seconds() >= ttl
+	if behavior == "always" && isTemplatePreview(ctx) {
+		behavior = "smart"
 	}
-	if isTemplatePreview(ctx) {
-		send = false
-	}
+	send := behavior == "smart" && response == nil || behavior == "always" || behavior == "ttl" && responseExpired(response, args["ttl"])
 	if send {
 		cookieJar, _ := ctx.Value(selectedCookieJarKey{}).(string)
 		response, err = e.SendHTTP(ctx, id, SendOptions{EnvironmentID: environment, CookieJarID: cookieJar})
@@ -113,11 +112,9 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 			return "", err
 		}
 	}
-	if response == nil {
-		return "", errors.New("referenced request has no response")
-	}
-	if message := str(response, "error"); message != "" {
-		return "", fmt.Errorf("referenced request failed: %s", message)
+	// Yaak's functions render nothing without a response, or for one that failed.
+	if response == nil || str(response, "error") != "" {
+		return "", nil
 	}
 	switch name {
 	case "response.header":
@@ -145,17 +142,19 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 	}
 	return "", fmt.Errorf("unknown request template %q", name)
 }
+
+// rewriteTemplateReferences is Yaak's remap_request_references (#693): in
+// every template tag of value, a request or requestId argument of the
+// response and request functions, nested or base64, that names an imported
+// request is changed to its new ID, and the tag printed again. Other text
+// and tags, including ones naming requests elsewhere, stay as written.
 func rewriteTemplateReferences(value any, ids map[string]string) any {
+	if len(ids) == 0 {
+		return value
+	}
 	switch v := value.(type) {
 	case string:
-		for old, next := range ids {
-			for _, arg := range []string{"requestId", "request"} {
-				for _, quote := range []string{"'", "\""} {
-					v = strings.ReplaceAll(v, arg+"="+quote+old+quote, arg+"="+quote+next+quote)
-				}
-			}
-		}
-		return v
+		return remapTemplateText(v, ids)
 	case map[string]any:
 		copy := Object{}
 		for k, value := range v {
@@ -171,4 +170,122 @@ func rewriteTemplateReferences(value any, ids map[string]string) any {
 	default:
 		return value
 	}
+}
+
+// remapTemplateText is Yaak's remap_text.
+func remapTemplateText(text string, ids map[string]string) string {
+	var out strings.Builder
+	copied, cursor := 0, 0
+	for {
+		relative := strings.Index(text[cursor:], "${[")
+		if relative < 0 {
+			break
+		}
+		start := cursor + relative
+		cursor = start + 3
+		escapes := 0
+		for k := start - 1; k >= 0 && text[k] == '\\'; k-- {
+			escapes++
+		}
+		if escapes%2 != 0 {
+			continue
+		}
+		end, quoted := cursor, false
+		for end < len(text) {
+			if quoted && text[end] == '\\' {
+				end += 2
+				continue
+			}
+			if text[end] == '\'' {
+				quoted = !quoted
+			}
+			if !quoted && strings.HasPrefix(text[end:], "]}") {
+				end += 2
+				break
+			}
+			end++
+		}
+		if end > len(text) || !strings.HasSuffix(text[start:end], "]}") {
+			continue
+		}
+		if tokens, err := parseTemplate(text[start:end]); err == nil && len(tokens) == 1 && tokens[0].tag != nil {
+			value := *tokens[0].tag
+			if remapTemplateArgument(&value, ids) {
+				out.WriteString(text[copied:start])
+				out.WriteString("${[ " + formatTemplateValue(value) + " ]}")
+				copied = end
+			}
+		}
+		cursor = end
+	}
+	out.WriteString(text[copied:])
+	return out.String()
+}
+
+// remapTemplateArgument is Yaak's remap_argument.
+func remapTemplateArgument(value *templateValue, ids map[string]string) bool {
+	if value.kind != "function" {
+		return false
+	}
+	requestArg := ""
+	switch value.text {
+	case "response", "response.body.raw", "response.body.path", "response.header":
+		requestArg = "request"
+	case "request.body", "request.body.raw", "request.body.path", "request.header", "request.param", "request.name":
+		requestArg = "requestId"
+	}
+	changed := false
+	for _, name := range value.order {
+		arg := value.args[name]
+		if name == requestArg && arg.kind == "string" {
+			if id, ok := ids[arg.text]; ok && id != arg.text {
+				arg.text = id
+				changed = true
+			}
+		}
+		if remapTemplateArgument(&arg, ids) {
+			changed = true
+		}
+		value.args[name] = arg
+	}
+	return changed
+}
+
+// formatTemplateValue is Yaak's Display of a Val: arguments in their order,
+// null ones left out.
+func formatTemplateValue(v templateValue) string {
+	switch v.kind {
+	case "string":
+		return formatTemplateString(v.text)
+	case "null":
+		return "null"
+	case "function":
+		parts := []string{}
+		for _, name := range v.order {
+			if arg := v.args[name]; arg.kind != "null" {
+				parts = append(parts, name+"="+formatTemplateValue(arg))
+			}
+		}
+		return v.text + "(" + strings.Join(parts, ", ") + ")"
+	}
+	return v.text
+}
+
+// responseExpired is Yaak's shouldSendExpired.
+func responseExpired(response Object, ttl string) bool {
+	if response == nil {
+		return true
+	}
+	// parseInt: leading digits, a fraction dropped.
+	digits := strings.TrimLeft(ttl, " ")
+	end := 0
+	for end < len(digits) && (digits[end] >= '0' && digits[end] <= '9' || end == 0 && (digits[0] == '-' || digits[0] == '+')) {
+		end++
+	}
+	seconds, _ := strconv.Atoi(digits[:end])
+	if seconds == 0 {
+		return false
+	}
+	created, err := time.Parse("2006-01-02T15:04:05.999999999", str(response, "createdAt"))
+	return err == nil && created.Add(time.Duration(seconds)*time.Second).Before(time.Now().UTC())
 }

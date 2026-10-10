@@ -49,6 +49,7 @@ type CodeEditorState struct {
 	actions                 []editorAction
 	focus                   bool
 	paste                   *pasteEvent
+	chipClicked             *CodeChip
 }
 
 type pasteEvent struct {
@@ -147,6 +148,7 @@ func coreCodeEditor(c *context, value *string, state *CodeEditorState, options C
 		e.st.scrollY = 0
 	}
 	ed.readOnly = options.ReadOnly
+	ed.chips = ed.chips[:0]
 	e.Font(options.Font).FontSize(options.FontSize).FixedLineHeight(options.FontSize * 1.75)
 	gutter := float32(12)
 	if options.LineNumbers {

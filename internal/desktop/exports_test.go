@@ -22,6 +22,11 @@ func TestExportNativeWorkspaceAndPrivacySelection(t *testing.T) {
 	if len(options.WorkspaceIDs) != 1 || options.WorkspaceIDs[0] != a.workspace || options.IncludePrivateEnvironments {
 		t.Fatal(options)
 	}
+	for _, text := range []string{"Workspace", s(a.models[a.workspace], "name") + " (current workspace)", "Other API", "Extra Settings", "Include private environments", "Cancel", "Export Workspace"} {
+		if !tt.HasText(text) {
+			t.Fatalf("missing %q: %v", text, tt.Texts())
+		}
+	}
 	if err = tt.Click("Export Other API"); err != nil {
 		t.Fatal(err)
 	}
@@ -29,17 +34,17 @@ func TestExportNativeWorkspaceAndPrivacySelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	options = exportOptions(a.exports, a.list("workspace"))
-	if len(options.WorkspaceIDs) != 2 || !options.IncludePrivateEnvironments || !tt.HasText("Export 2 Workspaces…") {
+	if len(options.WorkspaceIDs) != 2 || !options.IncludePrivateEnvironments || !tt.HasText("Export 2 Workspaces") {
 		t.Fatal(options)
 	}
-	if err = tt.Click("All Workspaces"); err != nil {
+	if err = tt.Click("All workspaces"); err != nil {
 		t.Fatal(err)
 	}
 	options = exportOptions(a.exports, a.list("workspace"))
 	if len(options.WorkspaceIDs) != 0 {
 		t.Fatal("toggle all did not clear selection", options)
 	}
-	if err = tt.Click("All Workspaces"); err != nil {
+	if err = tt.Click("All workspaces"); err != nil {
 		t.Fatal(err)
 	}
 	if len(exportOptions(a.exports, a.list("workspace")).WorkspaceIDs) != 2 {

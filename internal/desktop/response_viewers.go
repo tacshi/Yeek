@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"encoding/csv"
 	"encoding/json/jsontext"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -197,7 +198,7 @@ func (a *App) mediaView(c *ui.Context, p colors, response engine.Object, kind st
 		return
 	}
 	id := s(response, "id")
-	a.webPreview(c, p, id+":"+mediaKind(kind), &previewItem{kind: mediaKind(kind), mimeType: kind, open: a.openBody(id)}, false)
+	a.webPreview(c, p, id+":"+mediaKind(kind), &previewItem{kind: mediaKind(kind), mimeType: kind, color: cssColor(p.text), open: a.openBody(id)}, false)
 }
 
 // mediaKind is the preview of an audio, video or PDF content type.
@@ -210,6 +211,9 @@ func mediaKind(kind string) string {
 	}
 	return "pdf"
 }
+
+// cssColor is c as CSS's #rrggbb.
+func cssColor(c ui.Color) string { return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B) }
 
 func (a *App) openBody(id string) func() (io.ReadSeekCloser, error) {
 	return func() (io.ReadSeekCloser, error) { return a.Engine.OpenBody(id) }
@@ -282,7 +286,7 @@ func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body [
 			case strings.HasPrefix(part.kind, "image/"):
 				a.imageView(c, p, id+":part:"+part.name+":"+string(rune('0'+d.PartIndex)), part.kind, part.data)
 			case audioMIME.MatchString(part.kind), videoMIME.MatchString(part.kind), pdfMIME.MatchString(part.kind):
-				a.webPreview(c, p, partKey, &previewItem{kind: mediaKind(part.kind), mimeType: part.kind, open: bytesPreview(part.data)}, false)
+				a.webPreview(c, p, partKey, &previewItem{kind: mediaKind(part.kind), mimeType: part.kind, color: cssColor(p.text), open: bytesPreview(part.data)}, false)
 			case csvMIME.MatchString(part.kind):
 				csvView(c, p, text, strings.Contains(part.kind, "tab-separated"))
 			case strings.Contains(part.kind, "html"):

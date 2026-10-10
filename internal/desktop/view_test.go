@@ -3,6 +3,7 @@ package desktop
 import (
 	"image/png"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,10 +26,14 @@ func TestWorkspaceCreationAndRequestEditing(t *testing.T) {
 	if err := tt.Click("Create Workspace"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Type("Local API")
-	if err := tt.Click("Save"); err != nil {
-		t.Fatal(err)
+	// Yaak's CreateWorkspaceDialog.
+	for _, text := range []string{"Name", "Local directory sync", "Select Directory", "No directory selected", "Workspace encryption", "Enable Encryption"} {
+		if !tt.HasText(text) {
+			t.Fatalf("missing %q: %v", text, tt.Texts())
+		}
 	}
+	tt.Type("Local API")
+	tt.Key(0, ui.KeyEnter)
 	if a.workspace == "" {
 		t.Fatalf("workspace not created: %v", tt.Texts())
 	}
@@ -93,5 +98,51 @@ func TestNativeWorkspaceSnapshot(t *testing.T) {
 		if err := png.Encode(f, tt.Image()); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// Yaak's CreateWorkspaceDialog with a sync directory, Git and encryption.
+func TestCreateWorkspaceWithSyncGitAndEncryption(t *testing.T) {
+	a, e := cookieApp(t)
+	dir := t.TempDir()
+	tt := ui.NewTester(a.View, 1360, 860)
+	a.newWorkspace()
+	tt.Frame()
+	a.setNewWorkspaceDir(a.createWorkspace, dir)
+	tt.Frame()
+	if !tt.HasText("Change Directory") || !tt.HasText("Initialize Git Repo") {
+		t.Fatalf("%v", tt.Texts())
+	}
+	if err := tt.Click("Initialize Git Repo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Enable Encryption"); err != nil {
+		t.Fatal(err)
+	}
+	a.createWorkspace.name = "Synced"
+	tt.Frame()
+	a.submitNewWorkspace(a.createWorkspace)
+	tt.Frame()
+	if s(a.models[a.workspace], "name") != "Synced" || a.dialog != "workspace_encryption" || !a.dialogOpen {
+		t.Fatalf("workspace %v dialog %s open %v enc %v texts %v", s(a.models[a.workspace], "name"), a.dialog, a.dialogOpen, a.createWorkspace, tt.Texts())
+	}
+	metas, _ := e.Store.List(t.Context(), "workspace_meta", a.workspace)
+	real, _ := filepath.EvalSymlinks(dir)
+	if len(metas) == 0 || (s(metas[0], "settingSyncDir") != dir && s(metas[0], "settingSyncDir") != real) {
+		t.Fatalf("sync dir %v", metas)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		t.Fatal("git not initialized", err)
+	}
+
+	// A directory with files is offered to open instead.
+	full := t.TempDir()
+	_ = os.WriteFile(filepath.Join(full, "yaak.wk_x.yaml"), []byte("model: workspace\nid: wk_x\nname: X\n"), 0600)
+	a.dialogOpen = false
+	a.newWorkspace()
+	a.setNewWorkspaceDir(a.createWorkspace, full)
+	tt.Frame()
+	if !tt.HasText("Directory is not empty. Do you want to open it instead?") || !tt.HasText("Open Workspace") || a.createWorkspace.dir != "" {
+		t.Fatalf("%v", tt.Texts())
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -220,19 +219,6 @@ func (e *Engine) PreviewTemplate(ctx context.Context, source, workspace, folder,
 func isTemplatePreview(ctx context.Context) bool {
 	value, _ := ctx.Value(templatePreviewKey{}).(bool)
 	return value
-}
-func (e *Engine) templatePreviewAllowed(name string) error {
-	aliases := map[string]string{"uuid": "uuid.v4", "base64": "base64.encode", "encode.base64": "base64.encode", "decode.base64": "base64.decode", "encode.uri": "url.encode", "encode.url": "url.encode", "decode.uri": "url.decode", "decode.url": "url.decode", "timestamp": "timestamp.iso8601", "json": "json.jsonpath", "request.body": "request.body.raw", "response.body": "response.body.raw", "response.url": "response.body.raw", "response": "response.body.raw"}
-	name = cmp.Or(aliases[name], name)
-	for _, definition := range e.TemplateDefinitions() {
-		if definition.Name == name {
-			if definition.Preview {
-				return nil
-			}
-			return fmt.Errorf("%s is evaluated when the request is sent", name)
-		}
-	}
-	return fmt.Errorf("%s is evaluated when the request is sent", name)
 }
 
 // promptTextDefinition is the prompt.text of Yaak's prompt plugin.

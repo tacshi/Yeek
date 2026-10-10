@@ -11,7 +11,7 @@ Yeek is an experiment: can [MyGo](https://github.com/egoist/mygo) carry a full-f
 
 Yaak is a mature API client built with Tauri and React. Rebuilding it puts MyGo under the load of a real app rather than a demo:
 
-- **Native UI only.** Every screen is drawn by MyGo's Go UI toolkit, with no HTML, CSS or JavaScript of Yeek's own. That includes the code editor with syntax colors, folding and find/replace, the sidebar tree, dialogs, menus, and the Markdown preview. Web views show only other people's pages: OAuth sign-in shows the identity provider's login page, and the Response tab previews HTML, PDF, audio and video bodies as Yaak does, an HTML page in a sandboxed frame that can't reach Yeek.
+- **Native UI only.** Every screen is drawn by MyGo's Go UI toolkit. That includes the code editor with syntax colors, folding and find/replace, the sidebar tree, dialogs, menus, and the Markdown preview. Web views show what isn't Yeek's: OAuth sign-in shows the identity provider's login page, and the Response tab previews HTML, PDF, audio and video bodies as Yaak does, each in a sandboxed frame that can't reach Yeek. The one page of Yeek's own is the PDF viewer, a port of Yaak's that renders with PDF.js.
 - **Pure Go.** The HTTP, GraphQL, gRPC and WebSocket clients, template engine, importers, filesystem sync and Git all run in Go, so `go run .` is the whole development loop.
 - **Toolkit extensions.** Where the stock toolkit fell short, Yeek extends a vendored copy in `third_party/mygo-ui`. Its `UPSTREAM.md` records the base version and each change.
 - **Headless UI tests.** The interface is driven by MyGo's headless tester: clicking, typing and rendering screenshots without opening a window.
@@ -39,7 +39,7 @@ Use `go run . --data-dir /path/to/data` to select a separate data directory. Wor
 
 The native interface includes HTTP and GraphQL requests, WebSocket sessions, unary and streaming gRPC, environments, inherited authentication and headers, cookie jars, request history, response filtering, and theme selection. Collections can be imported from Yaak, Postman, Insomnia, OpenAPI, Bruno, and cURL. Filesystem sync uses Yaak-compatible YAML files, and Git operations use a Go implementation.
 
-Import Data previews files, Bruno folders, URLs, or pasted collections before applying them to a new or existing workspace. Linked sources can be reimported with per-resource selection and conflict choices; deletions require selection. Unlinking a source leaves its requests intact. OpenAPI references resolve relative to their file or URL, with local references restricted to the selected source directory. Postman request scripts are retained as metadata and are not executed.
+Import Data takes files, folders (Bruno), and URLs, several at once, detects each one's format, and previews the changes before applying them to a new or existing workspace. Opening it again lists the workspace's linked sources, so they reimport into it with per-resource selection and conflict choices; deletions require selection. OpenAPI references resolve relative to their file or URL, with local references restricted to the selected source directory. Postman request scripts are retained as metadata and are not executed.
 
 OpenAPI 3.x and Swagger 2 imports map server environments, authentication overrides, tags, parameter styles, and JSON/XML/form examples. Export Data selects one or more workspaces; private environments are included only when selected. Exports omit request history, cookie jars, and local source links.
 
@@ -47,7 +47,7 @@ The native code editor supports syntax colors, line numbers, block folding, inde
 
 Multipart fields support text, files, custom filenames, and per-part Content-Type through Field Options. Uploads are prepared as disk snapshots for stable retries and request history. Binary files have an optional Content-Type suggestion. The method selector supports custom methods. JSON bodies strip comments and trailing commas by default; JSON body settings can preserve them. GraphQL GET requests put their query, variables, and operation name in the URL.
 
-Type a variable or function name, or press Ctrl+Space, for template suggestions in request fields and bodies. Function forms support literal values and nested expressions. Use the field's context menu to insert or edit a template. Previews use saved responses and do not send referenced requests or evaluate secret, file, prompt, or plugin functions.
+Type a variable or function name, or press Ctrl+Space, for template suggestions in request fields and bodies. As in Yaak, template tags show as chips that the caret steps over and Backspace deletes whole. Clicking a function's chip opens its form, whose arguments take tags too, with a live Rendered Preview. Clicking a variable's chip opens the environment that has it, or adds the variable to the active environment if none does. Previews evaluate functions as Yaak's do: a prompt previews as empty, and a response function sends its request in a preview only when its send setting calls for it (`always` acts as `smart` there).
 
 `prompt.text` asks for a value when the request is sent; cancelling the dialog cancels the request. Answers can be remembered for the session or for a number of seconds. Remembered answers are kept in memory only and can be cleared from Settings → Forget Prompted Values.
 

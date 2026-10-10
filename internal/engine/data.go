@@ -42,7 +42,7 @@ func ParseImport(data []byte) ([]Object, error) {
 	var root Object
 	if err := json.Unmarshal(data, &root); err != nil {
 		if err = yaml.Unmarshal(data, &root); err != nil {
-			return nil, fmt.Errorf("read collection: %w", err)
+			return nil, unsupportedImport{fmt.Errorf("read collection: %w", err)}
 		}
 	}
 	if resources := obj(root, "resources"); len(resources) > 0 {
@@ -59,6 +59,18 @@ func ParseImport(data []byte) ([]Object, error) {
 			return result, nil
 		}
 	}
+	// Insomnia: a v5 collection, or a v4 export's list of resources.
+	_, v5 := root["collection"].([]any)
+	_, v4 := root["resources"].([]any)
+	if v5 || v4 {
+		models, err := importInsomnia(data)
+		if err != nil {
+			return nil, err
+		}
+		if models != nil {
+			return models, nil
+		}
+	}
 	if _, ok := root["values"]; ok && str(root, "_postman_variable_scope") != "" {
 		vars := []any{}
 		for _, value := range objects(array(root, "values")) {
@@ -72,13 +84,10 @@ func ParseImport(data []byte) ([]Object, error) {
 	if root["openapi"] != nil || root["swagger"] != nil {
 		return parseOpenAPI(root)
 	}
-	if str(root, "_type") == "export" {
-		return parseInsomnia(root), nil
-	}
 	if str(root, "model") != "" {
 		return []Object{root}, nil
 	}
-	return nil, errors.New("choose a Yeek, Yaak, Postman, Insomnia, or OpenAPI collection, or paste a cURL command")
+	return nil, unsupportedImport{errors.New("choose a Yeek, Yaak, Postman, Insomnia, or OpenAPI collection, or paste a cURL command")}
 }
 func migrateNativeImport(resources Object) {
 	if requests, exists := resources["requests"]; exists && resources["httpRequests"] == nil {
@@ -116,54 +125,6 @@ func migrateNativeImport(resources Object) {
 		delete(environment, "environmentId")
 	}
 }
-func parseInsomnia(root Object) []Object {
-	result := []Object{}
-	workspace := ""
-	for _, r := range objects(array(root, "resources")) {
-		if str(r, "_type") == "workspace" {
-			workspace = str(r, "_id")
-			result = append(result, Object{"model": "workspace", "id": workspace, "name": str(r, "name")})
-		}
-	}
-	if workspace == "" {
-		workspace = "import_workspace"
-		result = append(result, Object{"model": "workspace", "id": workspace, "name": "Imported Insomnia"})
-	}
-	for _, r := range objects(array(root, "resources")) {
-		kind := str(r, "_type")
-		m := clone(r)
-		m["id"] = r["_id"]
-		m["workspaceId"] = workspace
-		if str(r, "parentId") != workspace {
-			m["folderId"] = r["parentId"]
-		}
-		switch kind {
-		case "request":
-			m["model"] = "http_request"
-			body := obj(r, "body")
-			m["bodyType"] = body["mimeType"]
-			m["urlParameters"] = r["parameters"]
-		case "request_group":
-			m["model"] = "folder"
-		case "environment":
-			delete(m, "folderId")
-			m["model"] = "environment"
-			m["parentModel"] = "workspace"
-			if str(r, "parentId") != workspace {
-				m["parentModel"] = "environment"
-			}
-			vars := []any{}
-			for k, v := range obj(r, "data") {
-				vars = append(vars, Object{"name": k, "value": fmt.Sprint(v), "enabled": true})
-			}
-			m["variables"] = vars
-		default:
-			continue
-		}
-		result = append(result, m)
-	}
-	return result
-}
 func nilIfBlank(value string) any {
 	if value == "" {
 		return nil
@@ -175,3 +136,9 @@ func MergeModel(base, patch Object) Object {
 	maps.Copy(result, patch)
 	return result
 }
+
+// unsupportedImport is an error for text no importer reads, which Yaak's
+// import dialog reports as "Not a supported format".
+type unsupportedImport struct{ error }
+
+func (e unsupportedImport) Unwrap() error { return e.error }

@@ -125,29 +125,20 @@ func (a *App) pickFormFile(rows *[]KV, id string, dirty *bool) {
 	})
 }
 
+// ImportPath adds a file opened with Yeek to the Import Data dialog, as a
+// source to preview, opening the dialog when it isn't.
 func (a *App) ImportPath(path string) {
 	if a.deferUntilInputs(func() { a.ImportPath(path) }) {
 		return
 	}
-	if a.dialogOpen && a.dialog == "imports" && a.imports != nil && !a.imports.applying {
-		if a.imports.cancel != nil {
-			a.imports.cancel()
-		}
-		a.imports.generation++
-		a.imports.busy = false
-		a.imports.plan = nil
-		a.imports.inputs = append(a.imports.inputs, engine.ImportInput{Origin: path})
-	} else {
-		a.openImport([]engine.ImportInput{{Origin: path}}, engine.ImportDestination{})
-	}
-	a.previewImport()
-}
-func (a *App) ReviewImportURL(raw string) {
-	a.openImport(nil, engine.ImportDestination{WorkspaceID: a.workspace})
-	if a.deferUntilInputs(func() { a.imports.entry = raw }) {
+	if a.dialogOpen && a.dialog == "imports" && a.imports != nil && a.imports.plan == nil && !a.imports.busy {
+		a.addImportSources(a.imports, []importSource{{path: path}})
 		return
 	}
-	a.imports.entry = raw
+	a.openImport([]engine.ImportInput{{Origin: path}}, engine.ImportDestination{})
+}
+func (a *App) ReviewImportURL(raw string) {
+	a.openImport([]engine.ImportInput{{Kind: "url", Origin: raw}}, engine.ImportDestination{WorkspaceID: a.workspace})
 }
 func (a *App) Focus() bool {
 	if a.Window == nil || a.ctx.Err() != nil {
@@ -161,7 +152,7 @@ func (a *App) Import() { a.importFile() }
 func (a *App) Export() { a.exportFile() }
 func (a *App) NewRequest() {
 	if a.workspace == "" {
-		a.prompt("workspace", "New Workspace", "", "")
+		a.newWorkspace()
 	} else {
 		a.addRequest("http_request", "")
 	}

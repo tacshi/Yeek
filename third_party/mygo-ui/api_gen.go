@@ -2503,6 +2503,18 @@ func (_handle Element) Checked(on bool) Element {
 	return wrapElement(_node.Checked(on))
 }
 
+// Chips sets the editor's chips, in the frames that call it. They don't
+// overlap; a chip that does is dropped.
+func (_handle Element) Chips(chips []CodeChip) Element {
+	_node := _handle.node()
+	if _node == nil {
+		return Element{}
+	}
+	_ctx := _node.c
+	_ = _ctx
+	return wrapElement(_node.Chips(chips))
+}
+
 // ClickModifiers returns the modifier keys held as the element was last
 // clicked, none for a click by the keyboard: with Clicked, a click with
 // Shift or Cmd does something else, as extending a choice.

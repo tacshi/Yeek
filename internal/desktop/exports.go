@@ -1,10 +1,9 @@
 package desktop
 
 import (
-	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/egoist/mygo"
@@ -15,7 +14,7 @@ import (
 type exportDialog struct {
 	selected             map[string]bool
 	includePrivate, busy bool
-	error, savedPath     string
+	error                string
 }
 
 func (a *App) exportFile() {
@@ -80,7 +79,7 @@ func (a *App) saveExport() {
 	state.busy, state.error = true, ""
 	filename := exportFilename(workspaces, options)
 	a.background(func() (func(), error) {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.Window, Title: "Export Data", DefaultPath: filename, Filters: []mygo.FileFilter{{Name: "JSON Collection", Extensions: []string{"json", "yeek", "yaak"}}}})
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.Window, Title: "Export Data", DefaultPath: filename, Filters: []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}}})
 		if err == nil && path != "" {
 			err = a.Engine.ExportToFile(a.ctx, path, options)
 		}
@@ -90,39 +89,28 @@ func (a *App) saveExport() {
 				state.error = err.Error()
 				return
 			}
+			// Yaak closes the dialog and says so.
 			if path != "" {
-				state.savedPath = path
+				a.dialogOpen = false
+				a.showToast("", "Data export successful", "success", 5*time.Second)
 			}
 		}, nil
 	})
 }
 
+// exportDialog is Yaak's ExportDataDialog: the workspaces as a table, the
+// current one first and selected, and Extra Settings below.
 func (a *App) exportDialog(c *ui.Context, p colors) {
 	state := a.exports
 	if state == nil {
 		return
 	}
-	if state.savedPath != "" {
-		ui.Column(c).Padding(20).Gap(15).Children(func() {
-			ui.Text(c, "Saved "+filepath.Base(state.savedPath)).FontWeight(600)
-			ui.Text(c, state.savedPath).FontSize(12).TextColor(p.muted).Selectable().MaxLines(3)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Show File").Clicked() {
-					mygo.Shell.ShowItemInFolder(state.savedPath)
-				}
-				if ui.PrimaryButton(c, "Done").Clicked() {
-					a.dialogOpen = false
-				}
-			})
-		})
-		return
-	}
 	workspaces := a.list("workspace")
 	slices.SortStableFunc(workspaces, func(a1, a2 engine.Object) int {
-		if s(a1, "id") == a.workspace {
+		switch a.workspace {
+		case s(a1, "id"):
 			return -1
-		}
-		if s(a2, "id") == a.workspace {
+		case s(a2, "id"):
 			return 1
 		}
 		return 0
@@ -133,48 +121,78 @@ func (a *App) exportDialog(c *ui.Context, p colors) {
 			selected++
 		}
 	}
-	ui.Column(c).Padding(20).Gap(14).Disabled(state.busy).Children(func() {
-		ui.Row(c).Gap(12).Children(func() {
-			all := selected == len(workspaces) && selected > 0
-			if ui.Checkbox(c, &all, "All Workspaces").Changed() {
-				for _, w := range workspaces {
-					state.selected[s(w, "id")] = all
-				}
+	all := selected == len(workspaces) && selected > 0
+	toggleAll := func() {
+		state.selected = map[string]bool{}
+		if !all {
+			for _, w := range workspaces {
+				state.selected[s(w, "id")] = true
 			}
-		})
-		ui.Scroll(c).Height(min(float32(len(workspaces)*38+12), 300)).Gap(4).Children(func() {
-			for _, workspace := range workspaces {
-				id := s(workspace, "id")
-				ui.Row(c).Key(id).Padding(6, 4).Gap(10).Children(func() {
+		}
+	}
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 24, 16, 24).Gap(12).Disabled(state.busy).Children(func() {
+		ui.Column(c).FillWidth().Children(func() {
+			ui.Row(c).FillWidth().Padding(8, 0, 8, 4).Gap(16).BorderWidth(0, 0, 1, 0).BorderColor(p.border.Alpha(.6)).Children(func() {
+				checked := all
+				if checkbox(c, p, &checked, selected > 0 && !all, "All workspaces").Changed() {
+					toggleAll()
+				}
+				header := ui.ButtonBase(c).Label("Workspace").Grow(1).Justify(ui.Start)
+				header.Children(func() { ui.Text(c, "Workspace").FontSize(13).FontWeight(600) })
+				if header.Clicked() {
+					toggleAll()
+				}
+			})
+			for i, w := range workspaces {
+				id := s(w, "id")
+				row := ui.Row(c).Key(id).FillWidth().Padding(4, 0, 4, 4).Gap(16)
+				if i < len(workspaces)-1 {
+					row.BorderWidth(0, 0, 1, 0).BorderColor(p.border.Alpha(.6))
+				}
+				row.Children(func() {
 					checked := state.selected[id]
-					name := s(workspace, "name")
-					if ui.Checkbox(c, &checked, name).Label("Export " + name).Grow(1).Changed() {
+					if checkbox(c, p, &checked, false, s(w, "name")).Changed() {
 						state.selected[id] = checked
 					}
+					name := s(w, "name")
 					if id == a.workspace {
-						ui.Text(c, "Current").TextColor(p.muted).FontSize(11)
+						name += " (current workspace)"
+					}
+					cell := ui.ButtonBase(c).Label("Export " + s(w, "name")).Grow(1).MinWidth(0).Justify(ui.Start)
+					cell.Children(func() { ui.Text(c, name).FontSize(13).SingleLine() })
+					if cell.Clicked() {
+						state.selected[id] = !state.selected[id]
 					}
 				})
 			}
 		})
-		ui.Checkbox(c, &state.includePrivate, "Include private environments")
+		a.detailsBanner(c, p, "Extra Settings", true, func() {
+			ui.Text(c, "Extra Settings").FontSize(13)
+		}, func() {
+			ui.Row(c).Gap(6).Children(func() {
+				ui.Checkbox(c, &state.includePrivate, "Include private environments").FontSize(13)
+				icon(c, "info").FontSize(12).TextColor(p.subtle).Tooltip(`Environments marked as "sharable" will be exported by default`)
+			})
+		})
 		if state.error != "" {
 			ui.Text(c, state.error).TextColor(p.red).MaxLines(3).Selectable()
 		}
-		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
-				a.dialogOpen = false
-			}
-			label := fmt.Sprintf("Export %d Workspaces…", selected)
-			if selected == 1 {
-				label = "Export Workspace…"
-			}
-			if state.busy {
-				label = "Saving…"
-			}
-			if ui.PrimaryButton(c, label).Disabled(selected == 0 || state.busy).Clicked() {
-				a.saveExport()
-			}
-		})
+	})
+	// Yaak's DialogFooter (#706), its Create Run Button link left out.
+	dialogFooter(c, p, nil, func() {
+		if ui.Button(c, "Cancel").Clicked() {
+			a.dialogOpen = false
+		}
+		// Yaak's pluralizeCount with omitSingle and noneWord "Nothing".
+		label := "Export " + pluralizeCount("Workspace", selected)
+		switch selected {
+		case 0:
+			label = "Export Nothing"
+		case 1:
+			label = "Export Workspace"
+		}
+		if ui.PrimaryButton(c, label).Disabled(selected == 0 || state.busy).Clicked() {
+			a.saveExport()
+		}
 	})
 }

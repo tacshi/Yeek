@@ -111,6 +111,14 @@ func run() (runErr error) {
 			}
 			return
 		}
+		// Yaak's import-data link imports a file at a URL, once confirmed, or a path.
+		if u.Host == "import-data" {
+			if a := active(nil); a != nil {
+				query := u.Query()
+				a.ImportDeepLink(query.Get("url"), query.Get("path"), query.Get("name"))
+			}
+			return
+		}
 		if u.Host == "import" {
 			if a := active(nil); a != nil {
 				a.ReviewImportURL(u.Query().Get("url"))
@@ -139,6 +147,10 @@ func run() (runErr error) {
 			return func(_ *mygo.MenuItem, w *mygo.Window) {
 				if a := active(w); a != nil {
 					fn(a)
+					// A menu runs outside a frame: the window draws what it changed.
+					if a.Window != nil {
+						a.Window.Invalidate()
+					}
 				}
 			}
 		}

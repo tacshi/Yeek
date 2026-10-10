@@ -14,24 +14,25 @@ import (
 	"yeek/internal/engine"
 )
 
+// templateArgument is a value of Yaak's DynamicForm: text, which may hold
+// template tags, or a boolean.
 type templateArgument struct {
 	text, kind string
-	expression bool
 }
 type templateForm struct {
-	open, busy         bool
-	doc                *documentEditor
-	source             string
-	start, end         int
-	scope              templateScope
-	definitions        []engine.TemplateDefinition
-	variables          map[string]string
-	search, name, kind string
-	definition         engine.TemplateDefinition
-	args               map[string]*templateArgument
-	error, preview     string
-	secureExisting     string
-	revision           uint64
+	open, busy     bool
+	doc            *documentEditor
+	source         string
+	start, end     int
+	scope          templateScope
+	definitions    []engine.TemplateDefinition
+	variables      map[string]string
+	name, kind     string
+	definition     engine.TemplateDefinition
+	args           map[string]*templateArgument
+	error          string
+	secureExisting string
+	revision       uint64
 	// advanced opens Yaak's Advanced accordion; rendered is the values
 	// with their tags rendered, for the banner, as of renderedAt.
 	advanced   bool
@@ -39,6 +40,15 @@ type templateForm struct {
 	renderedAt uint64
 	// dynamic is the options of selects that list them for the other values.
 	dynamic map[string]dynamicOptions
+	// Yaak's Rendered Preview: the revision rendered, when it last changed,
+	// whether a refresh asked for one, and whether to show secrets in it.
+	previewRevision  uint64
+	changedAt        time.Time
+	refresh, secrets bool
+	rendering        bool
+	previewText      string
+	// focusFirst focuses the first argument once, as AutoFocus does.
+	focusFirst bool
 }
 
 type dynamicOptions struct{ options, labels []string }
@@ -65,17 +75,67 @@ func (f *templateForm) values() map[string]string {
 	return values
 }
 
+// openTemplateForm is Yaak's TemplateFunctionDialog.show, for a function's
+// tag between start and end.
 func (a *App) openTemplateForm(doc *documentEditor, source string, start, end int, value *engine.TemplateExpression) {
+	if value == nil || value.Kind != "function" {
+		return
+	}
 	scope := a.templateScope()
 	f := &templateForm{open: true, doc: doc, source: source, start: start, end: end, scope: scope, definitions: a.Engine.TemplateDefinitions(), variables: a.templateVariables(scope)}
-	if value != nil {
-		f.selectExpression(*value)
-	}
+	f.selectExpression(*value)
+	f.previewRevision = ^uint64(0)
+	f.focusFirst = true
 	a.templateForm = f
 	doc.state.Completions("", 0)
+	if f.name == "secure" && f.secureExisting != "" {
+		// Yaak's dialog shows secure()'s value decrypted, to edit.
+		encrypted, workspace := f.secureExisting, scope.workspace
+		a.run(func() (func(), error) {
+			plain, err := a.Engine.DecryptValue(a.ctx, workspace, encrypted)
+			return func() {
+				if err == nil && a.templateForm == f {
+					f.secureExisting = plain
+					f.args["value"].text = plain
+				}
+			}, err
+		})
+	}
+}
+
+// editVariable is Yaak's onClickVariable and onClickMissingVariable: the
+// environment that has the variable, or the active one with it added, in
+// the environment editor.
+func (a *App) editVariable(name string) {
+	base, subs := a.environmentsBreakdown()
+	var candidates []engine.Object
+	if env := a.models[a.environment]; env != nil {
+		candidates = append(candidates, env)
+	}
+	if base != nil {
+		candidates = append(candidates, base)
+	}
+	candidates = append(candidates, subs...)
+	for _, env := range candidates {
+		for _, row := range kvRows(env, "variables") {
+			if row.Name == name {
+				a.openEnvironmentsAt(s(env, "id"))
+				return
+			}
+		}
+	}
+	target := a.models[a.environment]
+	if target == nil {
+		target = base
+	}
+	if target == nil {
+		return
+	}
+	a.openEnvironmentsAt(s(target, "id"))
+	a.envDraft = append(a.envDraft, KV{Name: name, Enabled: true})
 }
 func (f *templateForm) selectExpression(value engine.TemplateExpression) {
-	f.name, f.kind, f.error, f.preview = value.Value, value.Kind, "", ""
+	f.name, f.kind, f.error = value.Value, value.Kind, ""
 	f.args = map[string]*templateArgument{}
 	f.definition = engine.TemplateDefinition{Name: value.Value}
 	f.secureExisting = ""
@@ -101,8 +161,12 @@ func (f *templateForm) selectExpression(value engine.TemplateExpression) {
 			f.definition.Fields = append(slices.Clone(f.definition.Fields), engine.TemplateField{Name: key, Label: key, Kind: "text"})
 		}
 		entry := &templateArgument{text: arg.Value, kind: arg.Kind}
-		if arg.Kind == "variable" || arg.Kind == "function" || arg.Kind == "null" {
-			entry.text, entry.expression = engine.FormatTemplateExpression(arg), true
+		switch arg.Kind {
+		case "variable", "function":
+			// A nested value is text with its tag, which renders the same.
+			entry.text, entry.kind = engine.FormatTemplateTag(arg), "string"
+		case "null":
+			entry.text, entry.kind = f.args[key].text, "string"
 		}
 		f.args[key] = entry
 	}
@@ -120,21 +184,13 @@ func (f *templateForm) expression() (engine.TemplateExpression, error) {
 	if f.kind == "function" {
 		for _, field := range f.definition.Fields {
 			arg := f.args[field.Name]
-			if (field.Kind == "request" || field.Kind == "file") && arg != nil && !arg.expression && strings.TrimSpace(arg.text) == "" {
+			if (field.Kind == "request" || field.Kind == "file") && arg != nil && strings.TrimSpace(arg.text) == "" {
 				return value, fmt.Errorf("choose %s", strings.ToLower(templateFieldLabel(field)))
 			}
 		}
 		value.Arguments = map[string]engine.TemplateExpression{}
 		for key, arg := range f.args {
-			v := engine.TemplateExpression{Kind: arg.kind, Value: arg.text}
-			if arg.expression {
-				var err error
-				v, err = engine.ParseTemplateExpression(arg.text)
-				if err != nil {
-					return value, fmt.Errorf("%s: %w", key, err)
-				}
-			}
-			value.Arguments[key] = v
+			value.Arguments[key] = engine.TemplateExpression{Kind: arg.kind, Value: arg.text}
 		}
 	}
 	// Validate variable names and custom arguments before inserting a tag.
@@ -142,6 +198,8 @@ func (f *templateForm) expression() (engine.TemplateExpression, error) {
 	return value, err
 }
 
+// templateDialog is Yaak's TemplateFunctionDialog: the function's form,
+// its Rendered Preview, and Save.
 func (a *App) templateDialog(c *ui.Context, p colors) {
 	f := a.templateForm
 	if f == nil {
@@ -149,44 +207,43 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 	}
 	ui.DialogBase(c, &f.open, func(back, panel ui.Element) {
 		back.Background(ui.RGBA(0, 0, 0, .4))
-		panel.Key("template-dialog").Width(600).MaxWidthPercent(92).MaxHeightPercent(90).Padding(0).Gap(0).Radius(9).Border(1, p.border).Background(p.background)
-		ui.Row(c).Padding(14, 18).Gap(10).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-			ui.Text(c, "Variable or Function").FontSize(16).FontWeight(600).Grow(1)
-			if iconButton(c, "close", "Close template editor").Clicked() {
-				f.open = false
+		// Yaak's md dialog, h-240.
+		panel.Key("template-dialog").Width(800).HeightPercent(90).MaxHeight(960).MaxWidthPercent(92).Padding(0).Gap(0).Radius(9).Border(1, p.border).Background(p.background)
+		ui.Column(c).Padding(16, 24, 8, 24).Gap(8).Children(func() {
+			ui.Row(c).Gap(10).Children(func() {
+				label := f.name + "()"
+				if len(f.definition.Fields) > 0 {
+					label = f.name + "(…)"
+				}
+				ui.Text(c, label).Font("monospace").FontSize(14).Padding(1, 6).Radius(4).Background(p.border.Alpha(.3)).Border(1, p.border)
+				ui.Box(c).Grow(1)
+				if iconButton(c, "close", "Close dialog").Clicked() {
+					f.open = false
+				}
+			})
+			if f.definition.Description != "" {
+				ui.Text(c, f.definition.Description).FontSize(13).TextColor(p.muted).MaxLines(4)
 			}
 		})
-		ui.Scroll(c).MaxHeight(500).Padding(18).Gap(12).Children(func() {
-			if f.name == "" {
-				ui.TextInput(c, &f.search).Label("Find variable or function").Placeholder("Find variable or function").AutoFocus().FillWidth()
-				ui.Scroll(c).Height(300).Gap(2).Children(func() {
-					options := templateOptions("", f.variables, f.definitions)
-					for i, option := range options {
-						if !strings.Contains(strings.ToLower(option.name), strings.ToLower(f.search)) {
-							continue
-						}
-						ui.Row(c).Key(i).Children(func() {
-							if ui.Button(c, option.name).Label("Use " + option.name).FillWidth().Font("monospace").FontSize(12).Clicked() {
-								value := engine.TemplateExpression{Kind: "variable", Value: option.name}
-								if option.function != nil {
-									value.Kind = "function"
-								}
-								f.selectExpression(value)
-							}
-						})
+		ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 24).Gap(12).Children(func() {
+			if f.name == "secure" {
+				// Yaak's secure() form: one password input.
+				arg := f.args["value"]
+				if arg == nil {
+					arg = &templateArgument{kind: "string"}
+					f.args["value"] = arg
+				}
+				ui.Column(c).Gap(5).Children(func() {
+					ui.Text(c, "Value").FontSize(12).TextColor(p.muted)
+					field := ui.TextInput(c, &arg.text).Label("Value").Placeholder("••••••••••••").Password().AutoFocus().FillWidth()
+					if field.Changed() {
+						f.revision++
+					}
+					if field.Submitted() {
+						a.insertTemplate(f)
 					}
 				})
 			} else {
-				ui.Row(c).Gap(10).Children(func() {
-					ui.Text(c, f.name).Font("monospace").FontSize(14).Grow(1)
-					if ui.Button(c, "Change").FontSize(11).Clicked() {
-						f.name, f.preview, f.error = "", "", ""
-						f.revision++
-					}
-				})
-				if f.definition.Description != "" && f.kind == "function" {
-					ui.Text(c, f.definition.Description).TextColor(p.muted).FontSize(12)
-				}
 				values := f.values()
 				hasAdvanced := false
 				for _, field := range f.definition.Fields {
@@ -220,30 +277,16 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 						}
 					}
 				}
-				if f.kind == "variable" {
-					ui.Text(c, "Value").FontSize(11).TextColor(p.muted)
-					ui.Text(c, f.variables[f.name]).Font("monospace").FontSize(12).MaxLines(5).Selectable()
-				}
-			}
-			if f.error != "" {
-				ui.Text(c, f.error).TextColor(p.red).FontSize(12).MaxLines(5).Selectable()
-			}
-			if f.preview != "" {
-				ui.Text(c, "Preview").FontSize(11).TextColor(p.muted)
-				ui.Text(c, f.preview).Font("monospace").FontSize(12).MaxLines(8).Selectable()
 			}
 		})
-		ui.Row(c).Padding(12, 18).Gap(8).BorderWidth(1, 0, 0, 0).BorderColor(p.border).Children(func() {
-			if f.name != "" && (f.kind == "variable" || f.definition.Preview) {
-				if ui.Button(c, "Preview").Disabled(f.busy).Clicked() {
-					a.previewTemplate(f)
-				}
-			}
-			ui.Spacer(c)
-			if ui.Button(c, "Cancel").Clicked() {
+		a.templatePreview(c, p, f)
+		dialogFooter(c, p, nil, func() {
+			if f.name == "secure" && ui.Button(c, "Reveal Encryption Key").Clicked() {
+				// Yaak's setupOrConfigureEncryption.
 				f.open = false
+				a.prompt("workspace_encryption", "Workspace Encryption", "", f.scope.workspace)
 			}
-			if ui.PrimaryButton(c, "Insert").Disabled(f.name == "" || f.busy).Clicked() {
+			if ui.PrimaryButton(c, "Save").Disabled(f.busy).Clicked() {
 				a.insertTemplate(f)
 			}
 		})
@@ -252,6 +295,92 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 		a.templateForm = nil
 		f.doc.state.Focus()
 	}
+}
+
+// templatePreviewType is Yaak's previewType: prompt.text renders when asked
+// ("click"), the rest as their values change ("live").
+func templatePreviewType(name string) string {
+	if strings.HasPrefix(name, "prompt.") {
+		return "click"
+	}
+	return "live"
+}
+
+// templatePreview is Yaak's Rendered Preview: the tag rendered as its
+// values change (400ms after), hiding values typed into password fields
+// until the lock shows them.
+func (a *App) templatePreview(c *ui.Context, p colors, f *templateForm) {
+	kind := templatePreviewType(f.name)
+	if f.revision != f.previewRevision {
+		if f.changedAt.IsZero() {
+			f.changedAt = time.Now()
+		}
+		wait := 400 * time.Millisecond
+		if a.testMode {
+			wait = 0
+		}
+		if elapsed := time.Since(f.changedAt); elapsed < wait {
+			c.After(wait - elapsed)
+		} else if kind == "live" || f.refresh {
+			f.previewRevision, f.changedAt, f.refresh = f.revision, time.Time{}, false
+			// A "click" preview renders as sending does (Yaak's purpose "send"), prompting.
+			a.previewTemplate(f, kind == "click")
+		}
+	}
+	secret := false
+	for _, field := range f.definition.Fields {
+		if arg := f.args[field.Name]; field.Secret && arg != nil && arg.text != "" && strings.Contains(f.previewText, arg.text) {
+			secret = true
+		}
+	}
+	if f.name == "secure" {
+		if arg := f.args["value"]; arg != nil && arg.text != "" && strings.Contains(f.previewText, arg.text) {
+			secret = true
+		}
+	}
+	ui.Column(c).Padding(12, 24, 12, 24).Gap(6).BorderWidth(1, 0, 0, 0).BorderColor(p.border).Children(func() {
+		ui.Row(c).Gap(6).Children(func() {
+			ui.Text(c, "Rendered Preview").FontSize(13).TextColor(p.muted)
+			if f.rendering {
+				ui.Spinner(c).Size(10, 10).TextColor(p.subtle)
+			}
+			ui.Box(c).Grow(1)
+			label, glyph := "Hide preview", "lockOpen"
+			if f.secrets {
+				label, glyph = "Show preview", "lock"
+			}
+			lock := smallIconButton(c, glyph, label).TextColor(p.subtle)
+			if !secret {
+				lock.Opacity(0).Disabled(true)
+			}
+			if lock.Clicked() {
+				f.secrets = !f.secrets
+			}
+		})
+		ui.Row(c).FillWidth().Radius(4).Border(1, p.subtle.Alpha(.6)).Background(p.border.Alpha(.25)).Padding(4, 4, 4, 8).Gap(6).Children(func() {
+			ui.Scroll(c).Grow(1).MinWidth(0).MaxHeight(160).Children(func() {
+				content, italic, color := f.previewText, false, p.text
+				switch {
+				case f.error != "":
+					content, italic, color = strings.TrimPrefix(f.error, "Render Error: "), true, p.red
+				case secret && !f.secrets:
+					content, italic, color = "------ sensitive values hidden ------", true, p.muted
+				case len(f.previewText) > 10000:
+					content, italic, color = "too large to preview", true, p.red
+				}
+				text := ui.Text(c, content+" ").Font("monospace").FontSize(12).TextColor(color).Selectable()
+				if italic {
+					text.Italic()
+				}
+			})
+			if smallIconButton(c, "refresh", "Refresh preview").TextColor(p.muted).AlignSelf(ui.Center).Clicked() {
+				// Render now, whatever the preview type.
+				f.refresh = true
+				f.previewRevision = ^uint64(0)
+				f.changedAt = time.Unix(0, 0)
+			}
+		})
+	})
 }
 
 func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field engine.TemplateField) {
@@ -279,31 +408,9 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 				label = "Encrypted value (replace to change)"
 			}
 			ui.Text(c, label).FontSize(12).TextColor(p.muted).Grow(1)
-			if f.name != "secure" {
-				mode := "Value"
-				if arg.expression {
-					mode = "Expression"
-				}
-				if ui.Select(c, &mode, []string{"Value", "Expression"}).Label(field.Name + " argument mode").Width(110).Height(26).FontSize(11).Changed() {
-					if mode == "Expression" {
-						arg.text = engine.FormatTemplateExpression(engine.TemplateExpression{Kind: arg.kind, Value: arg.text})
-					}
-					if mode == "Value" {
-						if v, err := engine.ParseTemplateExpression(arg.text); err == nil && v.Kind == "string" {
-							arg.text = v.Value
-						}
-						arg.kind = "string"
-					}
-					arg.expression = mode == "Expression"
-					f.preview = ""
-					f.revision++
-				}
-			}
 		})
 		changed := false
-		if arg.expression {
-			changed = ui.TextInput(c, &arg.text).Label(field.Name + " expression").Placeholder("variable or function(argument=…) ").Font("monospace").FillWidth().Changed()
-		} else {
+		{
 			switch field.Kind {
 			case "boolean":
 				on := arg.text == "true"
@@ -363,7 +470,6 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 							return func() {
 								if f.open && len(paths) > 0 {
 									arg.text = paths[0]
-									f.preview = ""
 									f.revision++
 								}
 							}, err
@@ -371,62 +477,74 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 					}
 				})
 			default:
-				if field.Kind == "multiline" && !field.Secret {
-					entry := ui.TextArea(c, &arg.text).Label(templateFieldLabel(field) + " argument").Height(90).Font("monospace").FontSize(12).FillWidth()
-					if len(f.definition.Fields) > 0 && f.definition.Fields[0].Name == field.Name {
+				// Yaak's DynamicForm text inputs take template tags, with
+				// their autocompletion.
+				before := arg.text
+				label := templateFieldLabel(field) + " argument"
+				first := len(f.definition.Fields) > 0 && f.definition.Fields[0].Name == field.Name
+				switch {
+				case field.Secret:
+					entry := ui.TextInput(c, &arg.text).Label(label).Placeholder(field.Placeholder).Password().FillWidth()
+					if first {
 						entry.AutoFocus()
 					}
-					changed = entry.Changed()
-				} else {
-					entry := ui.TextInput(c, &arg.text).Label(templateFieldLabel(field) + " argument").Placeholder(field.Placeholder).FillWidth()
-					if len(f.definition.Fields) > 0 && f.definition.Fields[0].Name == field.Name {
-						entry.AutoFocus()
+				case field.Kind == "multiline":
+					ui.Box(c).Height(90).FillWidth().Radius(4).Border(1, p.border).Children(func() {
+						a.nativeEditor(c, p, &arg.text, label, "text", false)
+					})
+					if first && f.focusFirst {
+						f.focusFirst = false
+						a.editorDocument(label).state.Focus()
 					}
-					if field.Secret {
-						entry.Password()
+				default:
+					entry := a.templateInput(c, p, &arg.text, "template:"+f.name+":"+field.Name, label, field.Placeholder, false).FillWidth().Height(30).Radius(4).Border(1, p.border)
+					if first && f.focusFirst {
+						f.focusFirst = false
+						a.templateDoc("template:" + f.name + ":" + field.Name).state.Focus()
 					}
-					changed = entry.Changed()
+					_ = entry
 				}
+				changed = arg.text != before
 			}
 		}
 		if changed {
-			if !arg.expression && field.Kind != "boolean" {
+			if field.Kind != "boolean" {
 				arg.kind = "string"
 			}
-			f.preview, f.error = "", ""
+			f.error = ""
 			f.revision++
 		}
 	})
 }
 
-func (a *App) previewTemplate(f *templateForm) {
+func (a *App) previewTemplate(f *templateForm, send bool) {
 	value, err := f.expression()
 	if err != nil {
 		f.error = err.Error()
 		return
 	}
-	f.busy, f.error, f.preview = true, "", ""
+	f.rendering, f.error = true, ""
 	source, scope, revision := engine.FormatTemplateTag(value), f.scope, f.revision
-	a.run(func() (func(), error) {
-		ctx, cancel := context.WithTimeout(a.ctx, 3*time.Second)
-		defer cancel()
-		preview, err := a.Engine.PreviewTemplate(ctx, source, scope.workspace, scope.folder, scope.environment, scope.request, scope.cookieJar)
+	a.background(func() (func(), error) {
+		var preview string
+		var err error
+		if send {
+			preview, err = a.Engine.Render(engine.WithTemplatePrompter(a.ctx, a.templatePrompter), source, scope.workspace, scope.folder, scope.environment)
+		} else {
+			ctx, cancel := context.WithTimeout(a.ctx, 3*time.Second)
+			defer cancel()
+			preview, err = a.Engine.PreviewTemplate(ctx, source, scope.workspace, scope.folder, scope.environment, scope.request, scope.cookieJar)
+		}
 		return func() {
-			f.busy = false
+			f.rendering = false
 			if !f.open || f.revision != revision {
 				return
 			}
+			f.previewText = ""
 			if err != nil {
 				f.error = err.Error()
 			} else {
-				text := []rune(preview)
-				if len(text) > 4096 {
-					preview = string(text[:4096]) + "…"
-				}
-				if preview == "" {
-					preview = "(empty value)"
-				}
-				f.preview = preview
+				f.previewText = preview
 			}
 		}, nil
 	})

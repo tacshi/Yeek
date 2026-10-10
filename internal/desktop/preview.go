@@ -2,12 +2,19 @@ package desktop
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/rand"
+	"embed"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"html"
 	"io"
+	"io/fs"
+	"mime"
 	"net/http"
+	"net/url"
+	"path"
 	"regexp"
 	"strings"
 	"sync"
@@ -15,7 +22,13 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
+	"yeek/third_party/pdfjs"
 )
+
+// pdfViewer is Yeek's port of Yaak's PdfViewer to a page of its own.
+//
+//go:embed preview
+var pdfViewer embed.FS
 
 // previewScheme serves the pages of response previews: Yaak's web page,
 // audio, video and PDF viewers. yeek-preview://<token>/ is a page holding
@@ -32,7 +45,9 @@ type previewItem struct {
 	// baseURL is where an HTML page's relative URLs resolve, as Yaak's
 	// <base href> does: the response's URL.
 	baseURL string
-	open    func() (io.ReadSeekCloser, error)
+	// color is the theme's text color, for the PDF viewer's messages.
+	color string
+	open  func() (io.ReadSeekCloser, error)
 }
 
 var previews = struct {
@@ -70,7 +85,9 @@ var previewShell = map[string]string{
 	"html":  `<iframe title="Yeek response preview" src="body" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer"></iframe>`,
 	"audio": `<audio controls src="body"></audio>`,
 	"video": `<video controls src="body"></video>`,
-	"pdf":   `<iframe title="PDF preview" src="body"></iframe>`,
+	// Yaak's PdfViewer is PDF.js, which runs in a sandboxed frame too:
+	// its links open in a new window, which Yeek opens in the browser.
+	"pdf": `<iframe title="PDF preview" src="pdf.html%s" sandbox="allow-scripts allow-popups"></iframe>`,
 }
 
 const previewPage = `<!doctype html><html><head><meta charset="utf-8">` +
@@ -92,8 +109,19 @@ func servePreview(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "", "/":
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = io.WriteString(w, strings.Replace(previewPage, "%s", previewShell[item.kind], 1))
+		shell := previewShell[item.kind]
+		if item.kind == "pdf" {
+			query := ""
+			if item.color != "" {
+				query = "?color=" + url.QueryEscape(item.color)
+			}
+			shell = fmt.Sprintf(shell, html.EscapeString(query))
+		}
+		_, _ = io.WriteString(w, strings.Replace(previewPage, "%s", shell, 1))
 	case "/body":
+		// The PDF viewer's frame has an opaque origin, so it reads the body
+		// across origins.
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		body, err := item.open()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -119,8 +147,52 @@ func servePreview(w http.ResponseWriter, r *http.Request) {
 		// Ranges let a media element seek.
 		http.ServeContent(w, r, "", time.Time{}, content)
 	default:
-		http.NotFound(w, r)
+		if item.kind != "pdf" || !servePDFViewer(w, r) {
+			http.NotFound(w, r)
+		}
 	}
+}
+
+// pdfWorker is PDF.js's worker after the polyfills, which it needs in its
+// own globals (Yaak's pdfWorker.ts). It exports the worker's handler too,
+// for PDF.js to run it on the page where a frame of an opaque origin
+// can't start a worker.
+const pdfWorker = `import "./polyfills.js";
+export * from "./build/pdf.worker.min.mjs";
+`
+
+// servePDFViewer serves the PDF viewer's page and PDF.js, reporting whether
+// the path is one of theirs. The viewer's frame loads them across origins.
+func servePDFViewer(w http.ResponseWriter, r *http.Request) bool {
+	var data []byte
+	var err error
+	name := r.URL.Path
+	switch {
+	case name == "/pdf.html" || name == "/pdf.js":
+		data, err = pdfViewer.ReadFile("preview" + name)
+	case name == "/pdfjs/polyfills.js":
+		data, err = pdfViewer.ReadFile("preview/pdf_polyfills.js")
+	case name == "/pdfjs/worker.mjs":
+		data = []byte(pdfWorker)
+	case strings.HasPrefix(name, "/pdfjs/"):
+		data, err = fs.ReadFile(pdfjs.FS, path.Clean(strings.TrimPrefix(name, "/pdfjs/")))
+	default:
+		return false
+	}
+	if err != nil {
+		return false
+	}
+	kind := mime.TypeByExtension(path.Ext(name))
+	switch path.Ext(name) {
+	case ".js", ".mjs":
+		kind = "text/javascript; charset=utf-8"
+	case "":
+		kind = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", cmp.Or(kind, "application/octet-stream"))
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	_, _ = w.Write(data)
+	return true
 }
 
 type readSeekNopCloser struct{ io.ReadSeeker }
@@ -154,9 +226,15 @@ func (a *App) newPreviewView() (ui.NativeWebView, func(string), func(float64), e
 		return nil, nil, nil, err
 	}
 	page := view.Page()
-	// A response opens no windows and gets no camera, microphone or
+	// A response opens no windows of Yeek's and gets no camera, microphone or
 	// other permission, as in Yaak's sandboxed frame.
-	page.SetWindowOpenHandler(func(mygo.WindowOpenRequest) *mygo.WindowOptions { return nil })
+	page.SetWindowOpenHandler(func(request mygo.WindowOpenRequest) *mygo.WindowOptions {
+		// A PDF's links open in the browser, as Yaak's open outside it.
+		if u, err := url.Parse(request.URL); err == nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
+			_ = mygo.Shell.OpenExternal(request.URL)
+		}
+		return nil
+	})
 	page.SetPermissionHandler(func(mygo.PermissionRequest) bool { return false })
 	load := func(url string) {
 		if err := page.LoadURL(url); err != nil {

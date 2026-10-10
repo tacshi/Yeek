@@ -84,7 +84,8 @@ func TestPromptTemplate(t *testing.T) {
 	if _, err := e.Render(cancelled, once, wid, "", ""); !errors.Is(err, ErrPromptCancelled) {
 		t.Fatal(err)
 	}
-	if _, err := e.PreviewTemplate(ctx, once, wid, "", "", ""); err == nil || !strings.Contains(err.Error(), "evaluated when the request is sent") {
-		t.Fatal("preview evaluated prompt", err)
+	// Yaak's prompt plugin renders nothing in a preview, asking nothing.
+	if got, err := e.PreviewTemplate(ctx, once, wid, "", "", ""); err != nil || got != "" {
+		t.Fatal("preview evaluated prompt", got, err)
 	}
 }

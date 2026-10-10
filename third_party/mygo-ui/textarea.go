@@ -491,6 +491,7 @@ func (a *area) paint(e *node, p *Painter, ox, oy float32) {
 				p.Fill(Rect{X: ox + r.X, Y: y + r.Y, W: r.W, H: r.H}, mark.Color, 0)
 			}
 		}
+		ed.paintChips(p, func(from, to int) []text.Rect { return l.Selection(a.local(ed, i, from), a.local(ed, i, to)) }, start, end, ox, y)
 		_, sp := ed.rangeSpans(start, end)
 		if e.codePaint != nil {
 			value := *e.codePaint

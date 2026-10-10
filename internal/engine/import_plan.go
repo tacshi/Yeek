@@ -16,13 +16,19 @@ import (
 
 type ImportInput struct{ Kind, Origin, Content, SourceWorkspaceID string }
 type ImportDestination struct{ WorkspaceID, FolderID string }
-type ImportWarning struct{ Title, Detail string }
+
+// ImportWarning is a note the preview shows: Level "warning" or, when
+// empty, information, as Yaak's ImportPlanWarningLevel.
+type ImportWarning struct{ Title, Detail, Level string }
 type ImportItem struct {
 	ID, SourceKey, SourceID, Kind, Name, ParentID, Action, Resolution string
-	Selected                                                          bool
-	ChangedFields                                                     []string
-	Before, After                                                     Object
-	expected                                                          string
+	// Reason is Yaak's ImportPlanReason: "moved_into_ignored_folder" for a
+	// resource the source moved into a folder that isn't imported.
+	Reason        string
+	Selected      bool
+	ChangedFields []string
+	Before, After Object
+	expected      string
 }
 type ImportDocument struct {
 	Format, Origin, Label string
@@ -175,6 +181,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 		current[str(model, "id")] = model
 	}
 	for _, document := range documents {
+		plan.Warnings = append(plan.Warnings, importedElsewhere(all, destination.WorkspaceID, document)...)
 		for _, prior := range plan.Sources {
 			if document.Origin != "" && prior.Origin == document.Origin && (document.SourceWorkspaceID == "" || document.SourceWorkspaceID == prior.SourceWorkspaceID) {
 				return nil, errors.New("the same import source was selected twice")
@@ -227,12 +234,27 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 			ids[old] = wid
 			source := &importPlanSource{ID: newID("import_source"), Format: document.Format, Origin: document.Origin, Label: document.Label, WorkspaceID: wid, SourceWorkspaceID: old, bindings: map[string]Object{}, incoming: map[string]*ImportItem{}}
 			if destination.WorkspaceID != "" && document.Origin != "" {
-				for _, candidate := range all {
-					if str(candidate, "model") == "import_source" && str(candidate, "workspaceId") == wid && str(candidate, "origin") == document.Origin && str(candidate, "importer") == document.Format && str(candidate, "sourceWorkspaceId") == old {
-						source.ID = str(candidate, "id")
-						plan.expectedSources[source.ID] = importHash(candidate)
-						break
+				incoming := map[string]bool{}
+				for _, model := range document.Models {
+					if str(model, "id") == old || str(model, "workspaceId") == old || str(model, "workspaceId") == "" && len(workspaceIDs) == 1 {
+						incoming[importSourceKey(model)] = true
 					}
+				}
+				linked, ambiguous := resolveLinkedSource(all, wid, document.Format, document.Origin, old, incoming)
+				if linked != nil {
+					source.ID = str(linked, "id")
+					plan.expectedSources[source.ID] = importHash(linked)
+					for _, prior := range plan.Sources {
+						if prior.ID == source.ID {
+							return nil, errors.New("More than one input matches the same linked import. Keep only one version of that source.") //nolint:staticcheck // Yaak's wording.
+						}
+					}
+				} else if len(ambiguous) > 0 {
+					var labels []string
+					for _, candidate := range ambiguous {
+						labels = append(labels, str(candidate, "originLabel"))
+					}
+					plan.Warnings = append(plan.Warnings, ImportWarning{Title: "Imported as new", Detail: displayList(labels) + " already contain these resources", Level: "warning"})
 				}
 				for _, binding := range all {
 					if str(binding, "model") == "import_source_resource" && str(binding, "importSourceId") == source.ID {
@@ -388,6 +410,31 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 			}
 		}
 	}
+	// Yaak: nothing can be written into a folder that isn't imported, so
+	// what sits inside one starts unchecked, coming along only with it, and
+	// a changed resource the source moved there keeps its place till then.
+	byID := map[string]*ImportItem{}
+	for _, item := range plan.Items {
+		if item.SourceID != "" {
+			byID[item.SourceID+":"+item.ID] = item
+		}
+	}
+	for _, item := range plan.Items {
+		if item.SourceID == "" || item.Action == "delete" {
+			continue
+		}
+		seen := map[string]bool{}
+		for parent := byID[item.SourceID+":"+item.ParentID]; parent != nil && !seen[parent.ID]; parent = byID[item.SourceID+":"+parent.ParentID] {
+			seen[parent.ID] = true
+			if parent.Kind == "folder" && parent.Action == "ignored" {
+				item.Selected = false
+				if slices.Contains([]string{"update", "keep_local", "conflict"}, item.Action) {
+					item.Reason = "moved_into_ignored_folder"
+				}
+				break
+			}
+		}
+	}
 	if err = validateImportParents(plan, current); err != nil {
 		return nil, err
 	}
@@ -417,6 +464,29 @@ func importItemParent(model Object) string {
 	return str(model, "workspaceId")
 }
 func (i *ImportItem) Key() string { return i.SourceID + ":" + i.SourceKey + ":" + i.ID }
+
+// Importer is the formats of the plan's sources, each once, as Yaak's
+// combined plan names them.
+func (p *ImportPlan) Importer() string {
+	var formats []string
+	for _, source := range p.Sources {
+		if !slices.Contains(formats, source.Format) {
+			formats = append(formats, source.Format)
+		}
+	}
+	return strings.Join(formats, ", ")
+}
+
+// SourceWorkspaceID is the workspace an item of the plan goes into.
+func (p *ImportPlan) SourceWorkspaceID(item *ImportItem) string {
+	for _, source := range p.Sources {
+		if source.ID == item.SourceID {
+			return source.WorkspaceID
+		}
+	}
+	return ""
+}
+
 func (p *ImportPlan) NewWorkspaces() []Object {
 	result := []Object{}
 	for _, item := range p.Items {
@@ -706,4 +776,101 @@ func (e *Engine) CommitImport(ctx context.Context, plan *ImportPlan) ([]Object, 
 	}
 	plan.committed = true
 	return output, nil
+}
+
+// resolveLinkedSource is Yaak's resolve_linked_source: a reimport is known
+// by the resource keys it carries, not by where it was read from, so a
+// moved or renamed file still merges into what it made. A source counts
+// when most of both its keys and the incoming ones are the same; with none,
+// the source last read from the same origin; with several, the one of
+// them from that origin, else none, and they come back as ambiguous.
+func resolveLinkedSource(all []Object, workspace, importer, origin, sourceWorkspace string, incoming map[string]bool) (Object, []Object) {
+	sameOrigin := func(source Object) bool {
+		return str(source, "importer") == importer && str(source, "origin") == origin && str(source, "sourceWorkspaceId") == sourceWorkspace
+	}
+	var sources, overlapping []Object
+	for _, model := range all {
+		if str(model, "model") == "import_source" && str(model, "workspaceId") == workspace {
+			sources = append(sources, model)
+		}
+	}
+	for _, source := range sources {
+		if str(source, "importer") != importer {
+			continue
+		}
+		rows, shared := 0, 0
+		for _, binding := range all {
+			if str(binding, "model") == "import_source_resource" && str(binding, "importSourceId") == str(source, "id") {
+				rows++
+				if incoming[str(binding, "sourceKey")] {
+					shared++
+				}
+			}
+		}
+		if shared*2 > rows && shared*2 > len(incoming) {
+			overlapping = append(overlapping, source)
+		}
+	}
+	switch len(overlapping) {
+	case 0:
+		for _, source := range sources {
+			if sameOrigin(source) {
+				return source, nil
+			}
+		}
+		return nil, nil
+	case 1:
+		return overlapping[0], nil
+	}
+	for _, source := range overlapping {
+		if sameOrigin(source) {
+			return source, nil
+		}
+	}
+	return nil, overlapping
+}
+
+// importedElsewhere is Yaak's warn_if_imported_elsewhere: a warning when
+// the same importer has read the same origin into another workspace.
+func importedElsewhere(all []Object, destination string, document ImportDocument) []ImportWarning {
+	if document.Origin == "" {
+		return nil
+	}
+	workspaces := map[string]string{}
+	for _, model := range all {
+		if str(model, "model") == "workspace" {
+			workspaces[str(model, "id")] = str(model, "name")
+		}
+	}
+	seen := map[string]bool{}
+	var names []string
+	for _, source := range all {
+		id := str(source, "workspaceId")
+		if str(source, "model") != "import_source" || id == destination || str(source, "importer") != document.Format || str(source, "origin") != document.Origin {
+			continue
+		}
+		if name, ok := workspaces[id]; ok && !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return []ImportWarning{{Title: "Already imported into " + displayList(names), Detail: "Importing here makes a second copy", Level: "warning"}}
+}
+
+// displayList is Yaak's display_list of a sorted set: "a", "a and b",
+// "a, b, and c".
+func displayList(items []string) string {
+	items = slices.Compact(slices.Sorted(slices.Values(items)))
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " and " + items[1]
+	}
+	return strings.Join(items[:len(items)-1], ", ") + ", and " + items[len(items)-1]
 }

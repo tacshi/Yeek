@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestTemplateExpressionRoundTrip(t *testing.T) {
@@ -44,36 +44,65 @@ func TestTemplateExpressionRoundTrip(t *testing.T) {
 	}
 }
 
-func TestTemplatePreviewDoesNotExecuteSensitiveFunctionsOrRequests(t *testing.T) {
+// Yaak renders every function in a preview, the prompt aside; response
+// functions send as their behavior says, "always" as "smart".
+func TestTemplatePreviewRendersLikeYaak(t *testing.T) {
 	e := testEngine(t)
 	w := saveTest(t, e, Object{"model": "workspace"})
 	wid := str(w, "id")
-	for _, name := range []string{"fs", "fs.read", "fs.readFile", "secure", "keyring", "keychain", "extension.function"} {
-		_, err := e.PreviewTemplate(t.Context(), "${[ "+name+"() ]}", wid, "", "", "")
-		if err == nil || !strings.Contains(err.Error(), "evaluated when") {
-			t.Errorf("preview allowed %s: %v", name, err)
-		}
+	path := filepath.Join(t.TempDir(), "token.txt")
+	if err := os.WriteFile(path, []byte("from file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := e.PreviewTemplate(t.Context(), "${[ fs.readFile(path='"+path+"') ]}", wid, "", "", ""); err != nil || got != "from file" {
+		t.Fatalf("file preview %q %v", got, err)
+	}
+	if got, err := e.PreviewTemplate(t.Context(), "${[ prompt.text(label='Token') ]}", wid, "", "", ""); err != nil || got != "" {
+		t.Fatalf("a prompt previews as nothing: %q %v", got, err)
 	}
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1); _, _ = w.Write([]byte("saved")) }))
 	defer server.Close()
 	r := saveTest(t, e, Object{"model": "http_request", "workspaceId": wid, "url": server.URL})
 	id := str(r, "id")
-	for _, behavior := range []string{"smart", "always", "ttl", "never"} {
-		_, err := e.PreviewTemplate(t.Context(), `${[ response.body.raw(request="`+id+`", behavior="`+behavior+`") ]}`, wid, "", "", "")
-		if err == nil {
-			t.Fatal("preview should report no saved response")
+	preview := func(behavior, ttl string) string {
+		got, err := e.PreviewTemplate(t.Context(), `${[ response.body.raw(request='`+id+`', behavior='`+behavior+`', ttl='`+ttl+`') ]}`, wid, "", "", "")
+		if err != nil {
+			t.Fatal(behavior, err)
 		}
+		return got
 	}
-	if calls.Load() != 0 {
-		t.Fatal("preview sent the referenced request")
+	if got := preview("never", ""); got != "" || calls.Load() != 0 {
+		t.Fatalf("never: %q %d", got, calls.Load())
 	}
-	if _, err := e.SendHTTP(t.Context(), id, SendOptions{}); err != nil {
-		t.Fatal(err)
+	if got := preview("smart", ""); got != "saved" || calls.Load() != 1 {
+		t.Fatalf("smart without a response sends: %q %d", got, calls.Load())
 	}
-	got, err := e.PreviewTemplate(t.Context(), `${[ response.body.raw(request="`+id+`", behavior="always") ]}`, wid, "", "", "")
-	if err != nil || got != "saved" || calls.Load() != 1 {
-		t.Fatalf("saved preview=%q calls=%d err=%v", got, calls.Load(), err)
+	if got := preview("smart", ""); got != "saved" || calls.Load() != 1 {
+		t.Fatalf("smart with one doesn't: %q %d", got, calls.Load())
+	}
+	if got := preview("always", ""); got != "saved" || calls.Load() != 1 {
+		t.Fatalf("always previews as smart: %q %d", got, calls.Load())
+	}
+	if got := preview("ttl", "0"); got != "saved" || calls.Load() != 1 {
+		t.Fatalf("a ttl of 0 never expires: %q %d", got, calls.Load())
+	}
+	// Sending, "always" sends every time.
+	if got, err := e.Render(t.Context(), `${[ response.body.raw(request='`+id+`', behavior='always') ]}`, wid, "", ""); err != nil || got != "saved" || calls.Load() != 2 {
+		t.Fatalf("always: %q %v %d", got, err, calls.Load())
+	}
+}
+
+func TestResponseExpiredMatchesYaak(t *testing.T) {
+	old := Object{"createdAt": time.Now().UTC().Add(-time.Minute).Format("2006-01-02T15:04:05.000000000")}
+	for _, c := range []struct {
+		response Object
+		ttl      string
+		want     bool
+	}{{nil, "0", true}, {old, "0", false}, {old, "", false}, {old, "30", true}, {old, "30.9", true}, {old, "120", false}} {
+		if got := responseExpired(c.response, c.ttl); got != c.want {
+			t.Errorf("%v %q: %v", c.response != nil, c.ttl, got)
+		}
 	}
 }
 

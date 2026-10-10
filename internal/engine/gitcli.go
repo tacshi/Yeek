@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -399,4 +400,31 @@ func (e *Engine) GitCommitStaged(ctx context.Context, dir, message string) error
 		return errors.New("No staged changes to commit") //nolint:staticcheck // Yaak's wording, shown as is.
 	}
 	return gitRun(ctx, root, "Failed to commit", append([]string{"--literal-pathspecs", "commit", "--message", message, "--"}, staged...)...)
+}
+
+// GitClone is Yaak's git_clone: url cloned into dir, its parent made first,
+// and "needs_credentials" when the remote asked for them.
+func (e *Engine) GitClone(ctx context.Context, address, dir string) (GitResult, error) {
+	parent := filepath.Dir(dir)
+	if parent == dir || parent == "" {
+		return GitResult{}, errors.New("Invalid clone directory") //nolint:staticcheck // Yaak's wording, shown as is.
+	}
+	if err := os.MkdirAll(parent, 0o755); err != nil { // #nosec G301 -- a project folder the user picked.
+		return GitResult{}, fmt.Errorf("Failed to create directory: %w", err) //nolint:staticcheck // Yaak's wording.
+	}
+	out, ok, err := gitCommand(ctx, parent, "", "clone", address, dir)
+	if err != nil {
+		return GitResult{}, err
+	}
+	if !ok {
+		lower := strings.ToLower(out)
+		switch {
+		case strings.Contains(lower, "could not read"):
+			return GitResult{Kind: "needs_credentials", URL: address}, nil
+		case strings.Contains(lower, "unable to access") || strings.Contains(lower, "authentication failed"):
+			return GitResult{Kind: "needs_credentials", URL: address, Error: out}, nil
+		}
+		return GitResult{}, fmt.Errorf("Failed to clone: %s", strings.TrimSpace(out)) //nolint:staticcheck // Yaak's wording.
+	}
+	return GitResult{Kind: "success"}, nil
 }

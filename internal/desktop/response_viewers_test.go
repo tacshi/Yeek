@@ -200,7 +200,7 @@ func TestResponseWebPreviews(t *testing.T) {
 		{"html", "text/html; charset=utf-8", "<html><head><title>T</title></head><body><a href=\"/x\">x</a></body></html>", `sandbox="allow-scripts allow-forms"`, true},
 		{"audio", "audio/mpeg", "ID3\x03fake", "<audio controls", false},
 		{"video", "video/mp4", "\x00\x00\x00\x18ftypmp42", "<video controls", false},
-		{"pdf", "application/pdf", "%PDF-1.4", `<iframe title="PDF preview"`, false},
+		{"pdf", "application/pdf", "%PDF-1.4", `sandbox="allow-scripts allow-popups"`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, _, tt := viewerApp(t, tc.contentType, tc.body, engine.Object{"url": "https://example.com/docs/page"})
@@ -216,7 +216,11 @@ func TestResponseWebPreviews(t *testing.T) {
 				t.Fatalf("binary banner shown: %v", tt.Texts())
 			}
 			page := fetchPreview(t, r.urls[0])
-			if page.Code != 200 || !strings.Contains(page.Body.String(), tc.element) || !strings.Contains(page.Body.String(), `src="body"`) {
+			src := `src="body"`
+			if tc.name == "pdf" {
+				src = `src="pdf.html?color=%23`
+			}
+			if page.Code != 200 || !strings.Contains(page.Body.String(), tc.element) || !strings.Contains(page.Body.String(), src) {
 				t.Fatalf("page %d: %s", page.Code, page.Body)
 			}
 			body := fetchPreview(t, r.urls[0]+"body")
@@ -300,5 +304,46 @@ func TestMultipartPartPreview(t *testing.T) {
 	}
 	if fetchPreview(t, r.urls[0]+"body").Code != http.StatusNotFound {
 		t.Fatal("the previous part's preview still served")
+	}
+}
+
+func TestPDFPreviewServesPDFJS(t *testing.T) {
+	a, _, tt := viewerApp(t, "application/pdf", "%PDF-1.4", nil)
+	r := fakePreview(a)
+	tt.Frame()
+	base := r.urls[0]
+	for _, tc := range []struct{ path, kind, contains string }{
+		{"pdf.html", "text/html", `src="pdf.js"`},
+		{"pdf.js", "text/javascript", `"./pdfjs/build/pdf.min.mjs"`},
+		{"pdfjs/polyfills.js", "text/javascript", "getOrInsertComputed"},
+		{"pdfjs/worker.mjs", "text/javascript", `export * from "./build/pdf.worker.min.mjs"`},
+		{"pdfjs/build/pdf.min.mjs", "text/javascript", "GlobalWorkerOptions"},
+		{"pdfjs/build/pdf.worker.min.mjs", "text/javascript", ""},
+		{"pdfjs/cmaps/Adobe-Japan1-UCS2.bcmap", "application/octet-stream", ""},
+		{"pdfjs/standard_fonts/FoxitSerif.pfb", "", ""},
+		{"pdfjs/css/TextLayer.css", "text/css", ".textLayer"},
+	} {
+		w := fetchPreview(t, base+tc.path)
+		if w.Code != 200 || !strings.HasPrefix(w.Header().Get("Content-Type"), tc.kind) || !strings.Contains(w.Body.String(), tc.contains) {
+			t.Fatalf("%s: %d %q", tc.path, w.Code, w.Header().Get("Content-Type"))
+		}
+		// The viewer's sandboxed frame loads them across origins.
+		if w.Header().Get("Access-Control-Allow-Origin") != "*" {
+			t.Fatalf("%s: no CORS", tc.path)
+		}
+	}
+	if fetchPreview(t, base+"pdfjs/../preview.go").Code != http.StatusNotFound || fetchPreview(t, base+"pdfjs/nope.js").Code != http.StatusNotFound {
+		t.Fatal("served a file outside PDF.js")
+	}
+	if fetchPreview(t, base+"body").Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatal("the viewer can't read the body")
+	}
+
+	// Other previews don't serve the viewer.
+	b, _, tt := viewerApp(t, "audio/mpeg", "ID3", nil)
+	other := fakePreview(b)
+	tt.Frame()
+	if fetchPreview(t, other.urls[0]+"pdf.html").Code != http.StatusNotFound {
+		t.Fatal("an audio preview serves the PDF viewer")
 	}
 }

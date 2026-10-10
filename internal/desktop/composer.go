@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
 	"slices"
@@ -29,16 +28,12 @@ func (a *App) formatRequestBody(d *Draft) {
 	if d.BodyType == "graphql" {
 		text, label = d.Query, "GraphQL query"
 		formatted, err = engine.FormatGraphQL(text)
+	} else if text != "" {
+		// Yaak's tryFormatJson: format_json, which keeps keys in order,
+		// numbers' digits, comments and template tags.
+		formatted = engine.FormatJSON(text, "  ")
 	} else {
-		value := text
-		if !b(o(d.Model, "body"), "sendJsonComments") {
-			value = engine.FixJSONBody(value)
-		}
-		// Reformat in place so keys keep their order and numbers their digits.
-		pretty := jsontext.Value(value)
-		if err = pretty.Indent(jsontext.WithIndent("  ")); err == nil {
-			formatted = string(pretty)
-		}
+		formatted = text
 	}
 	if err != nil {
 		a.errorMessage = err.Error()

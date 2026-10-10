@@ -134,9 +134,21 @@ func (a *App) header(c *ui.Context, p colors) {
 					a.exportFile()
 				}
 				m.Separator()
-				if m.Item("New Workspace…").Chosen() {
-					a.prompt("workspace", "New Workspace", "", "")
-				}
+				// Yaak's New Workspace submenu.
+				m.Submenu("New Workspace", func(m *ui.Menu) {
+					if m.Item("Create Empty").Chosen() {
+						a.newWorkspace()
+					}
+					if m.Item("Open Folder").Chosen() {
+						a.openWorkspaceFolder()
+					}
+					if m.Item("Clone Git Repository").Chosen() {
+						a.openCloneGit()
+					}
+					if m.Item("Import Data").Chosen() {
+						a.importFile()
+					}
+				})
 				if m.Item("Delete Workspace…").Disabled(a.workspace == "").Chosen() {
 					a.prompt("delete", "Delete Workspace", s(a.models[a.workspace], "name"), a.workspace)
 				}
@@ -300,10 +312,13 @@ func (a *App) emptyWorkspace(c *ui.Context, p colors) {
 		ui.Text(c, "Yeek").FontSize(27).FontWeight(600)
 		ui.Row(c).Gap(10).Children(func() {
 			if ui.PrimaryButton(c, "Create Workspace").Padding(9, 18).Clicked() {
-				a.prompt("workspace", "New Workspace", "", "")
+				a.newWorkspace()
 			}
 			if ui.Button(c, "Import Collection").Padding(9, 18).Clicked() {
 				a.importFile()
+			}
+			if ui.Button(c, "Clone repository").Padding(9, 18).Clicked() {
+				a.openCloneGit()
 			}
 		})
 	})
@@ -1026,20 +1041,23 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 					}
 					if m.Item("Encrypt value").Disabled(fieldValue == "").Chosen() {
 						id, value, workspace, file := row.ID, fieldValue, a.workspace, row.FileMode
-						a.run(func() (func(), error) {
-							secured, err := a.Engine.SecureValue(a.ctx, workspace, value)
-							return func() {
-								for i := range *rows {
-									if (*rows)[i].ID == id && (*rows)[i].FileMode == file {
-										if file {
-											(*rows)[i].File = secured
-										} else {
-											(*rows)[i].Value = secured
+						// Yaak converts a field to encrypted through withEncryptionEnabled.
+						a.withEncryptionEnabled(workspace, func() {
+							a.run(func() (func(), error) {
+								secured, err := a.Engine.SecureValue(a.ctx, workspace, value)
+								return func() {
+									for i := range *rows {
+										if (*rows)[i].ID == id && (*rows)[i].FileMode == file {
+											if file {
+												(*rows)[i].File = secured
+											} else {
+												(*rows)[i].Value = secured
+											}
+											*dirty = true
 										}
-										*dirty = true
 									}
-								}
-							}, err
+								}, err
+							})
 						})
 					}
 					if m.Item("Copy value").Chosen() {
@@ -1386,20 +1404,6 @@ func responseBodyKey(response engine.Object) string {
 
 func (a *App) responseText(c *ui.Context, p colors, d *Draft, response engine.Object, pretty bool) {
 	body := a.bodies[s(response, "id")]
-	if d.PrettySource != body {
-		d.PrettySource = body
-		d.PrettyBody = body
-		// Reformat in place, as Yaak does: keys keep their order, numbers
-		// keep their digits, and escapes such as \u00e9 and \/ read plainly.
-		formatted := jsontext.Value(body)
-		if formatted.Indent(jsontext.WithIndent("  "), jsontext.PreserveRawStrings(false)) == nil {
-			d.PrettyBody = string(formatted)
-		}
-	}
-	body = d.PrettyBody
-	if !pretty {
-		body = a.bodies[s(response, "id")]
-	}
 	language := ""
 	switch kind := responseMIME(response); {
 	case strings.Contains(kind, "json") || jsontext.Value(body).IsValid():
@@ -1408,6 +1412,14 @@ func (a *App) responseText(c *ui.Context, p colors, d *Draft, response engine.Ob
 		language = "xml"
 	case strings.Contains(kind, "html"):
 		language = "html"
+	}
+	if pretty && language == "json" {
+		if d.PrettySource != body {
+			d.PrettySource = body
+			// Yaak's TextViewer: format_json, then \uXXXX escapes and \/ decoded.
+			d.PrettyBody = engine.PrettyJSONResponse(body)
+		}
+		body = d.PrettyBody
 	}
 	// Yaak filters JSON with JSONPath and XML or HTML with XPath.
 	filterable := language != ""
