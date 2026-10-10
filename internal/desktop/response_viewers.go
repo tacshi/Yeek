@@ -2,27 +2,35 @@ package desktop
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/csv"
 	"encoding/json/jsontext"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/textproto"
-	"os"
-	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
-	"golang.org/x/net/html"
 	"yeek/internal/engine"
 )
 
 func responseMIME(response engine.Object) string {
 	kind, _ := responseContentType(response)
 	return kind
+}
+
+// responseHeader is the value of a response's header named name, or "".
+func responseHeader(response engine.Object, name string) string {
+	for _, header := range oslice(response, "headers") {
+		if strings.EqualFold(s(header, "name"), name) {
+			return s(header, "value")
+		}
+	}
+	return ""
 }
 
 // responseContentType is the media type of a response and its parameters, such as a boundary.
@@ -70,13 +78,13 @@ func (a *App) responseBody(c *ui.Context, p colors, d *Draft, response engine.Ob
 	case strings.HasPrefix(kind, "image/"):
 		a.imageView(c, p, id, kind, []byte(raw))
 	case audioMIME.MatchString(kind), videoMIME.MatchString(kind), pdfMIME.MatchString(kind):
-		a.externalViewer(c, p, response, kind)
+		a.mediaView(c, p, response, kind)
 	case strings.HasPrefix(kind, "multipart/") && pretty:
 		a.multipartView(c, p, d, id, []byte(raw), params["boundary"])
 	case csvMIME.MatchString(kind) && pretty:
 		csvView(c, p, raw, strings.Contains(strings.ToLower(kind), "tab-separated"))
 	case strings.Contains(kind, "html") && pretty:
-		htmlView(c, p, raw)
+		a.webPageView(c, p, response)
 	case !utf8.ValidString(raw) || strings.ContainsRune(raw, 0):
 		a.binaryView(c, p, response, kind)
 	default:
@@ -161,57 +169,6 @@ func slicesDeleteEmpty(rows [][]string) [][]string {
 	return result
 }
 
-// htmlView renders an HTML page's text natively. Yaak shows the page in a web
-// view; a MyGo window cannot hold one beside native UI, so this keeps the
-// page's headings, emphasis and code without its layout or scripts.
-func htmlView(c *ui.Context, p colors, body string) {
-	root, err := html.Parse(strings.NewReader(body))
-	if err != nil {
-		ui.Text(c, err.Error()).TextColor(p.red)
-		return
-	}
-	ui.Scroll(c).Grow(1).Padding(18).Gap(10).Children(func() {
-		count := 0
-		var visit func(*html.Node)
-		visit = func(node *html.Node) {
-			count++
-			if count > 10000 {
-				return
-			}
-			if node.Type == html.ElementNode && (node.Data == "script" || node.Data == "style" || node.Data == "head") {
-				return
-			}
-			if node.Type == html.TextNode {
-				value := strings.TrimSpace(node.Data)
-				if value != "" {
-					text := ui.Text(c, value).Selectable()
-					if node.Parent != nil {
-						switch node.Parent.Data {
-						case "h1":
-							text.FontSize(28).Bold()
-						case "h2":
-							text.FontSize(22).Bold()
-						case "h3":
-							text.FontSize(18).Bold()
-						case "b", "strong":
-							text.Bold()
-						case "i", "em":
-							text.Italic()
-						case "code", "pre":
-							text.Font("monospace").FontSize(12)
-						}
-					}
-				}
-				return
-			}
-			for child := node.FirstChild; child != nil; child = child.NextSibling {
-				visit(child)
-			}
-		}
-		visit(root)
-	})
-}
-
 // binaryView is Yaak's BinaryViewer for a body that is not text.
 func (a *App) binaryView(c *ui.Context, p colors, response engine.Object, kind string) {
 	if kind == "" {
@@ -224,55 +181,44 @@ func (a *App) binaryView(c *ui.Context, p colors, response engine.Object, kind s
 	})
 }
 
-// externalViewer stands in for Yaak's audio, video and PDF viewers, which
-// play the body in a web view: Yeek offers to open it in the system's viewer.
-func (a *App) externalViewer(c *ui.Context, p colors, response engine.Object, kind string) {
-	what := "PDF documents"
-	switch {
-	case audioMIME.MatchString(kind):
-		what = "Audio"
-	case videoMIME.MatchString(kind):
-		what = "Video"
-	}
+// webPageView is Yaak's WebPageViewer: the page in a sandboxed frame,
+// its relative URLs resolving against the response's URL.
+func (a *App) webPageView(c *ui.Context, p colors, response engine.Object) {
+	id := s(response, "id")
+	kind := cmp.Or(responseHeader(response, "Content-Type"), "text/html")
+	a.webPreview(c, p, id+":html:"+s(response, "state"), &previewItem{kind: "html", mimeType: kind, baseURL: s(response, "url"), open: a.openBody(id)}, true)
+}
+
+// mediaView is Yaak's audio, video and PDF viewers, which wait for the
+// whole body (EnsureCompleteResponse).
+func (a *App) mediaView(c *ui.Context, p colors, response engine.Object, kind string) {
 	if s(response, "state") != "closed" {
 		ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c).Size(14, 14).TextColor(p.subtle) })
 		return
 	}
-	banner(c, p, what+" can't be shown inside Yeek. Open it in the default app or save it.", func() {
-		if ui.PrimaryButton(c, "Open").FontSize(12).Clicked() {
-			a.openResponseExternally(response, kind)
-		}
-		if ui.Button(c, "Save to File").FontSize(12).Clicked() {
-			a.saveResponse(response)
-		}
-	})
+	id := s(response, "id")
+	a.webPreview(c, p, id+":"+mediaKind(kind), &previewItem{kind: mediaKind(kind), mimeType: kind, open: a.openBody(id)}, false)
+}
+
+// mediaKind is the preview of an audio, video or PDF content type.
+func mediaKind(kind string) string {
+	switch {
+	case audioMIME.MatchString(kind):
+		return "audio"
+	case videoMIME.MatchString(kind):
+		return "video"
+	}
+	return "pdf"
+}
+
+func (a *App) openBody(id string) func() (io.ReadSeekCloser, error) {
+	return func() (io.ReadSeekCloser, error) { return a.Engine.OpenBody(id) }
 }
 
 func banner(c *ui.Context, p colors, message string, actions func()) {
 	ui.Column(c).Margin(8, 0).Padding(12, 14).Gap(12).Radius(6).Border(1, p.accent.Alpha(.35)).Background(p.accent.Alpha(.08)).Children(func() {
 		ui.Text(c, message).FontSize(13).MaxLines(3)
 		ui.Row(c).Gap(8).Children(actions)
-	})
-}
-
-// openResponseExternally writes the whole body to a temporary file named for
-// its type and opens it with the system's default app.
-func (a *App) openResponseExternally(response engine.Object, kind string) {
-	id := s(response, "id")
-	ext := ".bin"
-	if exts, _ := mime.ExtensionsByType(kind); len(exts) > 0 {
-		ext = exts[len(exts)-1]
-	}
-	a.background(func() (func(), error) {
-		dir, err := os.MkdirTemp("", "yeek-preview-")
-		if err != nil {
-			return nil, err
-		}
-		path := filepath.Join(dir, "response"+ext)
-		if err = a.Engine.SaveBody(id, path); err != nil {
-			return nil, err
-		}
-		return nil, mygo.Shell.OpenPath(path)
 	})
 }
 
@@ -331,15 +277,16 @@ func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body [
 		part := parts[d.PartIndex]
 		ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, 12).Children(func() {
 			text := string(part.data)
+			partKey := id + ":part:" + strconv.Itoa(d.PartIndex)
 			switch {
 			case strings.HasPrefix(part.kind, "image/"):
 				a.imageView(c, p, id+":part:"+part.name+":"+string(rune('0'+d.PartIndex)), part.kind, part.data)
 			case audioMIME.MatchString(part.kind), videoMIME.MatchString(part.kind), pdfMIME.MatchString(part.kind):
-				banner(c, p, part.kind+" parts can't be shown inside Yeek.", func() {})
+				a.webPreview(c, p, partKey, &previewItem{kind: mediaKind(part.kind), mimeType: part.kind, open: bytesPreview(part.data)}, false)
 			case csvMIME.MatchString(part.kind):
 				csvView(c, p, text, strings.Contains(part.kind, "tab-separated"))
 			case strings.Contains(part.kind, "html"):
-				htmlView(c, p, text)
+				a.webPreview(c, p, partKey, &previewItem{kind: "html", mimeType: cmp.Or(part.header.Get("Content-Type"), "text/html"), open: bytesPreview(part.data)}, true)
 			case !utf8.Valid(part.data):
 				banner(c, p, "Content type "+part.kind+" cannot be previewed", func() {})
 			default:

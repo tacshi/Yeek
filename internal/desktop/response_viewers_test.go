@@ -2,9 +2,14 @@ package desktop
 
 import (
 	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
 )
@@ -22,7 +27,40 @@ func viewerApp(t *testing.T, contentType, body string, extra engine.Object) (*Ap
 	}
 	a.applyModel(response)
 	a.bodies["rs_viewer"] = body
+	if err := os.WriteFile(filepath.Join(e.DataDir, "bodies", "rs_viewer"), []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fakePreview(a)
 	return a, d, ui.NewTester(a.View, 1360, 860)
+}
+
+// previewRecorder stands in for a window's web view: it keeps the URLs
+// previews load.
+type previewRecorder struct {
+	view *mygo.WebView
+	urls []string
+	zoom float64
+}
+
+func fakePreview(a *App) *previewRecorder {
+	r := &previewRecorder{view: new(mygo.WebView)}
+	a.preview = nil
+	a.openPreview = func() (ui.NativeWebView, func(string), func(float64), error) {
+		return r.view, func(url string) { r.urls = append(r.urls, url) }, func(z float64) { r.zoom = z }, nil
+	}
+	return r
+}
+
+// fetchPreview gets a preview URL as the web view would.
+func fetchPreview(t *testing.T, url string, header ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	for i := 0; i+1 < len(header); i += 2 {
+		req.Header.Set(header[i], header[i+1])
+	}
+	w := httptest.NewRecorder()
+	servePreview(w, req)
+	return w
 }
 
 func snapshot(t *testing.T, tt *ui.Tester, name string) {
@@ -46,8 +84,6 @@ func TestResponseViewerChoice(t *testing.T) {
 		{"csv", "text/csv", "name,age\nAda,36\n\nLinus,54\n", nil, []string{"name", "age", "Ada", "Linus"}, nil},
 		{"tsv", "text/tab-separated-values", "name\tage\nAda\t36\n", nil, []string{"name", "Ada", "36"}, nil},
 		{"multipart", "multipart/form-data; boundary=XX", "--XX\r\nContent-Disposition: form-data; name=\"meta\"\r\nContent-Type: application/json\r\n\r\n{\"a\":1}\r\n--XX\r\nContent-Disposition: form-data; name=\"notes\"\r\n\r\nhello\r\n--XX--\r\n", nil, []string{"meta", "notes", "Multipart part"}, nil},
-		{"audio", "audio/mpeg", "ID3\x03fake", nil, []string{"Audio can't be shown inside Yeek. Open it in the default app or save it.", "Open", "Save to File"}, nil},
-		{"pdf", "application/pdf", "%PDF-1.4", nil, []string{"PDF documents can't be shown inside Yeek. Open it in the default app or save it."}, nil},
 		{"binary", "application/octet-stream", "\x00\x01\x02\xff", nil, []string{"Content type application/octet-stream cannot be previewed", "Save to File"}, nil},
 		{"json", "application/json", `{"b":1,"a":2}`, nil, []string{"Response body"}, []string{"Content type"}},
 	} {
@@ -154,4 +190,115 @@ func indexOf(items []string, want string) int {
 		}
 	}
 	return -1
+}
+
+func TestResponseWebPreviews(t *testing.T) {
+	for _, tc := range []struct {
+		name, contentType, body, element string
+		framed                           bool
+	}{
+		{"html", "text/html; charset=utf-8", "<html><head><title>T</title></head><body><a href=\"/x\">x</a></body></html>", `sandbox="allow-scripts allow-forms"`, true},
+		{"audio", "audio/mpeg", "ID3\x03fake", "<audio controls", false},
+		{"video", "video/mp4", "\x00\x00\x00\x18ftypmp42", "<video controls", false},
+		{"pdf", "application/pdf", "%PDF-1.4", `<iframe title="PDF preview"`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, _, tt := viewerApp(t, tc.contentType, tc.body, engine.Object{"url": "https://example.com/docs/page"})
+			r := fakePreview(a)
+			tt.Frame()
+			if len(r.urls) != 1 || !strings.HasPrefix(r.urls[0], "yeek-preview://") {
+				t.Fatalf("loaded %v", r.urls)
+			}
+			if tt.WebViewAt(1100, 500) != r.view {
+				t.Fatal("web view not shown in the response pane")
+			}
+			if tt.HasText("Content type") {
+				t.Fatalf("binary banner shown: %v", tt.Texts())
+			}
+			page := fetchPreview(t, r.urls[0])
+			if page.Code != 200 || !strings.Contains(page.Body.String(), tc.element) || !strings.Contains(page.Body.String(), `src="body"`) {
+				t.Fatalf("page %d: %s", page.Code, page.Body)
+			}
+			body := fetchPreview(t, r.urls[0]+"body")
+			if body.Code != 200 || body.Header().Get("Content-Type") != tc.contentType {
+				t.Fatalf("body %d %q", body.Code, body.Header().Get("Content-Type"))
+			}
+			want := tc.body
+			if tc.name == "html" {
+				// As Yaak's WebPageViewer: a base for relative URLs.
+				want = strings.Replace(tc.body, "<head>", `<head><base href="https://example.com/docs/page"/>`, 1)
+			}
+			if body.Body.String() != want {
+				t.Fatalf("body = %q", body.Body)
+			}
+			// Another frame keeps the page; the same preview loads once.
+			tt.Frame()
+			if len(r.urls) != 1 {
+				t.Fatalf("reloaded: %v", r.urls)
+			}
+			snapshot(t, tt, "preview-"+tc.name)
+		})
+	}
+}
+
+func TestResponsePreviewRawAndRanges(t *testing.T) {
+	_, d, tt := viewerApp(t, "text/html", "<p>hi</p>", nil)
+	d.ResponseMode = "Raw"
+	tt.Frame()
+	if tt.WebViewAt(1100, 500) != nil || !tt.HasText("Response body") {
+		t.Fatal("raw mode should show the HTML as text")
+	}
+
+	a, _, tt := viewerApp(t, "video/mp4", "0123456789", nil)
+	r := fakePreview(a)
+	tt.Frame()
+	// A video element seeks with ranges.
+	part := fetchPreview(t, r.urls[0]+"body", "Range", "bytes=2-5")
+	if part.Code != http.StatusPartialContent || part.Body.String() != "2345" {
+		t.Fatalf("range: %d %q", part.Code, part.Body)
+	}
+	// Another response's preview, or none, is not served.
+	token := strings.TrimSuffix(strings.TrimPrefix(r.urls[0], "yeek-preview://"), "/")
+	if fetchPreview(t, "yeek-preview://"+strings.Repeat("0", len(token))+"/body").Code != http.StatusNotFound {
+		t.Fatal("unknown token served")
+	}
+	a.Close()
+	if fetchPreview(t, r.urls[0]+"body").Code != http.StatusNotFound {
+		t.Fatal("preview served after its window closed")
+	}
+}
+
+func TestResponsePreviewWaitsAndFollowsZoom(t *testing.T) {
+	a, _, tt := viewerApp(t, "audio/mpeg", "ID3", engine.Object{"state": "connected"})
+	r := fakePreview(a)
+	tt.Frame()
+	if len(r.urls) != 0 {
+		t.Fatal("audio loaded before the response finished")
+	}
+	a.settings["interfaceScale"] = 1.2
+	a.applyModel(engine.Object{"model": "http_response", "id": "rs_viewer", "requestId": a.active, "state": "closed", "status": float64(200), "contentLength": float64(3), "headers": []any{engine.Object{"name": "Content-Type", "value": "audio/mpeg"}}})
+	tt.Frame()
+	if len(r.urls) != 1 || r.zoom != 1.2 {
+		t.Fatalf("urls %v zoom %v", r.urls, r.zoom)
+	}
+}
+
+func TestMultipartPartPreview(t *testing.T) {
+	a, d, tt := viewerApp(t, "multipart/mixed; boundary=B", "--B\r\nContent-Disposition: form-data; name=\"page\"\r\nContent-Type: text/html\r\n\r\n<b>part</b>\r\n--B\r\nContent-Disposition: form-data; name=\"clip\"\r\nContent-Type: audio/ogg\r\n\r\nOggS\r\n--B--\r\n", nil)
+	r := fakePreview(a)
+	tt.Frame()
+	if len(r.urls) != 1 || fetchPreview(t, r.urls[0]+"body").Body.String() != "<b>part</b>" {
+		t.Fatalf("html part: %v", r.urls)
+	}
+	d.PartIndex = 1
+	tt.Frame()
+	if len(r.urls) != 2 || !strings.Contains(fetchPreview(t, r.urls[1]).Body.String(), "<audio") {
+		t.Fatalf("audio part: %v", r.urls)
+	}
+	if body := fetchPreview(t, r.urls[1]+"body"); body.Body.String() != "OggS" || body.Header().Get("Content-Type") != "audio/ogg" {
+		t.Fatalf("audio part body %q %q", body.Body, body.Header().Get("Content-Type"))
+	}
+	if fetchPreview(t, r.urls[0]+"body").Code != http.StatusNotFound {
+		t.Fatal("the previous part's preview still served")
+	}
 }

@@ -151,6 +151,10 @@ type App struct {
 	folderEnvRows                              []KV
 	valuePrompts                               []*valuePrompt
 	testMode                                   bool
+	// preview is the web view of response previews; openPreview makes it
+	// in place of the window, for tests.
+	preview     *responsePreview
+	openPreview func() (ui.NativeWebView, func(string), func(float64), error)
 }
 
 func New(e *engine.Engine) (*App, error) {
@@ -258,7 +262,7 @@ func (a *App) OpenWindow() {
 		}
 	}()
 }
-func (a *App) Close() { a.closeOnce.Do(func() { a.cancel() }) }
+func (a *App) Close() { a.closeOnce.Do(func() { a.closePreview(); a.cancel() }) }
 func (a *App) worker() {
 	defer close(a.workerDone)
 	for {

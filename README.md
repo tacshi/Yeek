@@ -11,7 +11,7 @@ Yeek is an experiment: can [MyGo](https://github.com/egoist/mygo) carry a full-f
 
 Yaak is a mature API client built with Tauri and React. Rebuilding it puts MyGo under the load of a real app rather than a demo:
 
-- **Native UI only.** Every screen is drawn by MyGo's Go UI toolkit, with no HTML, CSS or JavaScript of Yeek's own. That includes the code editor with syntax colors, folding and find/replace, the sidebar tree, dialogs, menus, and the Markdown preview. The one web view is OAuth sign-in, which shows the identity provider's own login page.
+- **Native UI only.** Every screen is drawn by MyGo's Go UI toolkit, with no HTML, CSS or JavaScript of Yeek's own. That includes the code editor with syntax colors, folding and find/replace, the sidebar tree, dialogs, menus, and the Markdown preview. Web views show only other people's pages: OAuth sign-in shows the identity provider's login page, and the Response tab previews HTML, PDF, audio and video bodies as Yaak does, an HTML page in a sandboxed frame that can't reach Yeek.
 - **Pure Go.** The HTTP, GraphQL, gRPC and WebSocket clients, template engine, importers, filesystem sync and Git all run in Go, so `go run .` is the whole development loop.
 - **Toolkit extensions.** Where the stock toolkit fell short, Yeek extends a vendored copy in `third_party/mygo-ui`. Its `UPSTREAM.md` records the base version and each change.
 - **Headless UI tests.** The interface is driven by MyGo's headless tester: clicking, typing and rendering screenshots without opening a window.

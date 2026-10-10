@@ -42,6 +42,9 @@ func run() (runErr error) {
 		mygo.App.SetPath(mygo.PathUserData, dir)
 		mygo.App.SetPath(mygo.PathLogs, filepath.Join(dir, "logs"))
 	}
+	if err := desktop.RegisterPreviewScheme(); err != nil {
+		return err
+	}
 	e, err := engine.Open(dir)
 	if err != nil {
 		return err

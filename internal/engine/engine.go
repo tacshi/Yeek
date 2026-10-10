@@ -163,6 +163,16 @@ func (e *Engine) Body(id string) ([]byte, error) {
 	}
 	return e.bodies.ReadFile(id)
 }
+
+// OpenBody opens a response's stored body for reading, as a web view
+// streams media from it.
+func (e *Engine) OpenBody(id string) (*os.File, error) {
+	if !validBodyID(id) {
+		return nil, errors.New("invalid response ID")
+	}
+	return e.bodies.Open(id)
+}
+
 func validBodyID(id string) bool {
 	return id != "" && filepath.Base(id) == id && id != "." && id != ".."
 }
