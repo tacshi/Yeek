@@ -17,6 +17,7 @@ type askInput struct {
 type askState struct {
 	description, confirm string
 	danger               bool
+	alert                bool // Yaak's showAlert: one button, no Cancel
 	inputs               []askInput
 	done                 func(values []string)
 }
@@ -30,6 +31,12 @@ func (a *App) ask(title, description, confirm string, danger bool, inputs []askI
 // confirmDialog is Yaak's showConfirm.
 func (a *App) confirmDialog(title, description, confirm string, danger bool, done func()) {
 	a.ask(title, description, confirm, danger, nil, func([]string) { done() })
+}
+
+// alertDialog is Yaak's showAlert: a message and an Okay button.
+func (a *App) alertDialog(title, body string) {
+	a.ask(title, body, "Okay", false, nil, func([]string) {})
+	a.asking.alert = true
 }
 
 func (a *App) askDialog(c *ui.Context, p colors) {
@@ -69,7 +76,7 @@ func (a *App) askDialog(c *ui.Context, p colors) {
 			})
 		}
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
+			if !s.alert && ui.Button(c, "Cancel").Clicked() {
 				a.dialogOpen, a.asking = false, nil
 			}
 			confirm := ui.PrimaryButton(c, s.confirm).Label(fmt.Sprintf("Confirm %s", s.confirm))

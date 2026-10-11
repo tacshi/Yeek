@@ -201,7 +201,7 @@ func (a *App) header(c *ui.Context, p colors) {
 			if iconButton(c, "search", "Search or execute a command ("+a.hotkeyText("command_palette.toggle")+")").Clicked() {
 				a.togglePalette()
 			}
-			// Yaak's SettingsDropdown, less its update, license, CLI and feedback items.
+			// Yaak's SettingsDropdown, less its license, CLI and feedback items.
 			iconButton(c, "gear", "Settings").Menu(func(m *ui.Menu) {
 				if a.hotkeyItem(m.Item("Settings"), "settings.show").Chosen() {
 					a.prompt("settings", "Settings", "", "")
@@ -222,7 +222,10 @@ func (a *App) header(c *ui.Context, p colors) {
 					a.exportFile()
 				}
 				m.Separator()
-				m.Item("Yeek v" + appVersion).Disabled(true)
+				m.Item("Yeek v" + appVersion()).Disabled(true)
+				if m.Item("Check for Updates").Chosen() {
+					a.checkForUpdates(true)
+				}
 			})
 		})
 	})

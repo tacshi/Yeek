@@ -101,9 +101,41 @@ func settingValue(c *ui.Context, p colors, value string, reveal func()) {
 }
 
 func (a *App) settingsGeneral(c *ui.Context, p colors) {
-	settingsHeading(c, p, "General", "Configure general settings.")
+	settingsHeading(c, p, "General", "Configure general settings for update behavior and more.")
+	settingsSection(c, p, "Updates", "Updates", func() {
+		// Yeek publishes stable releases only: Yaak's Beta channel has no feed.
+		settingRow(c, p, "Update Channel", "Choose whether Yeek should use stable releases or beta releases.", nil, func() {
+			channel := "Stable"
+			ui.Select(c, &channel, []string{"Stable"}).Label("Update Channel").Width(192)
+			if a.checkingUpdates {
+				ui.Box(c).Size(28, 28).Radius(4).Border(1, p.border).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
+					ui.Spinner(c).Size(12, 12).TextColor(p.subtle)
+				})
+			} else if sizedIconButton(c, "refresh", "Check for updates", 28, 14).Border(1, p.border).Radius(4).Clicked() {
+				a.checkForUpdates(true)
+			}
+		})
+		auto := b(a.settings, "autoupdate")
+		settingRow(c, p, "Update Behavior", "Choose whether updates are installed automatically or manually.", nil, func() {
+			labels, values := []string{"Automatic", "Manual"}, []bool{true, false}
+			label := labels[slices.Index(values, auto)]
+			if ui.Select(c, &label, labels).Label("Update Behavior").Width(192).Changed() {
+				a.saveSetting("autoupdate", label == "Automatic")
+			}
+		})
+		settingRow(c, p, "Automatically download updates", "Download Yeek updates in the background so they are ready to install.", nil, func() {
+			on := b(a.settings, "autoDownloadUpdates")
+			if ui.Checkbox(c, &on, "").Label("Enable Automatically download updates").Disabled(!auto).Changed() {
+				a.saveSetting("autoDownloadUpdates", on)
+			}
+		})
+		settingRow(c, p, "Send anonymous usage statistics", "Yeek is local-first and does not collect analytics or usage data.", nil, func() {
+			off := false
+			ui.Checkbox(c, &off, "").Label("Enable Send anonymous usage statistics").Disabled(true)
+		})
+	})
 	settingsSection(c, p, "App Info", "App Info", func() {
-		settingRow(c, p, "Version", "Current Yeek version.", nil, func() { settingValue(c, p, appVersion, nil) })
+		settingRow(c, p, "Version", "Current Yeek version.", nil, func() { settingValue(c, p, appVersion(), nil) })
 		data := a.Engine.DataDir
 		settingRow(c, p, "Data Directory", "Where Yeek stores application data.", nil, func() {
 			settingValue(c, p, data, func() { mygo.Shell.ShowItemInFolder(data) })
@@ -116,9 +148,6 @@ func (a *App) settingsGeneral(c *ui.Context, p colors) {
 		}
 	})
 }
-
-// appVersion is the version in mygo.json.
-const appVersion = "0.1.0"
 
 func (a *App) settingsTheme(c *ui.Context, p colors) {
 	settingsHeading(c, p, "Theme", "Make Yeek your own by selecting a theme, or create your own with a Go plugin.")
