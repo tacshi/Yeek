@@ -152,6 +152,7 @@ type App struct {
 	environmentColor                           string
 	toasts                                     []toastItem
 	toastSerial                                int
+	checkingUpdates                            bool // a check the user asked for is under way
 	folderEnvID, hotkeyFilter, recordingHotkey string
 	folderEnvRows                              []KV
 	valuePrompts                               []*valuePrompt
@@ -223,6 +224,7 @@ func (a *App) OpenWindow() {
 		}
 	})
 	a.Window.OnClosed(func() { a.Close() })
+	a.Window.OnFocus(a.maybeCheckForUpdates)
 	go a.worker()
 	if a.active != "" {
 		a.openRequest(a.active)

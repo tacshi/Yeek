@@ -12,9 +12,16 @@ type toastItem struct {
 	shown              time.Time
 	timeout            time.Duration // zero stays until dismissed
 	held               bool          // touched, so it no longer hides itself
-	// action, when set, is a button under the message, as Yaak's toast action.
-	actionLabel string
-	action      func()
+	// title, when set, is a bold line over the message, which is then subtle.
+	title string
+	// actions are buttons under the message, as Yaak's toast action.
+	actions []toastAction
+}
+
+// toastAction is a button of a toast; choosing it hides the toast.
+type toastAction struct {
+	label string
+	run   func()
 }
 
 // toast shows a message in the bottom-right corner for five seconds, as Yaak's showToast does.
@@ -22,9 +29,14 @@ func (a *App) toast(message string) { a.showToast("", message, "success", 5*time
 
 // showToastAction is showToast with a button that runs action.
 func (a *App) showToastAction(id, message, color string, timeout time.Duration, label string, action func()) {
+	a.showToastActions(id, "", message, color, timeout, toastAction{label, action})
+}
+
+// showToastActions is showToast with a title and buttons.
+func (a *App) showToastActions(id, title, message, color string, timeout time.Duration, actions ...toastAction) {
 	a.showToast(id, message, color, timeout)
 	last := &a.toasts[len(a.toasts)-1]
-	last.actionLabel, last.action = label, action
+	last.title, last.actions = title, actions
 }
 
 // showToast replaces any toast with the same id.
@@ -121,11 +133,23 @@ func (a *App) toastCard(c *ui.Context, p colors, t *toastItem, dismissed *string
 		}
 		icon(c, glyph).FontSize(16).TextColor(color).Shrink(0)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
-			ui.Text(c, t.message).FontSize(13).MaxLines(6).Selectable()
-			if t.action != nil && ui.Button(c, t.actionLabel).FontSize(12).Padding(3, 10).AlignSelf(ui.Start).Clicked() {
-				action := t.action
-				*dismissed = t.id
-				a.afterInput = append(a.afterInput, action)
+			if t.title != "" {
+				ui.Column(c).Gap(2).Children(func() {
+					ui.Text(c, t.title).FontSize(13).FontWeight(600).MaxLines(2).Selectable()
+					ui.Text(c, t.message).FontSize(12).TextColor(p.muted).MaxLines(6).Selectable()
+				})
+			} else {
+				ui.Text(c, t.message).FontSize(13).MaxLines(6).Selectable()
+			}
+			if len(t.actions) > 0 {
+				ui.Row(c).Gap(6).Children(func() {
+					for i, action := range t.actions {
+						if ui.Button(c, action.label).Key(i).FontSize(12).Padding(3, 10).Clicked() {
+							*dismissed = t.id
+							a.afterInput = append(a.afterInput, action.run)
+						}
+					}
+				})
 			}
 		})
 		if smallIconButton(c, "close", "Dismiss").Absolute().Top(8).Right(8).Opacity(.6).Clicked() {
