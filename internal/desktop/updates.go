@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -155,5 +156,23 @@ func (a *App) installUpdate(up *mygo.Update) {
 // showUpdateInstalledToast is Yaak's toast once an update is installed.
 func (a *App) showUpdateInstalledToast(version string) {
 	a.showToastActions(updateToastID, "Yeek "+version+" was installed", "Start using the new version now?", "info", 0,
-		toastAction{"Relaunch Yeek", func() { mygo.App.Relaunch() }})
+		toastAction{"Relaunch Yeek", relaunchApp})
+}
+
+// relaunching is set once Relaunch Yeek is chosen.
+var relaunching atomic.Bool
+
+// Relaunching reports whether the app should start again once its last
+// window has closed, rather than just quit.
+func Relaunching() bool { return relaunching.Load() }
+
+// relaunchApp quits and starts the app again. mygo.App.Relaunch gives up
+// when a window cancels its close, and every Yeek window does that to save
+// its drafts before closing itself, so the windows are closed here and the
+// last one to close relaunches the app (see main.go).
+func relaunchApp() {
+	relaunching.Store(true)
+	for _, w := range mygo.Windows() {
+		w.Close()
+	}
 }
