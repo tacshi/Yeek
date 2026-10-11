@@ -24,11 +24,7 @@ func (a *App) detailsBanner(c *ui.Context, p colors, key string, defaultOpen boo
 	ui.Column(c).Key(key).Shrink(0).Radius(6).Border(1, p.border).Background(p.border.Alpha(.18)).Padding(6, 10).Children(func() {
 		toggle := ui.ButtonBase(c).Label(key).FillWidth().Height(24).Gap(10).Justify(ui.Start).Opacity(.75)
 		toggle.Children(func() {
-			glyph := "chevron"
-			if open {
-				glyph = "down"
-			}
-			icon(c, glyph).FontSize(11).TextColor(p.muted)
+			disclosure(c, open, 11, p.muted)
 			summary()
 		})
 		if toggle.Clicked() {

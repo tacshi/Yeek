@@ -215,6 +215,10 @@ func (h *windowHost) present(s *scene.Scene) {
 		if h.degraded {
 			h.path = "drawn by the GPU renderer in software"
 		}
+		if behind(h.gpu) {
+			h.path = "skipped to catch up with the display"
+			h.conn.Surface.RequestFrame()
+		}
 		return
 	}
 	h.path = "drawn in memory"
@@ -368,6 +372,14 @@ func software(r gpuRenderer) bool {
 	return ok && s.Software()
 }
 
+// behind reports whether r drew nothing of the last frame, to catch up
+// with the display (Metal's): the window draws another at the next
+// refresh.
+func behind(r gpuRenderer) bool {
+	b, ok := r.(interface{ Behind() bool })
+	return ok && b.Behind()
+}
+
 // retryLater has a frame make a GPU renderer again after a wait, which
 // doubles with each failure up to half a minute: a driver that resets, a
 // GPU unplugged or a machine waking up may take a while. A window that
@@ -464,6 +476,12 @@ func (h *windowHost) startDrag() {
 func (h *windowHost) titleBarDoubleClicked() {
 	if h.conn.TitleBarDoubleClicked != nil {
 		h.conn.TitleBarDoubleClicked()
+	}
+}
+
+func (h *windowHost) escape() {
+	if h.conn.Escape != nil {
+		h.conn.Escape()
 	}
 }
 

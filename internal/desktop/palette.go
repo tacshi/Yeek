@@ -217,6 +217,7 @@ func (a *App) paletteView(c *ui.Context, p colors) {
 		item.run()
 	}
 	ui.DialogBase(c, &a.palette.open, func(backdrop, panel ui.Element) {
+		dialogEnter(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .3)).Justify(ui.Start).Padding(64, 0, 0, 0)
 		panel.Key("command-palette").Width(700).MaxWidthPercent(80).MaxHeight(480).Padding(8, 0).Radius(10).Background(p.background).Border(1, p.border).Shadow(0, 12, 32, 0, ui.RGBA(0, 0, 0, .25)).Gap(0)
 		ui.Row(c).Padding(0, 8).Children(func() {
@@ -337,6 +338,7 @@ func (a *App) switcherView(c *ui.Context, p colors) {
 	}
 	recent := a.recentRequestIDs()
 	ui.DialogBase(c, &a.switcher.open, func(backdrop, panel ui.Element) {
+		dropdownEnter(backdrop, panel)
 		backdrop.Background(ui.Transparent).Justify(ui.Start).Padding(headerHeight+4, 0, 0, 0)
 		panel.Key("request-switcher").Width(320).MaxHeight(520).Padding(4).Radius(8).Background(p.background).Border(1, p.border).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .2)).Gap(1)
 		open := func(id string) {

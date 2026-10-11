@@ -290,6 +290,8 @@ func (a *App) cookieTable(c *ui.Context, p colors, manager *cookieManager, rows 
 	manager.row = slices.IndexFunc(rows, func(cookie engine.Object) bool { return engine.CookieKey(cookie) == manager.selected })
 	manager.list.Selected = &manager.row
 	manager.list.Sort = &manager.sort
+	// Yaak's selected cookie row has rounded ends.
+	manager.list.RoundRows = true
 	manager.list.Key = func(i int) any { return engine.CookieKey(rows[i]) }
 	manager.list.Label = func(i int) string {
 		return "Cookie " + s(rows[i], "name") + " on " + cookieDomainText(rows[i]) + " at " + s(rows[i], "path")

@@ -146,3 +146,50 @@ func TestCreateWorkspaceWithSyncGitAndEncryption(t *testing.T) {
 		t.Fatalf("%v", tt.Texts())
 	}
 }
+
+// Yaak's PairEditor: a row dragged by its handle goes where the marker
+// shows, before or after the row under the pointer; the row for a new
+// pair stays last.
+func TestPairRowsReorderByDragging(t *testing.T) {
+	a, p := templateTestApp()
+	rows := []KV{{ID: "a", Name: "A", Enabled: true}, {ID: "b", Name: "B", Enabled: true}, {ID: "c", Name: "C", Enabled: true}}
+	dirty := false
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { a.pairEditor(c, p, &rows, "Header", "Value", &dirty) })
+	}, 700, 400)
+	tt.Frame()
+	names := func() string {
+		var b strings.Builder
+		for _, r := range rows {
+			b.WriteString(r.Name + ",")
+		}
+		return b.String()
+	}
+	grip, ok := tt.Find("Drag Header 1")
+	if !ok {
+		t.Fatal(tt.Texts())
+	}
+	target, _ := tt.Find("Header 3")
+	tt.Press(grip.X+grip.W/2, grip.Y+grip.H/2)
+	tt.Move(grip.X+grip.W/2, grip.Y+20)
+	for y := grip.Y + 20; y < target.Y+target.H-4; y += 8 {
+		tt.Move(target.X+20, y)
+	}
+	tt.Move(target.X+20, target.Y+target.H-4)
+	tt.Release(target.X+20, target.Y+target.H-4)
+	tt.Frame()
+	if names() != "B,C,A,," || !dirty {
+		t.Fatalf("after dropping A after C: %s", names())
+	}
+
+	// Past the last row goes before the row for a new pair.
+	grip, _ = tt.Find("Drag Header 1")
+	last, _ := tt.Find("Header 4")
+	tt.Press(grip.X+grip.W/2, grip.Y+grip.H/2)
+	tt.Move(grip.X+grip.W/2, grip.Y+20)
+	tt.Release(last.X+20, last.Y+last.H-4)
+	tt.Frame()
+	if names() != "C,A,B,," {
+		t.Fatalf("after dropping B at the end: %s", names())
+	}
+}

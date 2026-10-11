@@ -206,6 +206,7 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 		return
 	}
 	ui.DialogBase(c, &f.open, func(back, panel ui.Element) {
+		dialogEnter(back, panel)
 		back.Background(ui.RGBA(0, 0, 0, .4))
 		// Yaak's md dialog, h-240.
 		panel.Key("template-dialog").Width(800).HeightPercent(90).MaxHeight(960).MaxWidthPercent(92).Padding(0).Gap(0).Radius(9).Border(1, p.border).Background(p.background)
@@ -257,13 +258,9 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 				a.templateBanner(c, p, f)
 				if hasAdvanced {
 					// Yaak's Advanced accordion.
-					glyph := "chevron"
-					if f.advanced {
-						glyph = "down"
-					}
 					toggle := ui.ButtonBase(c).Label("Advanced").Gap(6).AlignSelf(ui.Start)
 					toggle.Children(func() {
-						icon(c, glyph).FontSize(11).TextColor(p.subtle)
+						disclosure(c, f.advanced, 11, p.subtle)
 						ui.Text(c, "Advanced").FontSize(13)
 					})
 					if toggle.Clicked() {

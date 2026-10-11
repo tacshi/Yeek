@@ -146,15 +146,19 @@ func (a *textInputAdapter) BoundsForRange(r platform.TextRange) (platform.RectF,
 	if c, s := a.client(); c != nil {
 		b, actual, ok := c.BoundsForRange(r)
 		// The window's coordinates, which a zoom makes larger.
-		z := a.rt.zoomFactor()
-		return platform.RectF{X: float64((s.x + b.X) * z), Y: float64((s.y + b.Y) * z), W: float64(b.W * z), H: float64(b.H * z)}, actual, ok
+		b = transformRect(s.world, Rect{X: s.x + b.X, Y: s.y + b.Y, W: b.W, H: b.H})
+		return zoomRect(platform.RectF{X: float64(b.X), Y: float64(b.Y), W: float64(b.W), H: float64(b.H)}, a.rt.zoomFactor()), actual, ok
 	}
 	return platform.RectF{}, platform.TextRange{}, false
 }
 func (a *textInputAdapter) IndexForPoint(x, y float64) (int, bool) {
 	if c, s := a.client(); c != nil {
+		if _, ok := s.world.Inverse(); !ok {
+			return 0, false
+		}
 		z := a.rt.zoomFactor()
-		return c.IndexForPoint(Point{float32(x)/z - s.x, float32(y)/z - s.y})
+		lx, ly := s.local(float32(x)/z, float32(y)/z)
+		return c.IndexForPoint(Point{lx, ly})
 	}
 	return 0, false
 }
