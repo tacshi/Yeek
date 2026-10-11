@@ -14,6 +14,7 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 	// Yaak's Import Data and Import Complete dialogs disable closing.
 	locked := a.dialog == "imports" || a.dialog == "import_complete"
 	dialog := ui.DialogBase(c, &a.dialogOpen, func(backdrop, panel ui.Element) {
+		dialogEnter(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .48))
 		panel.Width(660).MaxWidthPercent(90).MaxHeightPercent(88).Padding(0).Radius(10).Background(p.background).Border(1, p.border).Gap(0)
 		// A dialog without a title draws its own heading and close button.

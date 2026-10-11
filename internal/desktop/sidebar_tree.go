@@ -139,12 +139,8 @@ func (a *App) treeRow(c *ui.Context, p colors, r treeRow, rows []treeRow) {
 			}
 		}
 		if folder {
-			glyph := "chevron"
-			if open {
-				glyph = "down"
-			}
 			chevron := ui.ButtonBase(c).Label("Toggle folder").Size(14, 20).Justify(ui.Center)
-			chevron.Children(func() { icon(c, glyph).FontSize(11).TextColor(p.subtle) })
+			chevron.Children(func() { disclosure(c, open, 11, p.subtle) })
 			if chevron.Clicked() {
 				a.expanded[id] = !a.expanded[id]
 			}

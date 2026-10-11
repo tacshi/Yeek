@@ -24,14 +24,30 @@ func (a *App) View(c *ui.Context) {
 	}
 	// The sidebar sets this again while it builds, for the next frame's ⌘B and ⌘F.
 	a.sidebarFocused, a.tree.focused = false, false
-	ui.Column(c).Fill().Background(p.background).Children(func() {
+	root := ui.Column(c).Fill().Background(p.background)
+	// Yaak's sidebar grows and shrinks as it shows and hides
+	// (transition-grid), though not as it's resized.
+	target := float32(1)
+	if a.hideSidebar {
+		target = 0
+	}
+	shown := root.AnimateTo("sidebar", target, cssTransition)
+	root.Children(func() {
 		a.header(c, p)
-		if len(a.list("workspace")) == 0 {
+		switch {
+		case len(a.list("workspace")) == 0:
 			a.emptyWorkspace(c, p)
-		} else if a.hideSidebar {
+		case shown <= 0:
 			ui.Box(c).Grow(1).MinHeight(0).Children(func() { a.workbench(c, p) })
-		} else {
-			ui.SplitQuiet(c, &a.sidebarWidth, false, func() { a.sidebar(c, p) }, func() { a.workbench(c, p) }).Grow(1).MinHeight(0)
+		case shown < 1:
+			ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+				ui.Box(c).Width(a.sidebarWidth*shown).Shrink(0).ClipX().BorderWidth(0, 1, 0, 0).BorderColor(p.border).Children(func() {
+					ui.Column(c).Width(a.sidebarWidth).FillHeight().Children(func() { a.sidebar(c, p) })
+				})
+				ui.Box(c).Grow(1).MinWidth(0).Children(func() { a.workbench(c, p) })
+			})
+		default:
+			splitQuiet(c, &a.sidebarWidth, false, func() { a.sidebar(c, p) }, func() { a.workbench(c, p) }).Grow(1).MinHeight(0)
 		}
 		if a.errorMessage != "" {
 			ui.Row(c).Background(p.red.Alpha(.12)).BorderWidth(1, 0, 0, 0).BorderColor(p.red.Alpha(.4)).Padding(7, 12).Gap(10).Children(func() {
@@ -487,7 +503,7 @@ func (a *App) workbench(c *ui.Context, p colors) {
 			})
 		}
 	}
-	panes := func() { ui.SplitQuiet(c, &a.requestWidth, a.vertical, request, response).Fill() }
+	panes := func() { splitQuiet(c, &a.requestWidth, a.vertical, request, response).Fill() }
 	if !a.graphQLDocsOpen(d) {
 		panes()
 		return
@@ -500,7 +516,7 @@ func (a *App) workbench(c *ui.Context, p colors) {
 		}
 		a.docsSplit = w * 2 / 3
 	}
-	ui.SplitQuiet(c, &a.docsSplit, false, panes, func() { a.graphQLDocsPane(c, p, d) }).Fill()
+	splitQuiet(c, &a.docsSplit, false, panes, func() { a.graphQLDocsPane(c, p, d) }).Fill()
 }
 func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 	ui.Row(c).Shrink(0).Children(func() {
@@ -945,6 +961,7 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 	}
 	ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 12, 8, 2).Gap(4).Children(func() {
 		deleted := -1
+		moveFrom, moveTo := -1, -1
 		for i := range *rows {
 			row := &(*rows)[i]
 			if row.ID == "" {
@@ -961,9 +978,33 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 			}
 			// Secret header values are obscured, as Yaak's password inputs are.
 			mask := a.kvMask || name == "Header" && secretHeader(row.Name)
+			// Yaak's PairEditor reorders rows dragged by their handle,
+			// marking where a row would go.
+			side := 0
+			if _, over := ui.DragOver[pairDrag](line); over {
+				side = dropSide(line)
+			}
+			if drag, ok := ui.Drop[pairDrag](line); ok {
+				moveFrom = slices.IndexFunc(*rows, func(r KV) bool { return r.ID == drag.id })
+				moveTo = i
+				if dropSide(line) == dropAfter {
+					moveTo = i + 1
+				}
+			}
+			hovered := line.Hovered()
 			line.Children(func() {
 				if ui.Checkbox(c, &row.Enabled, "").Label(fmt.Sprintf("Enable %s %d", name, i+1)).Width(22).Opacity(map[bool]float32{true: .3, false: 1}[empty]).Changed() {
 					*dirty = true
+				}
+				if i < len(*rows)-1 {
+					grip := ui.Box(c).Key("grip").Label(fmt.Sprintf("Drag %s %d", name, i+1)).Size(16, 28).Shrink(0).Center().Opacity(0)
+					if hovered || grip.Dragging() {
+						grip.Opacity(.7)
+					}
+					grip.Children(func() { icon(c, "grip").FontSize(14).TextColor(p.muted) })
+					grip.Drag(pairDrag{row.ID}).DragShows(line)
+				} else {
+					ui.Box(c).Width(16).Shrink(0)
 				}
 				var nameInput ui.Element
 				nameBorder := border
@@ -1064,14 +1105,37 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 						c.WriteClipboard(fieldValue)
 					}
 				})
+				if side != 0 {
+					// Yaak's DropMarker, between the rows.
+					marker := ui.Box(c).Key("drop").Absolute().Left(8).Right(8).Height(3).Radius(2).Background(p.accent)
+					if side == dropBefore {
+						marker.Top(-3.5)
+					} else {
+						marker.Bottom(-3.5)
+					}
+				}
 			})
 		}
 		if deleted >= 0 {
 			*rows = slices.Delete(*rows, deleted, deleted+1)
 			*dirty = true
+		} else if moveFrom >= 0 && moveTo != moveFrom {
+			// The row for a new pair stays last.
+			moveTo = min(moveTo, len(*rows)-1)
+			moved := (*rows)[moveFrom]
+			*rows = slices.Delete(*rows, moveFrom, moveFrom+1)
+			if moveTo > moveFrom {
+				moveTo--
+			}
+			*rows = slices.Insert(*rows, moveTo, moved)
+			*dirty = true
 		}
 	})
 }
+
+// pairDrag is the pair a PairEditor row's handle drags.
+type pairDrag struct{ id string }
+
 func (a *App) bodyEditor(c *ui.Context, p colors, d *Draft) {
 	if d.BodyType == "application/json" {
 		a.bodyTools(c, p, d)

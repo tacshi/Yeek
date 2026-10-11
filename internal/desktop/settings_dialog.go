@@ -307,7 +307,13 @@ func (a *App) settingsShortcuts(c *ui.Context, p colors) {
 							a.recordingHotkey = ""
 							return true
 						}
-						if text, ok := formatHotkey(ev.Mods, ev.Key); ok {
+						key := ev.Key
+						if key == ui.KeyUnknown {
+							// A layout without Latin letters, as Ctrl+ы: the
+							// key at that place, which shortcuts match too.
+							key = ev.PhysicalKey
+						}
+						if text, ok := formatHotkey(ev.Mods, key); ok {
 							a.setHotkey(h.action, []any{text})
 							a.recordingHotkey = ""
 						}

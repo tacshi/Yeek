@@ -166,6 +166,7 @@ var iconPaths = map[string]string{
 	"sidebar":     `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>`,
 	"split":       `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>`,
 	"history":     `<path d="M3 10a9 9 0 1 1 1 8M3 4v6h6M12 7v6l4 2"/>`,
+	"grip":        `<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>`,
 	"more":        `<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>`,
 	"braces":      `<path d="M8 3H6v6l-3 3 3 3v6h2M16 3h2v6l3 3-3 3v6h-2"/>`,
 	"globe":       `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-6 6-6 12 0 18 6-6 6-12 0-18"/>`,

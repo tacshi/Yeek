@@ -194,3 +194,44 @@ func TestRequestNetworkSettingsInheritAndOverride(t *testing.T) {
 		}
 	}
 }
+
+// Yaak's NumberUnitInput rules: megabytes shown to three decimals at most,
+// saved as bytes, and integers and sizes validated as Yaak does.
+func TestNumberUnitInputsMatchYaak(t *testing.T) {
+	for bytes, want := range map[float64]string{64 << 20: "64", 1.5 * (1 << 20): "1.5", 1234567: "1.177", 0: "0"} {
+		if got := formatMegabytes(bytes); got != want {
+			t.Errorf("formatMegabytes(%v) = %q, want %q", bytes, got, want)
+		}
+	}
+	for s, want := range map[string]bool{"": true, "0": true, "250": true, "2.5": false, "-1": false, "abc": false} {
+		if validInteger(s) != want {
+			t.Errorf("validInteger(%q) != %v", s, want)
+		}
+	}
+	for s, want := range map[string]bool{"": true, "0.5": true, "2047": true, "2048": false, "-1": false} {
+		if validMegabytes(s) != want {
+			t.Errorf("validMegabytes(%q) != %v", s, want)
+		}
+	}
+
+	a, p := templateTestApp()
+	d := newDraft(engine.Object{"model": "workspace", "id": "workspace"})
+	d.Kind = "workspace"
+	tt := ui.NewTester(func(c *ui.Context) { a.modelSettingsEditor(c, p, d, true) }, 700, 650)
+	if !tt.HasText("ms") || !tt.HasText("MB") {
+		t.Fatalf("units: %v", tt.Texts())
+	}
+	if err := tt.Click("Message Size Limit setting"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("1.5")
+	if n(d.Model, "settingRequestMessageSize") != 1.5*(1<<20) {
+		t.Fatal(d.Model)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("x")
+	if n(d.Model, "settingRequestMessageSize") != 0 {
+		t.Fatal(d.Model)
+	}
+}

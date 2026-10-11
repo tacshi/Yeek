@@ -295,7 +295,7 @@ func (rt *engine) accessElement(t *platform.AccessTree, e *node, parent int, scr
 	if role, ok := e.accessRole(); ok {
 		n := platform.AccessNode{
 			ID: e.id, Parent: parent, Role: role, Label: e.label,
-			Bounds: platform.RectF{X: float64(e.x * rt.zoomFactor()), Y: float64(e.y * rt.zoomFactor()), W: float64(e.w * rt.zoomFactor()), H: float64(e.h * rt.zoomFactor())},
+			Bounds: zoomRect(accessBounds(e), rt.zoomFactor()),
 		}
 		if scrolled {
 			n.Actions |= platform.ActionScrollIntoView
@@ -554,4 +554,10 @@ func (rt *engine) focusOn(s *state) {
 	}
 	rt.focusVisible = true
 	rt.reveal(s.id)
+}
+
+// zoomRect scales r, in the interface's DIPs, to window coordinates.
+func zoomRect(r platform.RectF, zoom float32) platform.RectF {
+	z := float64(zoom)
+	return platform.RectF{X: r.X * z, Y: r.Y * z, W: r.W * z, H: r.H * z}
 }

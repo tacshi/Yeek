@@ -102,3 +102,31 @@ func TestClicksLandUnderZoom(t *testing.T) {
 		t.Fatal(menu)
 	}
 }
+
+// On a layout without Latin letters, as Cyrillic, a shortcut is recorded
+// as the key at that place, and that key runs it, as ⌘S does on ⌘Ы.
+func TestShortcutsOnNonLatinLayouts(t *testing.T) {
+	a, _ := cookieApp(t)
+	a.prompt("settings", "Settings", "", "")
+	a.modalTab = settingsShortcuts
+	tt := ui.NewTester(a.View, 1360, 860)
+	if err := tt.Click("Shortcut for New Request"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.KeyAt(ui.Cmd|ui.Shift, ui.KeyJ)
+	keys, _ := o(a.settings, "hotkeys")["model.create"].([]any)
+	if len(keys) != 1 {
+		t.Fatal(o(a.settings, "hotkeys"))
+	}
+	if combo, ok := parseHotkey(keys[0].(string)); !ok || combo.key != ui.KeyJ {
+		t.Fatal(keys)
+	}
+	a.dialogOpen = false
+	a.hideSidebar = true
+	tt.Frame()
+	tt.KeyAt(ui.Cmd, ui.KeyB)
+	if a.hideSidebar {
+		t.Fatal("⌘B on a Cyrillic layout did nothing")
+	}
+}

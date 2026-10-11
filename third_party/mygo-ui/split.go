@@ -7,21 +7,15 @@ package ui
 //
 //	ui.Split(c, &app.sidebar, app.files, app.editor).Fill()
 func coreSplit(c *context, size *float32, first, second func()) *node {
-	return split(c, size, first, second, false, false)
+	return split(c, size, first, second, false)
 }
 
 // SplitVertical is Split with first above second, *size its height.
 func coreSplitVertical(c *context, size *float32, first, second func()) *node {
-	return split(c, size, first, second, true, false)
+	return split(c, size, first, second, true)
 }
 
-// SplitQuiet is Split, or SplitVertical when vertical is set, whose divider
-// is drawn only while the pointer is over it or drags it.
-func coreSplitQuiet(c *context, size *float32, vertical bool, first, second func()) *node {
-	return split(c, size, first, second, vertical, true)
-}
-
-func split(c *context, size *float32, first, second func(), vertical, quiet bool) *node {
+func split(c *context, size *float32, first, second func(), vertical bool) *node {
 	t := c.theme
 	minPane, grip := t.Space(10), t.Space(1.5)
 	// One element or the other: creating one adds it to the parent.
@@ -123,8 +117,6 @@ func split(c *context, size *float32, first, second func(), vertical, quiet bool
 				line := t.Border
 				if held || handle.Hovered() {
 					line = t.Accent
-				} else if quiet {
-					return
 				}
 				p.Fill(r, line, 0)
 			})

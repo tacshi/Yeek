@@ -47,10 +47,18 @@ func (a *App) hideToast(id string) {
 	}
 }
 
+// toastMotion is Yaak's Toast: in 200 ms it comes in from the right, 10%
+// of its width away, and goes out all of its width to the right, fading.
+var toastMotion = ui.ElementTransition{
+	Duration: 200 * time.Millisecond,
+	Colors:   true,
+	Enter:    &ui.Motion{X: 41},
+	Exit:     &ui.Motion{X: 416},
+}
+
 func (a *App) toastsView(c *ui.Context, p colors) {
-	if len(a.toasts) == 0 {
-		return
-	}
+	// The list stays while it's empty, so the last toast goes out as the
+	// others do.
 	now := c.Now()
 	for i := range a.toasts {
 		if a.toasts[i].shown.IsZero() {
@@ -84,35 +92,56 @@ func (a *App) toastsView(c *ui.Context, p colors) {
 		}
 	}()
 	ui.Overlay(c, func() {
-		ui.Column(c).Absolute().Right(0).Bottom(0).Padding(8).Gap(8).Children(func() {
+		ui.Column(c).Key("toasts").Absolute().Right(0).Bottom(0).Children(func() {
 			for i := range a.toasts {
 				t := &a.toasts[i]
-				card := ui.Row(c).Key(t.id).Width(400).Padding(12, 40, 12, 12).Gap(8).Radius(8).Border(1, p.border).Background(p.background).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .18)).AlignItems(ui.Start)
-				if card.Pressed() || card.Hovered() {
-					t.held = true
+				// Yaak's m-2 around each toast.
+				slot := ui.Box(c).Key(t.id).Padding(8, 8, 0, 8).Transition(toastMotion)
+				if i == len(a.toasts)-1 {
+					slot.Padding(8)
 				}
-				card.Children(func() {
-					glyph, color := "info", p.blue
-					switch t.color {
-					case "success":
-						glyph, color = "checkCircle", p.green
-					case "danger", "warning", "notice":
-						glyph, color = "alert", map[string]ui.Color{"danger": p.red, "warning": p.orange, "notice": p.notice}[t.color]
-					}
-					icon(c, glyph).FontSize(16).TextColor(color).Shrink(0)
-					ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
-						ui.Text(c, t.message).FontSize(13).MaxLines(6).Selectable()
-						if t.action != nil && ui.Button(c, t.actionLabel).FontSize(12).Padding(3, 10).AlignSelf(ui.Start).Clicked() {
-							action := t.action
-							dismissed = t.id
-							a.afterInput = append(a.afterInput, action)
-						}
-					})
-					if smallIconButton(c, "close", "Dismiss").Absolute().Top(8).Right(8).Opacity(.6).Clicked() {
-						dismissed = t.id
-					}
-				})
+				slot.Children(func() { a.toastCard(c, p, t, &dismissed) })
 			}
 		})
+	})
+}
+
+func (a *App) toastCard(c *ui.Context, p colors, t *toastItem, dismissed *string) {
+	card := ui.Row(c).Width(400).Clip().Padding(12, 40, 12, 12).Gap(8).Radius(8).Border(1, p.border).Background(p.background).Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, .18)).AlignItems(ui.Start)
+	if card.Pressed() || card.Hovered() {
+		t.held = true
+	}
+	card.Children(func() {
+		glyph, color := "info", p.blue
+		switch t.color {
+		case "success":
+			glyph, color = "checkCircle", p.green
+		case "danger", "warning", "notice":
+			glyph, color = "alert", map[string]ui.Color{"danger": p.red, "warning": p.orange, "notice": p.notice}[t.color]
+		}
+		icon(c, glyph).FontSize(16).TextColor(color).Shrink(0)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
+			ui.Text(c, t.message).FontSize(13).MaxLines(6).Selectable()
+			if t.action != nil && ui.Button(c, t.actionLabel).FontSize(12).Padding(3, 10).AlignSelf(ui.Start).Clicked() {
+				action := t.action
+				*dismissed = t.id
+				a.afterInput = append(a.afterInput, action)
+			}
+		})
+		if smallIconButton(c, "close", "Dismiss").Absolute().Top(8).Right(8).Opacity(.6).Clicked() {
+			*dismissed = t.id
+		}
+		if t.timeout > 0 && !t.held {
+			// Yaak's countdown: a bar along the bottom that empties and
+			// fades to 20%, painted without building the view.
+			shown, timeout, color := t.shown, t.timeout, p.border
+			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(3).Draw(func(pt *ui.Painter, r ui.Rect) {
+				done := min(max(float32(pt.Now().Sub(shown))/float32(timeout), 0), 1)
+				pt.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * (1 - done), H: r.H}, color.Alpha(1-.8*done), 0)
+				if done < 1 {
+					pt.AnimationFrame()
+				}
+			})
+		}
 	})
 }

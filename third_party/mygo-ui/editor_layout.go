@@ -168,14 +168,6 @@ func (e *node) paintInput(p *Painter) {
 		p.clip = saved
 		return
 	}
-	if focused {
-		for _, selected := range ed.selectedRanges() {
-			for _, r := range l.SelectionVisual(ed.displayIndex(selected.Start), ed.displayIndex(selected.End), false) {
-				p.Fill(Rect{ox + r.X, oy + r.Y, r.W, r.H}, ts.selectionColor(t), 0)
-			}
-		}
-	}
-	ed.paintChips(p, func(from, to int) []text.Rect { return l.Selection(ed.displayIndex(from), ed.displayIndex(to)) }, 0, ed.buf.n, ox, oy)
 	var sp *spanPaint
 	if !ed.password {
 		_, sp = ed.rangeSpans(0, ed.buf.n)
@@ -187,7 +179,16 @@ func (e *node) paintInput(p *Painter) {
 		}
 		sp = &value
 	}
-	p.textLayout(l, ox, oy, ts.color, ts, sp)
+	p.textBackgrounds(l, ox, oy, ts, sp)
+	ed.paintChips(p, func(from, to int) []text.Rect { return l.Selection(ed.displayIndex(from), ed.displayIndex(to)) }, 0, ed.buf.n, ox, oy)
+	if focused {
+		for _, selected := range ed.selectedRanges() {
+			for _, r := range l.SelectionVisual(ed.displayIndex(selected.Start), ed.displayIndex(selected.End), false) {
+				p.Fill(Rect{ox + r.X, oy + r.Y, r.W, r.H}, ts.selectionColor(t), 0)
+			}
+		}
+	}
+	p.textForeground(l, ox, oy, ts.color, ts, sp)
 	if ed.compose != "" {
 		start := ed.caret
 		end := start + utf8.RuneCountInString(ed.compose)
@@ -203,7 +204,7 @@ func (e *node) paintInput(p *Painter) {
 		const blink = 530 * time.Millisecond
 		if (phase/blink)%2 == 0 {
 			x, y, h := l.CaretAt(text.CaretPosition{Index: ed.displayIndex(ed.caret) + ed.composeCaret, Affinity: ed.caretAffinity})
-			p.s.Ops = append(p.s.Ops, scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, oy + y, 0, h}), Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{}), Opacity: p.opacity})
+			p.add(scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, oy + y, 0, h}), Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{}), Opacity: p.opacity})
 			op := &p.s.Ops[len(p.s.Ops)-1]
 			op.Rect.W = max(round(2*p.scale), 1) // 2px, as in Yaak
 		}

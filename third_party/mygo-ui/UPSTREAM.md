@@ -1,6 +1,6 @@
 # MyGo native UI
 
-Based on `github.com/egoist/mygo/ui` at v0.4.0, under the included MIT license. The framework and CLI are pinned to MyGo v0.4.0 too.
+Based on `github.com/egoist/mygo/ui` at v0.4.5, under the included MIT license. The framework and CLI are pinned to MyGo v0.4.5 too. Upstream's `ui/chart` package and tests are not copied.
 
 As upstream does, the public API (`api_gen.go`) is generated from the private renderer API (`core*` functions and exported methods of `node` and `context`): run `go generate .` here after changing it. `internal/uigen` is upstream's generator, changed only to run from this directory.
 
@@ -11,9 +11,8 @@ Yeek's changes:
 - Carets are 2px wide, as in Yaak. A `CodeEditor`'s is as tall as the text (1.3× the font size), centred in its line, like Yaak's CodeMirror caret.
 - A read-only `CodeEditor` draws its caret where it is clicked, and the pointer becomes a pointing hand over fold markers.
 - `Element.Chips` (`code_chips.go`) draws ranges of a `CodeEditor` as chips, like CodeMirror's atomic replace decorations for Yaak's template tags: a rounded box with hover colors and the default cursor. The caret steps over a chip (`editor_navigation.go`), Backspace and Delete remove it whole, and a click on it is reported by `CodeEditorState.ChipClicked` instead of placing the caret. It hooks into `editor.go`, `editor_layout.go`, `textarea.go` and `runtime.go`.
+- `Element.DragShows` (`drag_shows.go`) makes the copy following the pointer as an element drags its value that of another element, as dnd-kit's DragOverlay shows a whole row dragged by its handle.
 - `CodeEditorState.Pasted` reports the text last pasted and whether it replaced the editor's whole text.
 - `Element.SelectAll` selects all of a text input's text, as when a sidebar row opens for an inline rename.
-- `SplitQuiet` is a split whose divider is drawn only while it is hovered or dragged, as in Yaak's pane layout.
-- A `NumberInput` given a width widens its text field to fill it.
 - `Context.SetZoom` scales the whole interface, as a browser's zoom does, for Yaak's interface zoom: the window's size and pointer input are divided by the zoom and the device scale multiplied by it; menus, the input method's caret and assistive technology get window coordinates. A Tester keeps working in the interface's DIPs.
 - `Tester.Batch` delivers input before rendering, as events can arrive during one display frame.

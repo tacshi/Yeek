@@ -36,8 +36,7 @@ func coreNumberInput(c *context, value *float64, lo, hi, step float64) *node {
 		}
 	}
 	row.Children(func() {
-		// A width given to the number input widens its field to fill it.
-		in := coreTextInput(c, text).Basis(t.Space(20)).Grow(1).MinWidth(t.Space(12))
+		in := coreTextInput(c, text).Width(t.Space(20))
 		in.widget = "NumberInput"
 		in.afterInput(func() {
 			if in.Changed() {

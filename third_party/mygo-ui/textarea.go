@@ -460,19 +460,17 @@ func (a *area) paint(e *node, p *Painter, ox, oy float32) {
 		l := a.paraLayout(ed, i)
 		y := oy + float32(a.hs.top(i)-a.scroll)
 		start, end := b.start(i), b.end(i)
-		// A code editor shows its selection without the focus too.
-		if focused || ed.code {
-			for _, selected := range ed.selectedRanges() {
-				sa, sz := selected.Start, selected.End
-				if sa == sz || sa > end || sz < start || sz == start && i > 0 && sa < start {
-					continue
-				}
-				from, to := a.local(ed, i, max(sa, start)), a.local(ed, i, min(sz, end))
-				for _, r := range l.SelectionVisual(from, to, sz > end && i < last) {
-					p.Fill(Rect{ox + r.X, y + r.Y, r.W, r.H}, ts.selectionColor(t), 0)
-				}
+		_, sp := ed.rangeSpans(start, end)
+		if e.codePaint != nil {
+			value := *e.codePaint
+			value.offset = start
+			if ed.compose != "" && b.para(ed.caret) == i {
+				value.insertAt = ed.caret
+				value.insertCount = utf8.RuneCountInString(ed.compose)
 			}
+			sp = &value
 		}
+		p.textBackgrounds(l, ox, y, ts, sp)
 		firstMark, _ := slices.BinarySearchFunc(e.codeMarks, start, func(mark CodeMark, position int) int {
 			if mark.End <= position {
 				return -1
@@ -492,17 +490,20 @@ func (a *area) paint(e *node, p *Painter, ox, oy float32) {
 			}
 		}
 		ed.paintChips(p, func(from, to int) []text.Rect { return l.Selection(a.local(ed, i, from), a.local(ed, i, to)) }, start, end, ox, y)
-		_, sp := ed.rangeSpans(start, end)
-		if e.codePaint != nil {
-			value := *e.codePaint
-			value.offset = start
-			if ed.compose != "" && b.para(ed.caret) == i {
-				value.insertAt = ed.caret
-				value.insertCount = utf8.RuneCountInString(ed.compose)
+		// A code editor shows its selection without the focus too.
+		if focused || ed.code {
+			for _, selected := range ed.selectedRanges() {
+				sa, sz := selected.Start, selected.End
+				if sa == sz || sa > end || sz < start || sz == start && i > 0 && sa < start {
+					continue
+				}
+				from, to := a.local(ed, i, max(sa, start)), a.local(ed, i, min(sz, end))
+				for _, r := range l.SelectionVisual(from, to, sz > end && i < last) {
+					p.Fill(Rect{ox + r.X, y + r.Y, r.W, r.H}, ts.selectionColor(t), 0)
+				}
 			}
-			sp = &value
 		}
-		p.textLayout(l, ox, y, ts.color, ts, sp)
+		p.textForeground(l, ox, y, ts.color, ts, sp)
 		for _, mark := range e.codeDiagnostics {
 			if mark.Start >= end {
 				break
@@ -538,7 +539,7 @@ func (a *area) paint(e *node, p *Painter, ox, oy float32) {
 					h = text
 				}
 			}
-			p.s.Ops = append(p.s.Ops, scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, top, 0, h}), Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{}), Opacity: p.opacity})
+			p.add(scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, top, 0, h}), Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{}), Opacity: p.opacity})
 			op := &p.s.Ops[len(p.s.Ops)-1]
 			op.Rect.W = max(round(2*p.scale), 1) // 2px, as in Yaak
 		}
