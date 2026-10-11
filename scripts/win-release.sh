@@ -2,9 +2,9 @@
 # Builds Yeek's Windows release installers on macOS or Linux, for x64 and
 # arm64: per-user installers that let the app update itself.
 #
-#   scripts/windows-release.sh               # the version in mygo.json
-#   scripts/windows-release.sh 0.2.0         # another version
-#   scripts/windows-release.sh --arch x64    # only some: x64, arm64
+#   scripts/win-release.sh               # the version in mygo.json
+#   scripts/win-release.sh 0.2.0         # another version
+#   scripts/win-release.sh --arch x64    # only some: x64, arm64
 #
 # The installers are copied to build/windows-release/dist as
 # Yeek-<version>-{x64,arm64}-setup.exe. With the update signing key

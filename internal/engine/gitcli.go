@@ -31,6 +31,7 @@ func gitCommand(ctx context.Context, dir string, stdin string, args ...string) (
 	}
 	cmd := exec.CommandContext(ctx, path, args...) // #nosec G204 -- git is run with fixed subcommands; names are arguments, not shell text.
 	cmd.Env = append(cmd.Environ(), "GIT_TERMINAL_PROMPT=0")
+	hideConsole(cmd)
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}

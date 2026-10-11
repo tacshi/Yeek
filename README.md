@@ -15,7 +15,7 @@ Yaak is a mature API client built with Tauri and React. Rebuilding it puts MyGo 
 - **Pure Go.** The HTTP, GraphQL, gRPC and WebSocket clients, template engine, importers, filesystem sync and Git all run in Go, so `go run .` is the whole development loop.
 - **Toolkit extensions.** Where the stock toolkit fell short, Yeek extends a vendored copy in `third_party/mygo-ui`. Its `UPSTREAM.md` records the base version and each change.
 - **Headless UI tests.** The interface is driven by MyGo's headless tester: clicking, typing and rendering screenshots without opening a window.
-- **Packaging.** `mygo build` produces the macOS app bundle; `scripts/mac-debug.sh` produces a debug build that runs beside it, `scripts/mac-release.sh` signed, notarized disk images, and `scripts/windows-release.sh` Windows installers.
+- **Packaging.** `mygo build` produces the macOS app bundle; `scripts/mac-debug.sh` produces a debug build that runs beside it, `scripts/mac-release.sh` signed, notarized disk images, and `scripts/win-release.sh` (or `scripts/win-release.ps1` on Windows) Windows installers.
 
 Yaak is the reference. Workspaces, Yaak-format filesystem sync and imports are meant to stay compatible with it.
 
@@ -107,7 +107,7 @@ Yeek updates itself from the GitHub releases of `tacshi/Yeek`, which MyGo signs 
 
 `scripts/mac-release.sh [version]` builds signed, notarized disk images into `build/mac-release/dist`: `Yeek-<version>-arm64.dmg`, `-x64.dmg` and `-universal.dmg`. It needs `DEVELOPER_ID_APPLICATION`, the Developer ID Application identity, and a `notarytool` keychain profile named `Yeek` (`YEEK_NOTARY_PROFILE` names another). `--arch` picks some of the images, and `--skip-notarize` skips Apple's notary service.
 
-`scripts/windows-release.sh [version]` cross-builds the Windows installers into `build/windows-release/dist`: `Yeek-<version>-x64-setup.exe` and `-arm64-setup.exe`, which install for the current user so the app can update itself. It needs NSIS (`brew install makensis`). The installers aren't code signed, so SmartScreen warns about them.
+`scripts/win-release.sh [version]` cross-builds the Windows installers into `build/windows-release/dist`: `Yeek-<version>-x64-setup.exe` and `-arm64-setup.exe`, which install for the current user so the app can update itself. It needs NSIS (`brew install makensis`). On Windows, `scripts/win-release.ps1 [version]` builds the same installers; MyGo downloads NSIS when it isn't installed. The installers aren't code signed, so SmartScreen warns about them.
 
 `scripts/publish.sh <version>` publishes a release from `main`. Its notes come from `release-notes/Yeek-<version>.md` when that file exists. Otherwise the script drafts them from the commits since the last `v*` tag and asks before publishing: `y` publishes, `e` opens them in `$EDITOR`, anything else aborts. It runs both build scripts, which upload to a draft release, then tags the commit and publishes the release. `--no-upload` builds without publishing, and `--skip-mac` or `--skip-windows` leaves a platform out. `mygo.json` keeps its version: the scripts hand the version and notes to the builds for the run only.
 
