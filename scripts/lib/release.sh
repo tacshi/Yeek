@@ -1,4 +1,4 @@
-# Shared by mac-release.sh, windows-release.sh and publish.sh; source it.
+# Shared by mac-release.sh, win-release.sh and publish.sh; source it.
 
 die() {
 	printf '%s: %s\n' "$(basename "$0")" "$*" >&2

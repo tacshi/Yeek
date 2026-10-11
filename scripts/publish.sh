@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Publishes a Yeek release to GitHub, where installed apps find their
 # updates: the macOS disk images that scripts/mac-release.sh builds (signed
-# and notarized) and the Windows installers of scripts/windows-release.sh.
+# and notarized) and the Windows installers of scripts/win-release.sh.
 #
 #   scripts/publish.sh 0.2.0                 # build, review the notes, publish
 #   scripts/publish.sh 0.2.0 --no-upload     # build into build/release only
@@ -180,7 +180,7 @@ $NO_UPLOAD || BUILD_ARGS+=(--upload)
 
 info "building Yeek $VERSION at $(git rev-parse --short HEAD)"
 $MAC && "$ROOT_DIR/scripts/mac-release.sh" "${BUILD_ARGS[@]}"
-$WINDOWS && "$ROOT_DIR/scripts/windows-release.sh" "${BUILD_ARGS[@]}"
+$WINDOWS && "$ROOT_DIR/scripts/win-release.sh" "${BUILD_ARGS[@]}"
 
 if $NO_UPLOAD; then
 	info "built into build/release/out (installers in build/release/out/dist); nothing was published"
