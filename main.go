@@ -179,7 +179,13 @@ func run() (runErr error) {
 		}
 		pendingURLs = nil
 	})
-	mygo.App.OnWindowAllClosed(func() { mygo.App.Quit() })
+	mygo.App.OnWindowAllClosed(func() {
+		if desktop.Relaunching() {
+			mygo.App.Relaunch()
+		} else {
+			mygo.App.Quit()
+		}
+	})
 	mygo.App.OnQuit(func() {
 		for _, a := range windows {
 			a.Close()
