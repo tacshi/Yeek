@@ -3,7 +3,7 @@ module github.com/egoist/mygo/yeekui
 go 1.27.1
 
 require (
-	github.com/egoist/mygo v0.4.5
+	github.com/egoist/mygo v0.4.8
 	golang.org/x/image v0.46.0
 )
 

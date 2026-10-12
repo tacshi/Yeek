@@ -80,7 +80,7 @@ func (rt *engine) event(ev platform.SurfaceEvent) (taken bool) {
 	case platform.SurfaceFocus:
 		rt.windowFocused = true
 		rt.blinkStart = time.Now()
-		rt.requestFrame()
+		rt.focusChanged()
 	case platform.SurfaceBlur:
 		rt.windowFocused = false
 		rt.selection.dragging = false
@@ -95,8 +95,9 @@ func (rt *engine) event(ev platform.SurfaceEvent) (taken bool) {
 			}
 			p.pressed = false
 			rt.pressed = nil
+			rt.requestFrame()
 		}
-		rt.requestFrame()
+		rt.focusChanged()
 	case platform.FileDragOver:
 		taken = rt.fileDrag(x, y)
 	case platform.FileDragLeave:
@@ -253,6 +254,7 @@ const interactive = flagClickable | flagFocusable | flagEditable | flagSelectabl
 func (rt *engine) pointerDown(x, y float32, button int, mods Modifiers, count int) {
 	chain := rt.hitChain(x, y)
 	rt.setHover(chain)
+	rt.pressDragger = 0
 	if len(chain) > 0 {
 		rt.downs = append(rt.downs, chain[0])
 	} else {
@@ -328,6 +330,7 @@ func (rt *engine) pointerDown(x, y float32, button int, mods Modifiers, count in
 		return
 	}
 	rt.pressed, rt.pressButton = target, button
+	rt.pressDragger = pressDragger(rt, chain, target)
 	target.pressed, target.pressMods = true, mods
 	target.pressPending = true
 	target.pressX, target.pressY = target.local(x, y)
@@ -789,7 +792,7 @@ func (rt *engine) shortcut(id uint64, mods Modifiers, key Key) bool {
 }
 
 func (rt *engine) editEvent(ev editEvent) {
-	if s := rt.states[rt.focused]; s != nil && s.textClient != nil && rt.windowFocused && s.flags&flagDisabled == 0 && (s.editor == nil || !s.editor.readOnly) {
+	if s := rt.states[rt.focused]; s != nil && s.textClient != nil && rt.windowFocus() && s.flags&flagDisabled == 0 && (s.editor == nil || !s.editor.readOnly) {
 		if ev.kind == editInsert || ev.kind == editCompose {
 			var r *TextInputRange
 			if ev.replace {
@@ -837,7 +840,7 @@ const imeContext = 512
 func (rt *engine) updateTextInput() {
 	var t platform.TextInputState
 	base := 0
-	if s := rt.states[rt.focused]; s != nil && s.textClient != nil && rt.windowFocused && s.flags&flagDisabled == 0 && (s.editor == nil || !s.editor.readOnly) {
+	if s := rt.states[rt.focused]; s != nil && s.textClient != nil && rt.windowFocus() && s.flags&flagDisabled == 0 && (s.editor == nil || !s.editor.readOnly) {
 		t.Active, t.Client = true, s.textAdapter
 		sel := s.textAdapter.Selection()
 		caret := sel.Caret()
@@ -847,7 +850,7 @@ func (rt *engine) updateTextInput() {
 			r := transformRect(s.world, Rect{X: s.x, Y: s.y, W: 1, H: s.h})
 			t.Caret = zoomRect(platform.RectF{X: float64(r.X), Y: float64(r.Y), W: float64(r.W), H: float64(r.H)}, rt.zoomFactor())
 		}
-	} else if s != nil && s.editor == nil && s.input != nil && s.takesText && rt.windowFocused {
+	} else if s != nil && s.editor == nil && s.input != nil && s.takesText && rt.windowFocus() {
 		// An element taking text itself: no text around the caret.
 		t.Active = true
 		r := transformRect(s.world, Rect{s.x + s.caret.X, s.y + s.caret.Y, s.caret.W, s.caret.H})
@@ -1021,7 +1024,7 @@ func (e *node) Pressed() bool {
 
 // Focused reports whether the element has the keyboard focus.
 func (e *node) Focused() bool {
-	return e.hasState() && e.c.rt.focused == e.id && e.c.rt.windowFocused
+	return e.hasState() && e.c.rt.focused == e.id && e.c.rt.windowFocus()
 }
 
 // FocusVisible reports whether the element has the keyboard focus and
@@ -1310,6 +1313,23 @@ func (rt *engine) scrollbarPress(chain []uint64, x, y float32) bool {
 		return true
 	}
 	return false
+}
+
+// windowFocus reports whether the window has the keyboard focus, noting
+// that the frame depends on it.
+func (rt *engine) windowFocus() bool {
+	rt.focusRead = true
+	return rt.windowFocused
+}
+
+// focusChanged draws a frame after the window gained or lost the keyboard
+// focus, when the last frame read it (a focus ring, a caret, a selection):
+// another frame would draw the same, as a window hides or shows again, and
+// cost the GPU's driver tens of MB for a second or two.
+func (rt *engine) focusChanged() {
+	if rt.focusRead {
+		rt.requestFrame()
+	}
 }
 
 // modsChanged takes the modifier keys held now, drawing a frame when they

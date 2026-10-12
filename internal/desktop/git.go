@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/yeekui"
+	"github.com/egoist/mygo/yeekui/editor"
 	"yeek/internal/engine"
 )
 
@@ -238,7 +240,7 @@ func (a *App) gitMenu(m *ui.Menu, dir string, info *engine.GitBranchInfo) {
 		a.gitPull()
 	}
 	if m.Item("Commit...").Chosen() {
-		a.gitCommitMessage = ""
+		a.gitCommitMessage, a.commitCollapsed = "", nil
 		a.prompt("git_commit", "Commit Changes", "", "")
 	}
 	if a.gitState != nil && len(a.gitState.Files) > 0 && m.Item("Reset Changes").Chosen() {
@@ -574,96 +576,540 @@ func timeAgo(t time.Time) string {
 	return unit(int(d.Hours()/24/365), "year")
 }
 
-// gitCommitDialog is Yaak's GitCommitDialog: the changes to stage, the
-// message, and Commit or Commit and Push.
+// gitCommitDialog is Yaak's GitCommitDialog: the changes to stage over
+// the message, and Commit or Commit and Push, beside the diff of the
+// change selected.
 func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 	dir, workspace := a.syncDir(), a.workspace
-	ui.Column(c).Height(520).Padding(12, 20, 16, 20).Gap(12).Children(func() {
-		if a.gitState == nil || len(a.gitState.Files) == 0 {
-			emptyState(c, p, "No changes since last commit")
-			return
-		}
-		ui.Scroll(c).Grow(1).Padding(0, 12, 0, 0).Gap(2).Children(func() {
-			for _, file := range a.gitState.Files {
-				ui.Row(c).Key(file.Path).Height(26).Gap(8).Children(func() {
-					staged := file.Staging != " " && file.Staging != "?"
-					title := "Stage change"
-					if staged {
-						title = "Unstage change"
-					}
-					if ui.Checkbox(c, &staged, "").Label(title + " " + file.Path).Changed() {
-						path := file.Path
-						a.background(func() (func(), error) { return a.refreshGit, a.Engine.GitStage(dir, []string{path}, staged) })
-					}
-					status, color := gitFileStatus(file, p)
-					ui.Text(c, a.gitFileName(file.Path)).FontSize(12).SingleLine().Grow(1).MinWidth(0)
-					ui.Text(c, status).FontSize(11).TextColor(color)
+	if a.gitState == nil {
+		return
+	}
+	tree, external := a.commitTree()
+	if tree == nil {
+		return
+	}
+	if len(a.gitState.Files) == 0 {
+		ui.Column(c).Grow(1).Padding(12, 20, 16, 20).Children(func() { emptyState(c, p, "No changes since last commit") })
+		return
+	}
+	// Yaak's split layouts: the diff takes 60% of the width, the message
+	// 35% of the height beside it.
+	w, h := c.Size()
+	if a.gitCommitSplit == 0 {
+		a.gitCommitSplit = w * .9 * .4
+	}
+	if a.gitCommitMessageSplit == 0 {
+		a.gitCommitMessageSplit = h * .88 * .65
+	}
+	changes := func() {
+		ui.Scroll(c).Fill().Padding(0, 2, 12, 0).Children(func() {
+			a.commitTreeView(c, p, dir, tree, 0)
+			if len(external) > 0 {
+				// Yaak's Separator with a label.
+				ui.Row(c).Gap(8).Padding(12, 0, 4, 0).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Height(1).Grow(1).Background(p.border)
+					ui.Text(c, "Other files").FontSize(12).TextColor(p.subtle)
+					ui.Box(c).Height(1).Grow(1).Background(p.border)
 				})
+				for _, entry := range external {
+					a.externalCommitRow(c, p, dir, entry)
+				}
 			}
 		})
-		ui.TextArea(c, &a.gitCommitMessage).Label("Commit message").Placeholder("Commit message...").Height(90).FillWidth()
-		ui.Row(c).Gap(8).Children(func() {
-			if a.gitInfo != nil {
-				ui.Text(c, a.gitInfo.Head).Font("monospace").FontSize(11).Padding(1, 5).Radius(3).Background(p.border.Alpha(.4))
-			}
-			ui.Spacer(c)
-			staged := slices.ContainsFunc(a.gitState.Files, func(f engine.GitFile) bool { return f.Staging != " " && f.Staging != "?" })
-			ready := staged && strings.TrimSpace(a.gitCommitMessage) != ""
-			commit := func(push bool) {
-				message := a.gitCommitMessage
-				a.background(func() (func(), error) {
-					err := a.Engine.GitCommitStaged(a.ctx, dir, message)
-					if err == nil {
-						err = a.syncNow(workspace, dir)
-					}
-					return func() {
-						if err != nil {
-							a.showToast("", "Error committing: "+err.Error(), "danger", 0)
-							return
+	}
+	message := func() {
+		ui.Column(c).Fill().Padding(12, 0, 8, 0).Gap(12).Children(func() {
+			ui.TextArea(c, &a.gitCommitMessage).Label("Commit message").Placeholder("Commit message...").Grow(1).MinHeight(0).FillWidth()
+			ui.Row(c).Gap(8).Children(func() {
+				if a.gitInfo != nil {
+					ui.Text(c, a.gitInfo.Head).Font("monospace").FontSize(11).Padding(1, 5).Radius(3).Background(p.border.Alpha(.4))
+				}
+				ui.Spacer(c)
+				staged := slices.ContainsFunc(a.gitState.Files, func(f engine.GitFile) bool { return f.Staging != " " && f.Staging != "?" })
+				ready := staged && strings.TrimSpace(a.gitCommitMessage) != ""
+				commit := func(push bool) {
+					message := a.gitCommitMessage
+					a.background(func() (func(), error) {
+						err := a.Engine.GitCommitStaged(a.ctx, dir, message)
+						if err == nil {
+							err = a.syncNow(workspace, dir)
 						}
-						a.dialogOpen = false
-						a.refreshGit()
-						if push {
-							a.gitPush()
-						}
-					}, nil
-				})
-			}
-			if ui.Button(c, "Commit").Disabled(!ready).Clicked() {
-				commit(false)
-			}
-			if ui.PrimaryButton(c, "Commit and Push").Disabled(!ready).Clicked() {
-				commit(true)
-			}
+						return func() {
+							if err != nil {
+								a.showToast("", "Error committing: "+err.Error(), "danger", 0)
+								return
+							}
+							a.dialogOpen = false
+							a.refreshGit()
+							if push {
+								a.gitPush()
+							}
+						}, nil
+					})
+				}
+				if ui.Button(c, "Commit").Disabled(!ready).Clicked() {
+					commit(false)
+				}
+				if ui.PrimaryButton(c, "Commit and Push").Disabled(!ready).Clicked() {
+					commit(true)
+				}
+			})
 		})
+	}
+	ui.Column(c).Grow(1).MinHeight(0).Padding(12, 8, 16, 8).Children(func() {
+		splitQuiet(c, &a.gitCommitSplit, false, func() {
+			ui.Column(c).Fill().Padding(0, 16).Children(func() {
+				splitQuiet(c, &a.gitCommitMessageSplit, true, changes, message).Fill()
+			})
+		}, func() {
+			ui.Column(c).Fill().Padding(0, 16).BorderWidth(0, 0, 0, 1).BorderColor(p.border).Children(func() {
+				a.gitDiffPanel(c, p, dir, workspace)
+			})
+		}).Fill()
 	})
 }
 
-// gitFileName names a synced file by its model, as Yaak's commit tree does.
-func (a *App) gitFileName(path string) string {
-	base := path[strings.LastIndex(path, "/")+1:]
-	if id := strings.TrimSuffix(strings.TrimPrefix(base, "yaak."), ".yaml"); id != base {
-		if m := a.models[id]; m != nil {
-			return requestName(m)
-		}
-	}
-	return path
+// gitEntry is Yaak's GitStatusEntry: a file, its status, whether it is
+// staged, and the model it holds, or held.
+type gitEntry struct {
+	path   string
+	status string // untracked, conflict, current, modified, removed, renamed or type_change
+	staged bool
+	model  engine.Object
 }
 
-func gitFileStatus(file engine.GitFile, p colors) (string, ui.Color) {
-	code := file.Worktree
-	if code == " " {
-		code = file.Staging
+// gitEntryOf is Yaak's git_status_from_raw: the index's status when the
+// change is staged, else the worktree's.
+func gitEntryOf(f engine.GitFile) gitEntry {
+	if f.Staging == "U" || f.Worktree == "U" {
+		return gitEntry{path: f.Path, status: "conflict", staged: true, model: f.Model}
 	}
-	switch code {
-	case "?", "A":
-		return "Added", p.green
-	case "D":
-		return "Removed", p.red
-	case "R":
-		return "Renamed", p.blue
+	code := func(c string) string {
+		switch c {
+		case "?", "A":
+			return "untracked"
+		case "M", "C":
+			return "modified"
+		case "D":
+			return "removed"
+		case "R":
+			return "renamed"
+		}
+		return "current"
 	}
-	return "Modified", p.notice
+	index, worktree := code(f.Staging), code(f.Worktree)
+	if f.Staging == "?" {
+		index = "current"
+	}
+	if index != "current" {
+		return gitEntry{path: f.Path, status: index, staged: true, model: f.Model}
+	}
+	return gitEntry{path: f.Path, status: worktree, model: f.Model}
+}
+
+// commitNode is Yaak's CommitTreeNode: a model's entry and those of the
+// models in it.
+type commitNode struct {
+	entry    gitEntry
+	children []*commitNode
+}
+
+// commitTree is the tree of Yaak's commit dialog, from the workspace
+// down, and the changed files holding no model: the changes, among the
+// models they are in, which are current where unchanged.
+func (a *App) commitTree() (*commitNode, []gitEntry) {
+	var entries, external []gitEntry
+	changed := map[string]bool{}
+	for _, f := range a.gitState.Files {
+		entry := gitEntryOf(f)
+		if entry.model == nil {
+			external = append(external, entry)
+			continue
+		}
+		changed[s(entry.model, "id")] = true
+		entries = append(entries, entry)
+	}
+	// The unchanged models changes can be in.
+	for id, m := range a.models {
+		if kind := s(m, "model"); !changed[id] && (kind == "workspace" && id == a.workspace || kind == "folder" && s(m, "workspaceId") == a.workspace) {
+			entries = append(entries, gitEntry{status: "current", model: m})
+		}
+	}
+	// In the order of their files, as git's status lists them.
+	slices.SortFunc(entries, func(x, y gitEntry) int { return strings.Compare(s(x.model, "id"), s(y.model, "id")) })
+	var next func(m engine.Object, depth int) *commitNode
+	next = func(m engine.Object, depth int) *commitNode {
+		i := slices.IndexFunc(entries, func(e gitEntry) bool { return s(e.model, "id") == s(m, "id") })
+		if i < 0 || depth > 64 {
+			return nil
+		}
+		node := &commitNode{entry: entries[i]}
+		for _, e := range entries {
+			child := e.model
+			parent := s(child, "folderId")
+			if parent == "" {
+				parent = s(child, "workspaceId")
+			}
+			if parent == s(m, "id") {
+				if n := next(child, depth+1); n != nil {
+					node.children = append(node.children, n)
+				}
+			}
+		}
+		return node
+	}
+	ws := a.models[a.workspace]
+	if ws == nil {
+		return nil, external
+	}
+	return next(ws, 0), external
+}
+
+// checkedStatus is Yaak's nodeCheckedStatus: checked when every change
+// below is staged, mixed when some are.
+func (n *commitNode) checkedStatus() (checked, mixed bool) {
+	var visited, staged, current int
+	var visit func(n *commitNode)
+	visit = func(n *commitNode) {
+		visited++
+		switch {
+		case n.entry.status == "current":
+			current++
+		case n.entry.staged:
+			staged++
+		}
+		for _, c := range n.children {
+			visit(c)
+		}
+	}
+	visit(n)
+	if visited == staged+current {
+		return true, false
+	}
+	return false, staged > 0
+}
+
+// relevant reports whether the node or one below it is changed: Yaak's
+// tree shows only those.
+func (n *commitNode) relevant() bool {
+	return n.entry.status != "current" || slices.ContainsFunc(n.children, (*commitNode).relevant)
+}
+
+// commitTreeView is Yaak's CheckboxTree of the commit dialog.
+func (a *App) commitTreeView(c *ui.Context, p colors, dir string, n *commitNode, depth int) {
+	if !n.relevant() {
+		return
+	}
+	key := s(n.entry.model, "id")
+	collapsed := a.commitCollapsed[key]
+	visibleChildren := slices.ContainsFunc(n.children, (*commitNode).relevant)
+	selectable := n.entry.status != "current"
+	selected := selectable && a.gitDiff != nil && a.gitDiff.path == n.entry.path
+	name := requestName(n.entry.model)
+	body := func() {
+		row := ui.Row(c).Height(28).Gap(4).AlignItems(ui.Center).FillWidth().Radius(3)
+		if selected {
+			row.Background(p.border.Alpha(.45))
+		}
+		row.Children(func() {
+			if visibleChildren {
+				glyph, label := "down", "Collapse"
+				if collapsed {
+					glyph, label = "chevron", "Expand"
+				}
+				toggle := ui.ButtonBase(c).Label(label+" "+name).Size(16, 16).Shrink(0).Center()
+				toggle.Children(func() {
+					color := p.subtle
+					if toggle.Hovered() {
+						color = p.text
+					}
+					icon(c, glyph).FontSize(12).TextColor(color)
+				})
+				if toggle.Clicked() {
+					if a.commitCollapsed == nil {
+						a.commitCollapsed = map[string]bool{}
+					}
+					a.commitCollapsed[key] = !collapsed
+				}
+			} else {
+				ui.Box(c).Width(16).Shrink(0)
+			}
+			checked, mixed := n.checkedStatus()
+			title := "Stage change"
+			if checked || mixed {
+				title = "Unstage change"
+			}
+			on := checked
+			if checkbox(c, p, &on, mixed, title+" "+name).Margin(0, 2, 0, 0).Changed() {
+				a.stageCommitNode(dir, n, mixed || !checked)
+			}
+			content := func() {
+				ui.Row(c).Grow(1).MinWidth(0).Gap(4).Padding(2, 4).AlignItems(ui.Center).Children(func() {
+					textColor := p.muted
+					if selected {
+						textColor = p.text
+					}
+					switch s(n.entry.model, "model") {
+					case "folder":
+						icon(c, "folder").TextColor(p.muted).Shrink(0)
+					case "environment":
+						icon(c, "variable").TextColor(p.muted).Shrink(0)
+					case "workspace":
+						icon(c, "house").TextColor(p.muted).Shrink(0)
+					default:
+						ui.Box(c).Width(16).Shrink(0)
+					}
+					ui.Text(c, name).FontSize(13).TextColor(textColor).SingleLine().Grow(1).MinWidth(0)
+					if n.entry.status != "current" {
+						statusChip(c, p, n.entry.status)
+					}
+				})
+			}
+			if selectable {
+				button := ui.ButtonBase(c).Label(name).Grow(1).MinWidth(0)
+				button.Children(content)
+				if button.Clicked() {
+					if selected {
+						a.gitDiff = nil
+					} else {
+						a.gitDiff = &gitDiffPanel{path: n.entry.path}
+					}
+				}
+			} else {
+				content()
+			}
+		})
+		if !collapsed {
+			for _, child := range n.children {
+				a.commitTreeView(c, p, dir, child, depth+1)
+			}
+		}
+	}
+	if depth == 0 {
+		ui.Column(c).Key(key).FillWidth().Children(body)
+		return
+	}
+	// Yaak's pl-4 ml-2 and dashed left border.
+	ui.Row(c).Key(key).FillWidth().Children(func() {
+		ui.Box(c).Width(8).Shrink(0)
+		ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, 16).BorderWidth(0, 0, 0, 1).BorderStyle(ui.BorderDashed).BorderColor(p.border).Children(body)
+	})
+}
+
+// stageCommitNode is Yaak's setCheckedAndChildren: it stages, or
+// unstages, the changes of the node and those below it.
+func (a *App) stageCommitNode(dir string, n *commitNode, staged bool) {
+	var paths []string
+	var visit func(n *commitNode)
+	visit = func(n *commitNode) {
+		for _, c := range n.children {
+			visit(c)
+		}
+		if n.entry.status != "current" && n.entry.staged != staged {
+			paths = append(paths, n.entry.path)
+		}
+	}
+	visit(n)
+	if len(paths) > 0 {
+		a.background(func() (func(), error) { return a.refreshGit, a.Engine.GitStage(dir, paths, staged) })
+	}
+}
+
+// externalCommitRow is Yaak's ExternalTreeNode: a changed file holding
+// no model, by its path in the sync directory.
+func (a *App) externalCommitRow(c *ui.Context, p colors, dir string, entry gitEntry) {
+	display := entry.path
+	if rel := a.gitState.RelaDir; rel != "" {
+		display = strings.TrimPrefix(display, rel+"/")
+	}
+	row := ui.Row(c).Key(entry.path).Height(28).Gap(8).Padding(0, 4).Radius(3).AlignItems(ui.Center).FillWidth()
+	if row.Hovered() {
+		row.Background(p.border.Alpha(.3))
+	}
+	row.Children(func() {
+		staged := entry.staged
+		title := "Stage change"
+		if staged {
+			title = "Unstage change"
+		}
+		if checkbox(c, p, &staged, false, title+" "+display).Changed() {
+			path := entry.path
+			a.background(func() (func(), error) { return a.refreshGit, a.Engine.GitStage(dir, []string{path}, staged) })
+		}
+		icon(c, "file_code").TextColor(p.muted).Shrink(0)
+		ui.Text(c, display).FontSize(13).SingleLine().Grow(1).MinWidth(0)
+		statusChip(c, p, entry.status)
+	})
+}
+
+// statusChip is Yaak's Chip of a change's status, in its statusColor.
+func statusChip(c *ui.Context, p colors, status string) ui.Element {
+	color := p.muted
+	switch status {
+	case "modified":
+		color = p.blue
+	case "untracked":
+		color = p.green
+	case "removed":
+		color = p.red
+	case "conflict":
+		color = p.orange
+	}
+	chip := ui.Row(c).Padding(2, 8).Radius(6).Background(color.Alpha(.1)).Border(1, color.Alpha(.1)).Shrink(0)
+	chip.Children(func() { ui.Text(c, status).FontSize(11).FontWeight(500).TextColor(color).SingleLine() })
+	return chip
+}
+
+// gitDiffPanel is the change the commit dialog's diff panel shows: its
+// model at HEAD and now, as YAML, loaded for the status the dialog shows.
+type gitDiffPanel struct {
+	path string
+	// loaded is the status the texts were loaded for; another reloads them.
+	loaded *engine.GitStatus
+	diff   *editor.DiffState
+}
+
+// gitDiffPanel is Yaak's DiffPanel: the change selected, Discard Changes,
+// and its DiffViewer.
+func (a *App) gitDiffPanel(c *ui.Context, p colors, dir, workspace string) {
+	d := a.gitDiff
+	var file *gitEntry
+	if d != nil {
+		if i := slices.IndexFunc(a.gitState.Files, func(f engine.GitFile) bool { return f.Path == d.path && f.Model != nil }); i >= 0 {
+			entry := gitEntryOf(a.gitState.Files[i])
+			file = &entry
+		}
+	}
+	if file == nil {
+		a.gitDiff = nil
+		emptyState(c, p, "Select a change to view diff")
+		return
+	}
+	if d.loaded != a.gitState {
+		d.loaded = a.gitState
+		path := d.path
+		a.background(func() (func(), error) {
+			prev, next, err := a.Engine.GitFileVersions(dir, path)
+			return func() {
+				if a.gitDiff != d {
+					return
+				}
+				d.diff = setYAMLDiff(d.diff, prev, next)
+			}, err
+		})
+	}
+	ui.Column(c).Fill().Gap(8).Children(func() {
+		ui.Row(c).Gap(8).Padding(0, 4).Children(func() {
+			ui.Text(c, requestName(file.model)+" ("+file.status+")").FontSize(12).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
+			if warningButton(c, p, "Discard Changes").Clicked() {
+				a.discardGitChange(dir, workspace, file.path)
+			}
+		})
+		if d.diff == nil {
+			ui.Box(c).Grow(1)
+			return
+		}
+		a.gitDiffView(c, p, d.diff)
+	})
+}
+
+// setYAMLDiff shows prev and next in d, or in a new diff of YAML when d
+// is nil, keeping where it is scrolled to when only the texts change.
+func setYAMLDiff(d *editor.DiffState, prev, next string) *editor.DiffState {
+	if d == nil {
+		d = &editor.DiffState{Old: editor.NewBuffer(""), New: editor.NewBuffer("")}
+		lang := editor.LanguageNamed("YAML")
+		d.Old.SetLanguage(lang)
+		d.New.SetLanguage(lang)
+	}
+	for _, side := range []struct {
+		buf  *editor.Buffer
+		text string
+	}{{d.Old, prev}, {d.New, next}} {
+		if side.buf.String() != side.text {
+			side.buf.Reset(side.text)
+		}
+	}
+	return d
+}
+
+// gitDiffView is Yaak's DiffViewer, CodeMirror's MergeView of the two
+// texts side by side: YAML, wrapped, read only, line numbers, unchanged
+// lines collapsed but for 2 around changes, and changed lines tinted with
+// no highlight of the words changed in them.
+func (a *App) gitDiffView(c *ui.Context, p colors, d *editor.DiffState) {
+	font := cmp.Or(s(a.settings, "editorFont"), "monospace")
+	size := float32(n(a.settings, "editorFontSize"))
+	if size <= 0 {
+		size = 12
+	}
+	d.Font = ui.Font{Family: font, Size: size}
+	d.Wrap, d.ContextLines, d.Inline = true, 2, editor.DiffInlineNone
+	d.Theme = diffTheme(p)
+	d.RenderSeparator = func(c *ui.Context, sep ui.Element, s *editor.DiffSeparator) {
+		// Yaak's .cm-collapsedLines: a bordered bar on the surface, which a
+		// click expands.
+		sep.Padding(4, 2)
+		sep.Children(func() {
+			bar := ui.ButtonBase(c).Grow(1).AlignSelf(ui.Stretch).Center().Radius(3).Background(p.sidebar).Border(1, p.border).
+				Label(fmt.Sprintf("Expand %d unchanged lines", s.Lines)).Opacity(.8)
+			if bar.Hovered() {
+				bar.Opacity(1)
+			}
+			bar.Children(func() {
+				label := fmt.Sprintf("%d unchanged lines", s.Lines)
+				if s.Lines == 1 {
+					label = "1 unchanged line"
+				}
+				ui.Text(c, "⦚ "+label+" ⦚").FontSize(size - 1).TextColor(p.text)
+			})
+			if bar.Clicked() {
+				s.ExpandAll()
+			}
+		})
+	}
+	editor.DiffView(c, d).Grow(1).MinHeight(0).FillWidth()
+}
+
+// diffTheme colors a diff as Yaak's editors: its syntaxHighlightStyle,
+// and changes in the theme's success and danger colors. Plain YAML values,
+// which the tokenizer makes variables, keep the text's color, as Yaak's
+// YAML content does.
+func diffTheme(p colors) *editor.Theme {
+	t := &editor.Theme{Background: p.background, Text: p.text, LineNumber: p.subtle, ActiveLineNumber: p.muted, Added: p.green, Deleted: p.red, Modified: p.blue}
+	tok := func(color ui.Color, kinds ...editor.TokenKind) {
+		for _, k := range kinds {
+			t.Tokens[k].Color = color
+		}
+	}
+	tok(p.subtle, editor.TokenComment, editor.TokenMeta)
+	tok(p.muted, editor.TokenPunctuation)
+	tok(p.blue, editor.TokenLink, editor.TokenTag, editor.TokenNumber)
+	tok(p.accent, editor.TokenAttribute, editor.TokenProperty)
+	tok(p.notice, editor.TokenString, editor.TokenEscape)
+	tok(p.red, editor.TokenConstant, editor.TokenOperator, editor.TokenKeyword)
+	return t
+}
+
+// discardGitChange is Yaak's handleDiscardChanges: it asks, discards the
+// change, syncs the workspace from its files, and comes back to the
+// commit dialog.
+func (a *App) discardGitChange(dir, workspace, path string) {
+	back := func() {
+		a.refreshGit()
+		a.prompt("git_commit", "Commit Changes", "", "")
+	}
+	a.confirmDialog("Discard Changes", "Do you really want to discard uncommitted changes for the selected item?", "Discard", true, func() {
+		a.gitDiff = nil
+		a.background(func() (func(), error) {
+			err := a.Engine.GitRestore(a.ctx, dir, path)
+			if err == nil {
+				err = a.syncNow(workspace, dir)
+			}
+			return back, err
+		})
+	})
+	a.asking.cancel = back
 }
 
 // gitDivergedDialog is Yaak's DivergedDialog.
@@ -726,4 +1172,214 @@ func (a *App) gitDivergedDialog(c *ui.Context, p colors) {
 			}
 		})
 	})
+}
+
+// warningButton is Yaak's warning-colored border button, 2xs.
+func warningButton(c *ui.Context, p colors, label string) ui.Element {
+	b := ui.ButtonBase(c).Label(label).Height(22).Padding(0, 8).Radius(4).Border(1, p.orange).Center().Shrink(0)
+	if b.Hovered() {
+		b.Background(p.orange.Alpha(.1))
+	}
+	b.Children(func() { ui.Text(c, label).FontSize(11).TextColor(p.orange) })
+	return b
+}
+
+// gitModelPaths returns the paths in the repository of the changed files
+// of models, by their IDs.
+func (a *App) gitModelPaths() map[string]string {
+	paths := map[string]string{}
+	if a.gitState == nil {
+		return paths
+	}
+	for _, f := range a.gitState.Files {
+		if f.Model != nil {
+			paths[s(f.Model, "id")] = f.Path
+		}
+	}
+	return paths
+}
+
+// gitTreeMenu adds the git items of Yaak's sidebar context menu: View
+// History of one item, and Restore Changes of those changed, after a
+// separator when separate is set.
+func (a *App) gitTreeMenu(menu *ui.Menu, items []engine.Object, separate bool) {
+	dir, workspace := a.syncDir(), a.workspace
+	if dir == "" || a.gitNoRepo {
+		return
+	}
+	changed := a.gitModelPaths()
+	var restore []string
+	for _, m := range items {
+		if path, ok := changed[s(m, "id")]; ok {
+			restore = append(restore, path)
+		}
+	}
+	if len(items) != 1 && len(restore) == 0 {
+		return
+	}
+	if separate {
+		menu.Separator()
+	}
+	if len(items) == 1 && menu.Item("View History").Chosen() {
+		id := s(items[0], "id")
+		path, ok := changed[id]
+		a.background(func() (func(), error) {
+			var err error
+			if !ok {
+				// Yaak's syncPathForModel.
+				path, err = a.Engine.GitRepoPath(dir, "yaak."+id+".yaml")
+			}
+			return func() { a.openFileHistory(dir, path) }, err
+		})
+	}
+	if len(restore) > 0 && menu.Item("Restore Changes").Chosen() {
+		description := "This will discard uncommitted changes for the selected item."
+		if len(restore) > 1 {
+			description = fmt.Sprintf("This will discard uncommitted changes for %d selected items.", len(restore))
+		}
+		a.confirmDialog("Restore Changes", description, "Restore", true, func() {
+			a.background(func() (func(), error) {
+				for _, path := range restore {
+					if err := a.Engine.GitRestore(a.ctx, dir, path); err != nil {
+						return a.refreshGit, err
+					}
+				}
+				return a.refreshGit, a.syncNow(workspace, dir)
+			})
+		})
+	}
+}
+
+// fileHistory is Yaak's FileHistoryDialog's state: the commits changing a
+// file, the one selected, and its diff.
+type fileHistory struct {
+	dir, path string
+	loading   bool
+	commits   []engine.GitCommit
+	selected  string
+	// diffOf is the commit whose diff was asked for.
+	diffOf string
+	diff   *editor.DiffState
+	split  float32
+}
+
+func (a *App) openFileHistory(dir, path string) {
+	h := &fileHistory{dir: dir, path: path, loading: true}
+	a.fileHistory = h
+	a.prompt("git_file_history", "File History", "", "")
+	a.background(func() (func(), error) {
+		commits, err := a.Engine.GitFileLog(a.ctx, dir, path)
+		return func() {
+			h.loading, h.commits = false, commits
+			if len(commits) > 0 {
+				h.selected = commits[0].Hash
+			}
+		}, err
+	})
+}
+
+// fileHistoryDialog is Yaak's FileHistoryDialog: the commits changing a
+// file beside the diff of the one selected, which Restore File restores.
+func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
+	h := a.fileHistory
+	if h == nil {
+		return
+	}
+	if len(h.commits) == 0 {
+		ui.Column(c).Grow(1).MinHeight(160).Padding(12, 20, 16, 20).Children(func() {
+			if !h.loading {
+				emptyState(c, p, "No history for this file")
+			}
+		})
+		return
+	}
+	i := slices.IndexFunc(h.commits, func(cm engine.GitCommit) bool { return cm.Hash == h.selected })
+	if i >= 0 && h.diffOf != h.selected {
+		hash := h.selected
+		h.diffOf = hash
+		a.background(func() (func(), error) {
+			original, modified, err := a.Engine.GitFileDiffForCommit(h.dir, hash, h.path)
+			return func() {
+				if h.selected == hash {
+					h.diff = setYAMLDiff(h.diff, original, modified)
+				}
+			}, err
+		})
+	}
+	// Yaak's split layout: the diff takes 60% of the width.
+	if h.split == 0 {
+		w, _ := c.Size()
+		h.split = min(1120, w*.9) * .4
+	}
+	ui.Column(c).Grow(1).MinHeight(0).Padding(4, 8, 16, 8).Children(func() {
+		splitQuiet(c, &h.split, false, func() {
+			ui.Scroll(c).Fill().Padding(6, 16, 8, 16).Gap(0).Children(func() {
+				for _, commit := range h.commits {
+					a.fileHistoryCommit(c, p, h, commit)
+				}
+			})
+		}, func() {
+			ui.Column(c).Fill().MinWidth(0).Padding(0, 16).BorderWidth(0, 0, 0, 1).BorderColor(p.border).Gap(8).Children(func() {
+				if i < 0 {
+					emptyState(c, p, "Select a commit to view diff")
+					return
+				}
+				commit := h.commits[i]
+				ui.Row(c).Gap(8).Children(func() {
+					ui.Text(c, cmp.Or(commit.Message, "No message")).FontSize(12).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
+					if warningButton(c, p, "Restore File").Clicked() {
+						a.restoreFileFromCommit(h, commit.Hash)
+					}
+				})
+				if h.diff == nil {
+					ui.Box(c).Grow(1)
+					return
+				}
+				a.gitDiffView(c, p, h.diff)
+			})
+		}).Fill()
+	})
+}
+
+// fileHistoryCommit is Yaak's CommitListItem.
+func (a *App) fileHistoryCommit(c *ui.Context, p colors, h *fileHistory, commit engine.GitCommit) {
+	item := ui.ButtonBase(c).Key(commit.Hash).Label(cmp.Or(commit.Message, "No message")).FillWidth().Padding(6, 8).Radius(3).Column().Gap(1)
+	switch {
+	case commit.Hash == h.selected:
+		item.Background(p.border.Alpha(.55))
+	case item.Hovered():
+		item.Background(p.border.Alpha(.3))
+	}
+	item.Children(func() {
+		ui.Text(c, cmp.Or(commit.Message, "No message")).FontSize(13).SingleLine().FillWidth()
+		ui.Row(c).Gap(4).FillWidth().Children(func() {
+			ui.Text(c, cmp.Or(commit.Author, "Unknown")+" - "+timeAgo(commit.When)+" ago - ").FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
+			ui.Text(c, commit.Hash[:min(7, len(commit.Hash))]).Font("monospace").FontSize(10).TextColor(p.muted).Shrink(0)
+		})
+	})
+	if item.Clicked() {
+		h.selected = commit.Hash
+	}
+}
+
+// restoreFileFromCommit is Yaak's handleRestoreCommit: it asks, restores
+// the file from the commit, syncs the workspace from its files, and comes
+// back to the file's history.
+func (a *App) restoreFileFromCommit(h *fileHistory, hash string) {
+	workspace := a.workspace
+	back := func() {
+		a.refreshGit()
+		a.fileHistory = h
+		a.prompt("git_file_history", "File History", "", "")
+	}
+	a.confirmDialog("Restore File", "This will restore the file to the selected commit.", "Restore", false, func() {
+		a.background(func() (func(), error) {
+			err := a.Engine.GitRestoreFromCommit(a.ctx, h.dir, hash, h.path)
+			if err == nil {
+				err = a.syncNow(workspace, h.dir)
+			}
+			return back, err
+		})
+	})
+	a.asking.cancel = back
 }

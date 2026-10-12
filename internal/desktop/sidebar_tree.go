@@ -549,6 +549,8 @@ func (a *App) treeMenu(menu *ui.Menu, m engine.Object) {
 			}
 		}
 	}
+	// Yaak's git items, after a separator from the items above, if any.
+	a.gitTreeMenu(menu, items, onlyHTTP || one && (folder || s(child, "model") == "grpc_request" || len(a.Engine.PluginActions()) > 0))
 	menu.Separator()
 	if one && a.hotkeyItem(menu.Item("Rename"), "sidebar.selected.rename").Chosen() {
 		a.startRename(id)
