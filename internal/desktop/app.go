@@ -98,10 +98,15 @@ type App struct {
 	gitNoRepo                                 bool
 	gitRefreshed                              time.Time
 	gitCommitMessage, syncing, divergedChoice string
-	notEmptySyncDir                           string
-	switchTarget, moveTarget                  string
-	rememberWindow                            bool
-	moving                                    []string
+	// gitDiff is the commit dialog's diff panel.
+	gitDiff                               *gitDiffPanel
+	fileHistory                           *fileHistory
+	commitCollapsed                       map[string]bool
+	gitCommitSplit, gitCommitMessageSplit float32
+	notEmptySyncDir                       string
+	switchTarget, moveTarget              string
+	rememberWindow                        bool
+	moving                                []string
 	// OpenWorkspace opens a workspace in a new window.
 	OpenWorkspace                              func(id string)
 	gitRemotes                                 []engine.GitRemoteInfo

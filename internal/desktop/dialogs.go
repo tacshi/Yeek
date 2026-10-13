@@ -143,8 +143,13 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			panel.Width(480)
 			a.askDialog(c, p)
 		case "git_commit":
-			panel.Width(760)
+			// Yaak's full dialog: the whole window but for a margin.
+			panel.WidthPercent(100).HeightPercent(100)
 			a.gitCommitDialog(c, p)
+		case "git_file_history":
+			// Yaak's lg dialog.
+			panel.Width(1120).HeightPercent(100)
+			a.fileHistoryDialog(c, p)
 		case "git_history":
 			panel.Width(760)
 			a.gitHistoryDialog(c, p)

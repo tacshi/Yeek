@@ -170,6 +170,10 @@ func TestGitStatusAndCommitStayInSyncDir(t *testing.T) {
 	if err != nil || len(status.Files) != 1 || status.Files[0].Path != "yaak/a.yaml" {
 		t.Fatal(status.Files, err)
 	}
+	// Staged from the sync directory, by paths in the repository.
+	if err := e.GitStage(sync, []string{"yaak/a.yaml"}, true); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.GitStage(repo, []string{"outside.txt", "yaak/a.yaml"}, true); err != nil {
 		t.Fatal(err)
 	}
@@ -205,5 +209,119 @@ func TestGitClone(t *testing.T) {
 	}
 	if _, err := e.GitClone(t.Context(), filepath.Join(t.TempDir(), "missing"), filepath.Join(t.TempDir(), "x")); err == nil || !strings.HasPrefix(err.Error(), "Failed to clone: ") {
 		t.Fatal(err)
+	}
+}
+
+// The commit dialog's diff panel: a file's model at HEAD and in the
+// worktree, in YAML; Discard Changes puts back HEAD's, or removes a new
+// file.
+func TestGitFileVersionsAndRestore(t *testing.T) {
+	gitFixture(t)
+	e := testEngine(t)
+	repo := t.TempDir()
+	if err := e.GitInit(repo); err != nil {
+		t.Fatal(err)
+	}
+	sync := filepath.Join(repo, "yaak")
+	if err := os.Mkdir(sync, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	commitFile(t, e, repo, "yaak/yaak.rq_1.yaml", "model: http_request\nid: rq_1\nname: Before\nurl: https://example.com\n", "add")
+	if err := os.WriteFile(filepath.Join(sync, "yaak.rq_1.yaml"), []byte("model: http_request\nid: rq_1\nname: After\nurl: https://example.com\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// A JSON model shows as YAML; a file without a model shows nothing.
+	if err := os.WriteFile(filepath.Join(sync, "yaak.fl_1.json"), []byte(`{"model":"folder","id":"fl_1","name":"New","headers":[{"name":"A"}]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sync, "README.md"), []byte("notes"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	prev, next, err := e.GitFileVersions(sync, "yaak/yaak.rq_1.yaml")
+	if err != nil || prev != "model: http_request\nid: rq_1\nname: Before\nurl: https://example.com\n" || next != "model: http_request\nid: rq_1\nname: After\nurl: https://example.com\n" {
+		t.Fatalf("modified: %q %q %v", prev, next, err)
+	}
+	prev, next, err = e.GitFileVersions(sync, "yaak/yaak.fl_1.json")
+	if err != nil || prev != "" || next != "model: folder\nid: fl_1\nname: New\nheaders:\n  - name: A\n" {
+		t.Fatalf("new json: %q %q %v", prev, next, err)
+	}
+	if prev, next, err = e.GitFileVersions(sync, "yaak/README.md"); err != nil || prev != "" || next != "" {
+		t.Fatalf("not a model: %q %q %v", prev, next, err)
+	}
+	if _, _, err = e.GitFileVersions(sync, "../outside.yaml"); err == nil {
+		t.Fatal("a path outside the repository was read")
+	}
+
+	if err := e.GitStage(repo, []string{"yaak/yaak.rq_1.yaml", "yaak/yaak.fl_1.json"}, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"yaak/yaak.rq_1.yaml", "yaak/yaak.fl_1.json"} {
+		if err := e.GitRestore(t.Context(), sync, path); err != nil {
+			t.Fatal(path, err)
+		}
+	}
+	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); !strings.Contains(string(data), "name: Before") {
+		t.Fatalf("modified file not restored: %q", data)
+	}
+	if _, err := os.Stat(filepath.Join(sync, "yaak.fl_1.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("new file not removed", err)
+	}
+	status, err := e.GitStatus(t.Context(), sync)
+	if err != nil || len(status.Files) != 1 || status.Files[0].Path != "yaak/README.md" {
+		t.Fatal(status.Files, err)
+	}
+}
+
+// Yaak's FileHistoryDialog: the commits that change a file, its text
+// before and after each, and restoring it from one.
+func TestGitFileHistory(t *testing.T) {
+	gitFixture(t)
+	e := testEngine(t)
+	repo := t.TempDir()
+	if err := e.GitInit(repo); err != nil {
+		t.Fatal(err)
+	}
+	sync := filepath.Join(repo, "yaak")
+	if err := os.Mkdir(sync, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	path, err := e.GitRepoPath(sync, "yaak.rq_1.yaml")
+	if err != nil || path != "yaak/yaak.rq_1.yaml" {
+		t.Fatal(path, err)
+	}
+	if commits, err := e.GitFileLog(t.Context(), sync, path); err != nil || len(commits) != 0 {
+		t.Fatal("history before the first commit", commits, err)
+	}
+	commitFile(t, e, repo, path, "name: One\n", "first")
+	commitFile(t, e, repo, "other.txt", "x", "unrelated")
+	commitFile(t, e, repo, path, "name: Two\n", "second")
+	commits, err := e.GitFileLog(t.Context(), sync, path)
+	if err != nil || len(commits) != 2 || commits[0].Message != "second" || commits[1].Message != "first" {
+		t.Fatal(commits, err)
+	}
+	if original, modified, err := e.GitFileDiffForCommit(sync, commits[0].Hash, path); err != nil || original != "name: One\n" || modified != "name: Two\n" {
+		t.Fatalf("second: %q %q %v", original, modified, err)
+	}
+	if original, modified, err := e.GitFileDiffForCommit(sync, commits[1].Hash, path); err != nil || original != "" || modified != "name: One\n" {
+		t.Fatalf("first: %q %q %v", original, modified, err)
+	}
+	if err := e.GitRestoreFromCommit(t.Context(), sync, commits[1].Hash, path); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); string(data) != "name: One\n" {
+		t.Fatalf("not restored: %q", data)
+	}
+	// A commit without the file removes it.
+	unrelated, _, _ := gitCommand(t.Context(), repo, "", "rev-list", "--max-count=1", "--skip=1", "HEAD")
+	if err := os.Remove(filepath.Join(sync, "yaak.rq_1.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	commitFile(t, e, repo, "yaak/yaak.rq_2.yaml", "name: Three\n", "third")
+	if err := e.GitRestoreFromCommit(t.Context(), sync, strings.TrimSpace(unrelated), "yaak/yaak.rq_2.yaml"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(sync, "yaak.rq_2.yaml")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("file not removed", err)
 	}
 }

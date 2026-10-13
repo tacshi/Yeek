@@ -20,6 +20,9 @@ type askState struct {
 	alert                bool // Yaak's showAlert: one button, no Cancel
 	inputs               []askInput
 	done                 func(values []string)
+	// cancel, when set, runs on Cancel, as to go back to the dialog that
+	// asked.
+	cancel func()
 }
 
 // ask opens a dialog that asks the user to confirm, or to fill inputs.
@@ -78,6 +81,9 @@ func (a *App) askDialog(c *ui.Context, p colors) {
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
 			if !s.alert && ui.Button(c, "Cancel").Clicked() {
 				a.dialogOpen, a.asking = false, nil
+				if s.cancel != nil {
+					s.cancel()
+				}
 			}
 			confirm := ui.PrimaryButton(c, s.confirm).Label(fmt.Sprintf("Confirm %s", s.confirm))
 			if s.danger {
