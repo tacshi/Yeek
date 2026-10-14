@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zalando/go-keyring"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,7 +19,7 @@ type memorySecrets map[string]string
 func (m memorySecrets) Get(s, u string) (string, error) {
 	v, ok := m[s+u]
 	if !ok {
-		return "", keyring.ErrNotFound
+		return "", ErrSecretNotFound
 	}
 	return v, nil
 }
@@ -40,7 +39,7 @@ func TestEncryptionYaakCompatibility(t *testing.T) {
 		t.Fatal(got)
 	}
 	e := testEngine(t)
-	e.secrets = memorySecrets{}
+	e.Secrets = memorySecrets{}
 	w := saveTest(t, e, Object{"model": "workspace"})
 	wid := str(w, "id")
 	if err = e.EnableEncryption(t.Context(), wid); err != nil {

@@ -1,0 +1,63 @@
+package desktop
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"yeek/internal/engine"
+)
+
+// A file of the sync directory changed outside Yeek syncs into the
+// workspace, through mygo.WatchFiles.
+func TestWatchSyncDirPullsEdits(t *testing.T) {
+	a, e, ids := treeApp(t)
+	dir := t.TempDir()
+	if err := a.syncNow(a.workspace, dir); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	errs := make(chan error, 8)
+	e.WatchDir = watchSyncDir
+	stop, err := e.WatchSync(ctx, a.workspace, dir, func(err error) { errs <- err })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+
+	file := filepath.Join(dir, "yaak."+ids["Alpha"]+".yaml")
+	data, err := os.ReadFile(file) // #nosec G304 -- a file of the test's directory.
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A temporary file of an atomic write is no change of its own.
+	if err := os.WriteFile(filepath.Join(dir, ".yaak.x.yaml.1-1.tmp"), []byte("model: nonsense"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte(strings.Replace(string(data), "name: Alpha", "name: Watched", 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		m, err := e.Store.Get(t.Context(), ids["Alpha"])
+		if err == nil && m["name"] == "Watched" {
+			break
+		}
+		select {
+		case err := <-errs:
+			t.Fatal(err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("edit not synced", m["name"])
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !engine.SyncTempFile(".yaak.x.yaml.1-1.tmp") || engine.SyncTempFile("yaak.x.yaml") {
+		t.Fatal("SyncTempFile")
+	}
+}

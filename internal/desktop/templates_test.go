@@ -100,7 +100,7 @@ func TestTemplateTagsMatchYaak(t *testing.T) {
 
 	// Never panics, and always reports real bounds.
 	alphabet := []rune{'$', '{', '[', ']', '}', '\'', '\\', 'a', 'b'}
-	rng := rand.New(rand.NewPCG(0x5eed, 0))
+	rng := rand.New(rand.NewPCG(0x5eed, 0)) // #nosec G404 -- a seeded generator, so that the cases repeat.
 	for range 2000 {
 		var b strings.Builder
 		for range rng.IntN(31) {

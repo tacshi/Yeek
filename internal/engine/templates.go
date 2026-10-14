@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 	"uuid"
-
-	"github.com/zalando/go-keyring"
 )
 
 func (e *Engine) Variables(ctx context.Context, workspace, folder, environment string) (map[string]string, error) {
@@ -225,7 +223,10 @@ func (e *Engine) functions(ctx context.Context, workspace string, environmentIDs
 		case "secure":
 			return e.DecryptValue(ctx, workspace, args["value"])
 		case "keychain", "keyring":
-			return keyring.Get(args["service"], args["account"])
+			if e.Secrets == nil {
+				return "", errors.New("no OS keychain")
+			}
+			return e.Secrets.Get(args["service"], args["account"])
 		case "1password.item":
 			return onePasswordValue(ctx, args)
 		case "prompt.text", "prompt":

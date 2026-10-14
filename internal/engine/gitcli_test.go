@@ -195,7 +195,7 @@ func TestGitClone(t *testing.T) {
 	e := testEngine(t)
 	source := t.TempDir()
 	for _, args := range [][]string{{"init", "-q"}, {"-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "--allow-empty", "-m", "first"}} {
-		if out, err := exec.Command("git", append([]string{"-C", source}, args...)...).CombinedOutput(); err != nil {
+		if out, err := exec.Command("git", append([]string{"-C", source}, args...)...).CombinedOutput(); err != nil { // #nosec G204 -- git with the test's own arguments.
 			t.Fatal(string(out))
 		}
 	}
@@ -261,7 +261,7 @@ func TestGitFileVersionsAndRestore(t *testing.T) {
 			t.Fatal(path, err)
 		}
 	}
-	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); !strings.Contains(string(data), "name: Before") {
+	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); !strings.Contains(string(data), "name: Before") { // #nosec G304 -- a file of the test's directory.
 		t.Fatalf("modified file not restored: %q", data)
 	}
 	if _, err := os.Stat(filepath.Join(sync, "yaak.fl_1.json")); !errors.Is(err, os.ErrNotExist) {
@@ -309,7 +309,7 @@ func TestGitFileHistory(t *testing.T) {
 	if err := e.GitRestoreFromCommit(t.Context(), sync, commits[1].Hash, path); err != nil {
 		t.Fatal(err)
 	}
-	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); string(data) != "name: One\n" {
+	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); string(data) != "name: One\n" { // #nosec G304 -- a file of the test's directory.
 		t.Fatalf("not restored: %q", data)
 	}
 	// A commit without the file removes it.
@@ -323,5 +323,22 @@ func TestGitFileHistory(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(sync, "yaak.rq_2.yaml")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("file not removed", err)
+	}
+}
+
+// Yaak's git_init starts repositories on main, not master.
+func TestGitInitOnMain(t *testing.T) {
+	gitFixture(t)
+	e := testEngine(t)
+	repo := t.TempDir()
+	if err := e.GitInit(repo); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := e.GitBranchInfo(t.Context(), repo); err != nil || info.Head != "main" {
+		t.Fatal("before the first commit", info.Head, err)
+	}
+	commitFile(t, e, repo, "a.txt", "a", "first")
+	if status, err := e.GitStatus(t.Context(), repo); err != nil || status.Branch != "main" || !slices.Equal(status.Branches, []string{"main"}) {
+		t.Fatal("after the first commit", status.Branch, status.Branches, err)
 	}
 }

@@ -130,3 +130,55 @@ func TestShortcutsOnNonLatinLayouts(t *testing.T) {
 		t.Fatal("⌘B on a Cyrillic layout did nothing")
 	}
 }
+
+// Yaak's font settings choose from the system's fonts, the monospaced
+// ones for the editor, and System default saves no font.
+func TestSettingsFontSelects(t *testing.T) {
+	a, _ := cookieApp(t)
+	a.prompt("settings", "Settings", "", "")
+	a.modalTab = settingsInterface
+	tt := ui.NewTester(a.View, 1360, 860)
+	tt.Frame()
+	if a.fonts == nil || !a.fonts.loaded {
+		t.Fatal("fonts not listed")
+	}
+	if len(a.fonts.editor) == 0 || len(a.fonts.ui) == 0 {
+		t.Skip("no fonts of both kinds on this system")
+	}
+	mono, sans := a.fonts.editor[0], a.fonts.ui[0]
+	if err := tt.Click("Editor font setting"); err != nil {
+		t.Fatal(tt.Texts())
+	}
+	tt.Frame()
+	snapshot(t, tt, "font_select")
+	if !tt.HasText(systemDefaultFont) || tt.HasText(sans) {
+		t.Fatal("editor fonts", tt.Texts())
+	}
+	if err := tt.Click(mono); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if s(a.settings, "editorFont") != mono {
+		t.Fatal(mono, "→", a.settings["editorFont"])
+	}
+	if err := tt.Click("Interface font setting"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click(sans); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if s(a.settings, "interfaceFont") != sans {
+		t.Fatal(a.settings["interfaceFont"])
+	}
+	if err := tt.Click("Editor font setting"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click(systemDefaultFont); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if v, ok := a.settings["editorFont"]; ok && v != nil {
+		t.Fatal("System default saved a font", v)
+	}
+}

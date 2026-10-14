@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
 )
 
@@ -86,7 +85,7 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 	for _, entry := range entries {
 		previous := tracked[entry.Name()]
 		invalid := func(reason string) error {
-			return fmt.Errorf("Invalid sync file: %s: %s", filepath.Join(dir, entry.Name()), reason)
+			return fmt.Errorf("Invalid sync file: %s: %s", filepath.Join(dir, entry.Name()), reason) //nolint:staticcheck // Yaak's message, shown as it is
 		}
 		if !entry.Type().IsRegular() {
 			if previous != nil {
@@ -355,7 +354,7 @@ func modelWorkspace(m Object) string {
 // less the umask.
 func atomicWrite(path string, data []byte, perm os.FileMode) error {
 	var keep os.FileMode
-	if existing, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
+	if existing, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil { // #nosec G302 G304 -- the caller's file.
 		info, err := existing.Stat()
 		_ = existing.Close()
 		if err != nil {
@@ -393,19 +392,37 @@ func atomicWrite(path string, data []byte, perm os.FileMode) error {
 
 var atomicWrites atomic.Int64
 
+// DirWatcher watches the files of dir, not of the directories in it,
+// until ctx is done, calling changed after files changed, from a
+// goroutine of its own, and onError when watching fails. It reports no
+// change of the files SyncTempFile names, the temporary files of
+// atomicWrite.
+type DirWatcher func(ctx context.Context, dir string, changed func(), onError func(error)) error
+
+// SyncTempFile reports whether a file name is that of a temporary file
+// atomicWrite makes beside the file it writes.
+func SyncTempFile(name string) bool {
+	return strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".tmp")
+}
+
 func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, onError func(error)) (func(), error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
-	if err = watcher.Add(dir); err != nil {
-		_ = watcher.Close()
-		return nil, err
+	if e.WatchDir == nil {
+		return nil, errors.New("no file watcher")
 	}
 	ctx, cancel := context.WithCancel(ctx)
+	files := make(chan struct{}, 1)
+	changed := func() {
+		select {
+		case files <- struct{}{}:
+		default:
+		}
+	}
+	if err := e.WatchDir(ctx, dir, changed, onError); err != nil {
+		cancel()
+		return nil, err
+	}
 	changes, unsubscribe := e.Subscribe()
 	go func() {
-		defer func() { _ = watcher.Close() }()
 		defer unsubscribe()
 		var timer *time.Timer
 		var tick <-chan time.Time
@@ -425,18 +442,8 @@ func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, onError f
 			select {
 			case <-ctx.Done():
 				return
-			case ev, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				if !strings.HasPrefix(filepath.Base(ev.Name), ".yeek-") {
-					schedule()
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				onError(err)
+			case <-files:
+				schedule()
 			case batch := <-changes:
 				for _, change := range batch {
 					m := obj(change, "model")

@@ -28,7 +28,7 @@ import (
 func oauthEngine(t *testing.T) (*Engine, OAuthOptions) {
 	t.Helper()
 	e := testEngine(t)
-	e.secrets = memorySecrets{}
+	e.Secrets = memorySecrets{}
 	w := saveTest(t, e, Object{"model": "workspace", "name": "OAuth"})
 	return e, OAuthOptions{WorkspaceID: str(w, "id"), ContextID: str(w, "id")}
 }

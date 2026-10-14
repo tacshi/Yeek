@@ -5,6 +5,6 @@ Behavior and model compatibility are adapted from Yaak:
 https://github.com/mountain-loop/yaak
 Copyright (c) 2024 Yaak (MIT). See Yaak-LICENSE.
 
-The native UI package is extended locally in third_party/mygo-ui, based on MyGo v0.4.8.
+The native UI package is extended locally in third_party/mygo-ui, based on MyGo v0.5.1.
 
 PDF responses preview with PDF.js (pdfjs-dist 6.3.289, Apache-2.0), as Yaak's viewer does, embedded in third_party/pdfjs with react-pdf's layer styles (MIT) and PDF.js's standard fonts. See third_party/pdfjs/UPSTREAM.md and DEPENDENCY_LICENSES.txt.

@@ -304,7 +304,7 @@ func TestAtomicWritePreservesExistingPermissionsAndNewFileDefaults(t *testing.T)
 	if err := os.WriteFile(path, []byte("old contents"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(path, 0o640); err != nil {
+	if err := os.Chmod(path, 0o640); err != nil { // #nosec G302 -- the test checks that a file keeps this mode.
 		t.Fatal(err)
 	}
 	if err := atomicWrite(path, []byte("new contents"), 0o666); err != nil {

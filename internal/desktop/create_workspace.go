@@ -116,11 +116,32 @@ func (a *App) setNewWorkspaceDir(f *createWorkspaceForm, path string) {
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
 	}
-	if entries, err := os.ReadDir(path); err == nil && len(entries) > 0 {
+	if notEmpty, err := dirNotEmpty(path); err == nil && notEmpty {
 		f.notEmpty = path
 		return
 	}
 	f.notEmpty, f.dir = "", path
+}
+
+// osFiles are the files the system writes into folders of its own accord:
+// Finder's view settings and localized names, and Explorer's thumbnail
+// cache and folder settings.
+var osFiles = map[string]bool{".DS_Store": true, ".localized": true, "Thumbs.db": true, "desktop.ini": true}
+
+// dirNotEmpty reports whether a folder holds anything but osFiles, as Yaak
+// asks before syncing a workspace with it: a folder that looks empty in
+// Finder, which wrote its .DS_Store there, is empty.
+func dirNotEmpty(path string) (bool, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if !osFiles[entry.Name()] {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (a *App) submitNewWorkspace(f *createWorkspaceForm) {

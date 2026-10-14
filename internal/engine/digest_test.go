@@ -2,10 +2,9 @@ package engine
 
 import (
 	"cmp"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 -- required for HTTP Digest interoperability.
 	"crypto/sha256"
 	"encoding/hex"
-	"hash"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -53,7 +52,7 @@ func TestDigestParseChallenges(t *testing.T) {
 	if got := parseChallenges([]string{`Digest realm="a"`, "Negotiate"}); len(got) != 2 || got[0].Scheme != "Digest" || got[1].Scheme != "Negotiate" {
 		t.Errorf("repeated headers: %+v", got)
 	}
-	if got := parseChallenges([]string{"NTLM TlRMTVNTUAACAAAAAA=="}); !reflect.DeepEqual(got, []authChallenge{{Scheme: "NTLM", Params: map[string]string{}, Token68: "TlRMTVNTUAACAAAAAA=="}}) {
+	if got := parseChallenges([]string{"NTLM TlRMTVNTUAACAAAAAA=="}); !reflect.DeepEqual(got, []authChallenge{{Scheme: "NTLM", Params: map[string]string{}, Token68: "TlRMTVNTUAACAAAAAA=="}}) { // #nosec G101 -- a sample NTLM challenge, no credential.
 		t.Errorf("token68: %+v", got)
 	}
 	if paramOf(`Digest Realm="test", NONCE="n"`, "realm") != "test" || paramOf(`Digest Realm="test", NONCE="n"`, "nonce") != "n" {
@@ -308,7 +307,7 @@ func startDigestServer(t *testing.T, username, password, realm, nonce, algorithm
 		newHash = sha256.New
 	}
 	h := func(v string) string {
-		var sum hash.Hash = newHash()
+		sum := newHash()
 		sum.Write([]byte(v))
 		return hex.EncodeToString(sum.Sum(nil))
 	}

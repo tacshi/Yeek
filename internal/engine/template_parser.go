@@ -231,10 +231,10 @@ func (p *templateParser) str() (string, bool, error) {
 			}
 			decoded, err := base64.RawURLEncoding.DecodeString(text.String())
 			if err != nil {
-				return "", false, fmt.Errorf("Failed to decode string %s", text.String())
+				return "", false, fmt.Errorf("Failed to decode string %s", text.String()) //nolint:staticcheck // Yaak's message, shown as it is
 			}
 			if !utf8.Valid(decoded) {
-				return "", false, fmt.Errorf("Failed to decode utf8 string %s", text.String())
+				return "", false, fmt.Errorf("Failed to decode utf8 string %s", text.String()) //nolint:staticcheck // Yaak's message, shown as it is
 			}
 			return string(decoded), true, nil
 		}

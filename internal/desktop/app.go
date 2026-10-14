@@ -14,6 +14,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
+	"github.com/egoist/mygo/yeekui/markdown"
 	"yeek/internal/engine"
 )
 
@@ -102,6 +103,8 @@ type App struct {
 	gitDiff                               *gitDiffPanel
 	fileHistory                           *fileHistory
 	commitCollapsed                       map[string]bool
+	fonts                                 *systemFonts
+	markdown                              *markdown.Options
 	gitCommitSplit, gitCommitMessageSplit float32
 	notEmptySyncDir                       string
 	switchTarget, moveTarget              string
@@ -173,6 +176,12 @@ type App struct {
 
 func New(e *engine.Engine) (*App, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	if e.WatchDir == nil {
+		e.WatchDir = watchSyncDir
+	}
+	if e.Secrets == nil {
+		e.Secrets = newSecrets(e.DataDir)
+	}
 	a := &App{Engine: e, ctx: ctx, cancel: cancel, work: make(chan func() (func(), error), 128), workerDone: make(chan struct{}), models: map[string]engine.Object{}, connections: map[string]engine.Object{}, drafts: map[string]*Draft{}, responses: map[string]engine.Object{}, bodies: map[string]string{}, running: map[string]bool{}, expanded: map[string]bool{}, revealedLarge: map[string]bool{}, sidebarWidth: 260, requestWidth: 500, status: "", settings: engine.Object{}}
 	models, err := e.Snapshot(ctx, "")
 	if err != nil {

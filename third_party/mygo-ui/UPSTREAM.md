@@ -1,6 +1,6 @@
 # MyGo native UI
 
-Based on `github.com/egoist/mygo/ui` at v0.4.8, under the included MIT license. The framework and CLI are pinned to MyGo v0.4.8 too. Upstream's `ui/editor` is copied unchanged as `editor`, except that it imports this package as `ui`. Upstream's `ui/chart` package and tests are not copied.
+Based on `github.com/egoist/mygo/ui` at v0.5.1, under the included MIT license. The framework and CLI are pinned to MyGo v0.5.1 too. Upstream's `ui/editor` and `ui/markdown` (with its `parser`) are copied unchanged as `editor` and `markdown`, except that they import this package and its packages in place of `ui`'s. Upstream's `ui/chart` and `ui/richtext` packages and tests are not copied.
 
 As upstream does, the public API (`api_gen.go`) is generated from the private renderer API (`core*` functions and exported methods of `node` and `context`): run `go generate .` here after changing it. `internal/uigen` is upstream's generator, changed only to run from this directory.
 
@@ -13,6 +13,5 @@ Yeek's changes:
 - `Element.Chips` (`code_chips.go`) draws ranges of a `CodeEditor` as chips, like CodeMirror's atomic replace decorations for Yaak's template tags: a rounded box with hover colors and the default cursor. The caret steps over a chip (`editor_navigation.go`), Backspace and Delete remove it whole, and a click on it is reported by `CodeEditorState.ChipClicked` instead of placing the caret. It hooks into `editor.go`, `editor_layout.go`, `textarea.go` and `runtime.go`.
 - `Element.DragShows` (`drag_shows.go`) makes the copy following the pointer as an element drags its value that of another element, as dnd-kit's DragOverlay shows a whole row dragged by its handle.
 - `CodeEditorState.Pasted` reports the text last pasted and whether it replaced the editor's whole text.
-- `Element.SelectAll` selects all of a text input's text, as when a sidebar row opens for an inline rename.
 - `Context.SetZoom` scales the whole interface, as a browser's zoom does, for Yaak's interface zoom: the window's size and pointer input are divided by the zoom and the device scale multiplied by it; menus, the input method's caret and assistive technology get window coordinates. A Tester keeps working in the interface's DIPs.
 - `Tester.Batch` delivers input before rendering, as events can arrive during one display frame.

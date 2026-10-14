@@ -21,16 +21,20 @@ type Engine struct {
 	bodies           *os.Root
 	keyMu            sync.Mutex
 	masterKey        []byte
-	secrets          secretStore
 	grpcSessions     map[string]*grpcSession
 	websockets       map[string]*websocketSession
 	Store            *Store
 	DataDir          string
-	mu               sync.Mutex
-	listeners        map[chan []Object]struct{}
-	pending          map[string]context.CancelFunc
-	ctx              context.Context
-	cancel           context.CancelFunc
+	// Secrets is the system's credential store, as the app provides it.
+	Secrets SecretStore
+	// WatchDir watches a sync directory for WatchSync, as the app
+	// provides it (mygo.WatchFiles), so that the engine needs no UI.
+	WatchDir  DirWatcher
+	mu        sync.Mutex
+	listeners map[chan []Object]struct{}
+	pending   map[string]context.CancelFunc
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 func Open(dir string) (*Engine, error) {

@@ -117,7 +117,13 @@ func (e *Engine) GitStatus(ctx context.Context, dir string) (GitStatus, error) {
 	}
 	return result, nil
 }
-func (e *Engine) GitInit(dir string) error { _, err := git.PlainInit(dir, false); return err }
+
+// GitInit is Yaak's git_init: a repository whose branch is main, as Git
+// and GitHub default to, rather than go-git's master.
+func (e *Engine) GitInit(dir string) error {
+	_, err := git.PlainInitWithOptions(dir, &git.PlainInitOptions{InitOptions: git.InitOptions{DefaultBranch: plumbing.NewBranchReferenceName("main")}})
+	return err
+}
 func (e *Engine) GitStage(dir string, files []string, staged bool) error {
 	// Files are named by their paths in the repository, which can be
 	// around the sync directory, as GitStatus lists them.
