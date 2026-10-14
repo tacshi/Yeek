@@ -367,7 +367,7 @@ func (e *Engine) DetectImportSource(ctx context.Context, input ImportInput) (str
 	document, err := e.ReadImport(ctx, input, "")
 	var unsupported unsupportedImport
 	if errors.As(err, &unsupported) {
-		return "", errors.New("Not a supported format")
+		return "", errors.New("Not a supported format") //nolint:staticcheck // Yaak's message, shown as it is
 	}
 	if err != nil {
 		return "", err

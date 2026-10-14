@@ -91,10 +91,9 @@ The function can then be used as `${[ text.upper(value='hello') ]}` in a request
 ## Development
 
 ```sh
-go test ./internal/engine ./internal/desktop
-golangci-lint run --no-config
-govulncheck ./...
-gosec -tests -exclude-generated ./...
+go test ./...
+make check   # gofmt, golangci-lint, govulncheck and gosec
+make clean   # remove build/ and the binaries go build leaves
 ```
 
 `go run ./cmd/fixture` starts loopback HTTP, cookie, WebSocket, SSE, GraphQL, image, CSV, and gRPC endpoints for native interface checks. `go run ./cmd/icon` regenerates the app icon, the Yeek mark (a Y in curly braces); `-variant debug` draws the debug build's pink-on-black icon.

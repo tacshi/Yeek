@@ -164,7 +164,7 @@ func TestInsomniaTemplatesMatchYaak(t *testing.T) {
 		t.Error(got)
 	}
 	// Nested fields convert into a copy.
-	input := Object{"authentication": Object{"token": "{{ _['token'] }}"}, "body": Object{"form": []any{Object{"value": "{% uuid 'v4' %}"}}}}
+	input := Object{"authentication": Object{"token": "{{ _['token'] }}"}, "body": Object{"form": []any{Object{"value": "{% uuid 'v4' %}"}}}} // #nosec G101 -- Insomnia template text, no credential.
 	got := convertTemplateSyntax(input, nil).(map[string]any)
 	if str(obj(got, "authentication"), "token") != "${[ token ]}" || str(objects(array(obj(got, "body"), "form"))[0], "value") != "${[ uuid.v4() ]}" || str(obj(input, "authentication"), "token") != "{{ _['token'] }}" {
 		t.Fatal(got)
@@ -227,7 +227,7 @@ func TestInsomniaBodiesMatchYaak(t *testing.T) {
 func TestInsomniaMigrationMatchesYaak(t *testing.T) {
 	requests := []any{
 		Object{"_id": "req_query", "meta": Object{"id": "req_query"}, "_type": "request", "parentId": "wrk_test", "name": "Query", "method": "POST", "url": "{{ _['host'] }}/graphql",
-			"authentication": Object{"type": "bearer", "token": "{% response 'body', 'req_login', 'b64::JC50b2tlbg==::abc', 'when-expired', 60 %}"},
+			"authentication": Object{"type": "bearer", "token": "{% response 'body', 'req_login', 'b64::JC50b2tlbg==::abc', 'when-expired', 60 %}"}, // #nosec G101 -- Insomnia template text, no credential.
 			"headers":        []any{Object{"name": "X-Request-ID", "value": "{% uuid 'v4' %}"}},
 			"parameters":     []any{Object{"name": "id", "value": `{{ _["id"] }}`}},
 			"body":           Object{"mimeType": "application/graphql", "text": `{"query":"query Get($id: ID!) { node(id: $id) { id } }","variables":"{\"id\":\"{{ _.id }}\"}","operationName":"Get"}`}},

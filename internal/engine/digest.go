@@ -48,7 +48,7 @@ type digestOptions struct {
 	Nc                              int
 }
 
-const digestToken = "[!#$%&'*+\\-.^_`|~0-9A-Za-z]+"
+const digestToken = "[!#$%&'*+\\-.^_`|~0-9A-Za-z]+" // #nosec G101 -- the characters of an HTTP token, no credential.
 
 var (
 	digestParamRE   = regexp.MustCompile(`^(` + digestToken + `)\s*=\s*([\s\S]*)$`)
@@ -175,11 +175,11 @@ func unsupportedDigestAlgorithm(algorithm *string) error {
 	if algorithm != nil {
 		name = *algorithm
 	}
-	return fmt.Errorf("Unsupported Digest algorithm: %s. Supported algorithms are %s", name, strings.Join(digestAlgorithms, ", "))
+	return fmt.Errorf("Unsupported Digest algorithm: %s. Supported algorithms are %s", name, strings.Join(digestAlgorithms, ", ")) //nolint:staticcheck // Yaak's message, shown as it is
 }
 
 func unsupportedDigestQop(qop []string) error {
-	return fmt.Errorf("Unsupported Digest qop: %s. Supported values are %s", strings.Join(qop, ", "), strings.Join(digestQops, " and "))
+	return fmt.Errorf("Unsupported Digest qop: %s. Supported values are %s", strings.Join(qop, ", "), strings.Join(digestQops, " and ")) //nolint:staticcheck // Yaak's message, shown as it is
 }
 
 // digestChallengeProblem reports anything that stops this challenge being
@@ -189,7 +189,7 @@ func digestChallengeProblem(c digestChallenge) error {
 		return unsupportedDigestAlgorithm(c.Algorithm)
 	}
 	if c.Nonce == "" {
-		return errors.New(`Digest challenge is missing the required "nonce" parameter`)
+		return errors.New(`Digest challenge is missing the required "nonce" parameter`) //nolint:staticcheck // Yaak's message, shown as it is
 	}
 	if c.Qop != nil && !slices.ContainsFunc(c.Qop, func(q string) bool { return slices.Contains(digestQops, q) }) {
 		return unsupportedDigestQop(c.Qop)
@@ -210,9 +210,9 @@ func selectDigestChallenge(challenges []authChallenge, realm string) (digestChal
 	}
 	if len(params) == 0 {
 		if len(offered) == 0 {
-			return digestChallenge{}, errors.New("Server did not offer Digest authentication (no WWW-Authenticate header in the response)")
+			return digestChallenge{}, errors.New("Server did not offer Digest authentication (no WWW-Authenticate header in the response)") //nolint:staticcheck // Yaak's message, shown as it is
 		}
-		return digestChallenge{}, fmt.Errorf("Server did not offer Digest authentication. It offered: %s", strings.Join(offered, ", "))
+		return digestChallenge{}, fmt.Errorf("Server did not offer Digest authentication. It offered: %s", strings.Join(offered, ", ")) //nolint:staticcheck // Yaak's message, shown as it is
 	}
 	inRealm := params
 	if realm != "" {
@@ -225,7 +225,7 @@ func selectDigestChallenge(challenges []authChallenge, realm string) (digestChal
 		}
 	}
 	if len(inRealm) == 0 {
-		return digestChallenge{}, fmt.Errorf("Server did not offer a Digest realm named %q. It offered: %s", realm, strings.Join(digests, ", "))
+		return digestChallenge{}, fmt.Errorf("Server did not offer a Digest realm named %q. It offered: %s", realm, strings.Join(digests, ", ")) //nolint:staticcheck // Yaak's message, shown as it is
 	}
 	for _, p := range inRealm {
 		if c := toDigestChallenge(p); digestChallengeProblem(c) == nil {

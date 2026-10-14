@@ -85,7 +85,7 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 	for _, entry := range entries {
 		previous := tracked[entry.Name()]
 		invalid := func(reason string) error {
-			return fmt.Errorf("Invalid sync file: %s: %s", filepath.Join(dir, entry.Name()), reason)
+			return fmt.Errorf("Invalid sync file: %s: %s", filepath.Join(dir, entry.Name()), reason) //nolint:staticcheck // Yaak's message, shown as it is
 		}
 		if !entry.Type().IsRegular() {
 			if previous != nil {
@@ -354,7 +354,7 @@ func modelWorkspace(m Object) string {
 // less the umask.
 func atomicWrite(path string, data []byte, perm os.FileMode) error {
 	var keep os.FileMode
-	if existing, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
+	if existing, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil { // #nosec G302 G304 -- the caller's file.
 		info, err := existing.Stat()
 		_ = existing.Close()
 		if err != nil {
