@@ -325,3 +325,20 @@ func TestGitFileHistory(t *testing.T) {
 		t.Fatal("file not removed", err)
 	}
 }
+
+// Yaak's git_init starts repositories on main, not master.
+func TestGitInitOnMain(t *testing.T) {
+	gitFixture(t)
+	e := testEngine(t)
+	repo := t.TempDir()
+	if err := e.GitInit(repo); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := e.GitBranchInfo(t.Context(), repo); err != nil || info.Head != "main" {
+		t.Fatal("before the first commit", info.Head, err)
+	}
+	commitFile(t, e, repo, "a.txt", "a", "first")
+	if status, err := e.GitStatus(t.Context(), repo); err != nil || status.Branch != "main" || !slices.Equal(status.Branches, []string{"main"}) {
+		t.Fatal("after the first commit", status.Branch, status.Branches, err)
+	}
+}
