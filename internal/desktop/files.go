@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"os"
 	"path/filepath"
 	"time"
 	"uuid"
@@ -95,9 +94,9 @@ func (a *App) chooseSyncDir(workspace string) {
 		if err != nil {
 			return nil, err
 		}
-		entries, err := os.ReadDir(path)
+		notEmpty, err := dirNotEmpty(path)
 		return func() {
-			if len(entries) > 0 {
+			if notEmpty {
 				a.notEmptySyncDir = path
 				return
 			}

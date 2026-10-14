@@ -135,6 +135,20 @@ func TestCreateWorkspaceWithSyncGitAndEncryption(t *testing.T) {
 		t.Fatal("git not initialized", err)
 	}
 
+	// A directory holding only what the system wrote there, as Finder's
+	// .DS_Store, is empty.
+	finder := t.TempDir()
+	for _, name := range []string{".DS_Store", "Thumbs.db", "desktop.ini"} {
+		_ = os.WriteFile(filepath.Join(finder, name), []byte{0, 0, 0, 1}, 0600)
+	}
+	a.dialogOpen = false
+	a.newWorkspace()
+	a.setNewWorkspaceDir(a.createWorkspace, finder)
+	tt.Frame()
+	if tt.HasText("Directory is not empty. Do you want to open it instead?") || a.createWorkspace.dir != finder {
+		t.Fatalf("%q %v", a.createWorkspace.dir, tt.Texts())
+	}
+
 	// A directory with files is offered to open instead.
 	full := t.TempDir()
 	_ = os.WriteFile(filepath.Join(full, "yaak.wk_x.yaml"), []byte("model: workspace\nid: wk_x\nname: X\n"), 0600)
