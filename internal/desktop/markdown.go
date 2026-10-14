@@ -1,186 +1,91 @@
 package desktop
 
 import (
-	"fmt"
-	"net/url"
-	"strings"
+	"cmp"
 
 	"github.com/egoist/mygo/yeekui"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
-	extast "github.com/yuin/goldmark/extension/ast"
-	"github.com/yuin/goldmark/text"
+	"github.com/egoist/mygo/yeekui/editor"
+	"github.com/egoist/mygo/yeekui/markdown"
 )
 
-var markdownParser = goldmark.New(goldmark.WithExtensions(extension.Strikethrough, extension.Linkify, extension.TaskList)).Parser()
-
-// markdownView renders Markdown as native text: headings, paragraphs, lists,
-// quotes, code and rules, with emphasis, inline code and web links.
-func markdownView(c *ui.Context, p colors, source string) {
-	src := []byte(source)
-	doc := markdownParser.Parse(text.NewReader(src))
-	ui.Column(c).Gap(10).MinWidth(0).Children(func() { markdownBlocks(c, p, doc, src, 0) })
+// markdownView is Yaak's Markdown: GitHub's Markdown in Prose's look, at
+// most as wide as Yaak's max-w-lg. Links open only web and mail addresses,
+// or scroll to a heading; others, as file: or javascript:, do nothing.
+func (a *App) markdownView(c *ui.Context, p colors, source string) ui.Element {
+	if a.markdown == nil {
+		a.markdown = &markdown.Options{}
+	}
+	a.markdown.Theme = a.proseTheme(c, p)
+	a.markdown.CodeBlock = func(c *ui.Context, b *markdown.CodeBlockView) {
+		// Yaak's pre: the highlighted code alone, px-4 py-3, without the
+		// language and copy button above it.
+		ui.Column(c).AlignSelf(ui.Stretch).Padding(9, 0, 0, 0).Radius(6).Background(p.sidebar).Clip().Children(func() { b.Body(c) })
+	}
+	// Links take the window theme's accent, not Theme.Link: Yaak's are
+	// text-notice.
+	theme := c.Theme()
+	links := *theme
+	links.Accent = p.notice
+	c.SetTheme(&links)
+	defer c.SetTheme(theme)
+	return markdown.View(c, source, a.markdown).MaxWidth(512).MinWidth(0)
 }
 
-func markdownBlocks(c *ui.Context, p colors, parent ast.Node, src []byte, depth int) {
-	if depth > 16 {
-		return
+// proseTheme is Yaak's Prose.css, in ems of the interface's font size.
+func (a *App) proseTheme(c *ui.Context, p colors) *markdown.Theme {
+	size := c.Theme().FontSize
+	codeSize := float32(n(a.settings, "editorFontSize"))
+	if codeSize <= 0 {
+		codeSize = 12
 	}
-	i := 0
-	for node := parent.FirstChild(); node != nil; node = node.NextSibling() {
-		i++
-		key := fmt.Sprintf("%d:%d", depth, i)
-		switch n := node.(type) {
-		case *ast.Heading:
-			size := map[int]float32{1: 20, 2: 17, 3: 15}[n.Level]
-			if size == 0 {
-				size = 13
-			}
-			markdownInline(c, p, n, src).Key(key).FontSize(size).FontWeight(600)
-		case *ast.Paragraph, *ast.TextBlock:
-			markdownInline(c, p, n, src).Key(key).FontSize(13).LineHeight(1.45)
-		case *ast.List:
-			ui.Column(c).Key(key).Gap(4).MinWidth(0).Children(func() {
-				index := 0
-				for item := n.FirstChild(); item != nil; item = item.NextSibling() {
-					marker := "•"
-					if n.IsOrdered() {
-						marker = fmt.Sprintf("%d.", n.Start+index)
-					}
-					index++
-					ui.Row(c).Key(index).Gap(8).AlignItems(ui.Start).MinWidth(0).Children(func() {
-						ui.Text(c, marker).FontSize(13).TextColor(p.muted).Width(18).Shrink(0)
-						ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() { markdownBlocks(c, p, item, src, depth+1) })
-					})
-				}
-			})
-		case *ast.Blockquote:
-			ui.Column(c).Key(key).Gap(8).Padding(0, 0, 0, 12).BorderWidth(0, 0, 0, 3).BorderColor(p.border).Children(func() {
-				markdownBlocks(c, p, n, src, depth+1)
-			})
-		case *ast.FencedCodeBlock, *ast.CodeBlock:
-			var code strings.Builder
-			lines := n.Lines()
-			for j := range lines.Len() {
-				segment := lines.At(j)
-				code.Write(segment.Value(src))
-			}
-			ui.Text(c, strings.TrimRight(code.String(), "\n")).Key(key).Font("monospace").FontSize(12).Padding(10, 12).Radius(5).Background(p.border.Alpha(.3)).Selectable()
-		case *ast.ThematicBreak:
-			ui.Box(c).Key(key).Height(1).Background(p.border)
-		case *ast.HTMLBlock:
-			var raw strings.Builder
-			lines := n.Lines()
-			for j := range lines.Len() {
-				segment := lines.At(j)
-				raw.Write(segment.Value(src))
-			}
-			ui.Text(c, strings.TrimSpace(raw.String())).Key(key).Font("monospace").FontSize(12).TextColor(p.muted).Selectable()
-		default:
-			markdownBlocks(c, p, node, src, depth+1)
+	heading := func(size float32, weight int) markdown.HeadingStyle {
+		return markdown.HeadingStyle{Size: size, Weight: weight, Top: 2.5, Bottom: 1.25}
+	}
+	return &markdown.Theme{
+		CodeFont: cmp.Or(s(a.settings, "editorFont"), "monospace"),
+		Text:     p.text,
+		// List markers are text-success.
+		Muted:        p.green,
+		Link:         p.notice,
+		Strong:       p.text,
+		StrongWeight: 700,
+		// Code in text: text-info on bg-surface-active; code blocks:
+		// text-editor on bg-surface-highlight, px-4 py-3, rounded-md.
+		Code:                p.blue,
+		CodeBackground:      p.border.Alpha(.55),
+		CodeSize:            codeSize / size,
+		BlockSpacing:        1.25,
+		ItemSpacing:         0.25,
+		ListIndent:          2,
+		Headings:            [6]markdown.HeadingStyle{heading(2.25, 700), heading(1.5, 700), heading(1.25, 700), heading(1, 400), heading(1, 400), heading(1, 400)},
+		QuoteBar:            p.border,
+		QuoteBarWidth:       8,
+		QuoteText:           p.text,
+		Rule:                p.subtle,
+		CodeBlockBackground: p.sidebar,
+		CodeBlockBorder:     ui.Transparent,
+		CodeBlockRadius:     6,
+		CodeBlockPadding:    0.875,
+		CodeColors:          prismTheme(p),
+		TableBorder:         p.border,
+	}
+}
+
+// prismTheme is the prismTheme of Yaak's Markdown, which colors the code of
+// its code blocks.
+func prismTheme(p colors) *editor.Theme {
+	t := &editor.Theme{Background: p.sidebar, Text: p.text}
+	tok := func(color ui.Color, kinds ...editor.TokenKind) {
+		for _, k := range kinds {
+			t.Tokens[k].Color = color
 		}
 	}
-}
-
-// markdownInline renders a block's inline content as one paragraph.
-func markdownInline(c *ui.Context, p colors, block ast.Node, src []byte) ui.Element {
-	type style struct {
-		bold, italic, strike bool
-	}
-	var walk func(node ast.Node, s style)
-	walk = func(node ast.Node, s style) {
-		for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-			switch n := child.(type) {
-			case *ast.Text:
-				value := string(n.Value(src))
-				if n.SoftLineBreak() {
-					value += " "
-				}
-				if n.HardLineBreak() {
-					value += "\n"
-				}
-				span := ui.Text(c, value)
-				if s.bold {
-					span.FontWeight(600)
-				}
-				if s.italic {
-					span.Italic()
-				}
-				if s.strike {
-					span.Strikethrough()
-				}
-			case *ast.String:
-				ui.Text(c, string(n.Value))
-			case *ast.CodeSpan:
-				var code strings.Builder
-				for part := n.FirstChild(); part != nil; part = part.NextSibling() {
-					if t, ok := part.(*ast.Text); ok {
-						code.Write(t.Value(src))
-					}
-				}
-				ui.Text(c, code.String()).Font("monospace").Background(p.border.Alpha(.45))
-			case *ast.Emphasis:
-				next := s
-				if n.Level >= 2 {
-					next.bold = true
-				} else {
-					next.italic = true
-				}
-				walk(n, next)
-			case *extast.Strikethrough:
-				next := s
-				next.strike = true
-				walk(n, next)
-			case *ast.Link:
-				markdownLink(c, nodeText(n, src), string(n.Destination))
-			case *ast.AutoLink:
-				markdownLink(c, string(n.Label(src)), string(n.URL(src)))
-			case *extast.TaskCheckBox:
-				mark := "☐ "
-				if n.IsChecked {
-					mark = "☑ "
-				}
-				ui.Text(c, mark).TextColor(p.muted)
-			case *ast.Image:
-				ui.Text(c, nodeText(n, src)).TextColor(p.muted)
-			case *ast.RawHTML:
-				// Inline HTML is not rendered.
-			default:
-				walk(child, s)
-			}
-		}
-	}
-	return ui.RichText(c).MinWidth(0).Selectable().Children(func() { walk(block, style{}) })
-}
-
-// markdownLink opens only web and mail links; anything else stays plain text.
-func markdownLink(c *ui.Context, label, destination string) {
-	if label == "" {
-		label = destination
-	}
-	if u, err := url.Parse(destination); err == nil && (u.Scheme == "http" || u.Scheme == "https" || u.Scheme == "mailto") {
-		ui.Link(c, label, destination)
-		return
-	}
-	ui.Text(c, label)
-}
-
-func nodeText(node ast.Node, src []byte) string {
-	var b strings.Builder
-	var walk func(ast.Node)
-	walk = func(n ast.Node) {
-		for child := n.FirstChild(); child != nil; child = child.NextSibling() {
-			switch t := child.(type) {
-			case *ast.Text:
-				b.Write(t.Value(src))
-			case *ast.String:
-				b.Write(t.Value)
-			default:
-				walk(child)
-			}
-		}
-	}
-	walk(node)
-	return b.String()
+	tok(p.muted, editor.TokenComment, editor.TokenPunctuation)
+	tok(p.accent, editor.TokenProperty, editor.TokenAttribute, editor.TokenType)
+	tok(p.notice, editor.TokenString)
+	tok(p.blue, editor.TokenNumber, editor.TokenConstant, editor.TokenTag)
+	tok(p.orange, editor.TokenRegexp)
+	tok(p.green, editor.TokenVariable, editor.TokenFunction, editor.TokenInserted)
+	tok(p.red, editor.TokenOperator, editor.TokenKeyword, editor.TokenDeleted, editor.TokenMeta)
+	return t
 }

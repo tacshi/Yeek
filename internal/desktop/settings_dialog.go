@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"cmp"
 	"slices"
 	"strconv"
 	"strings"
@@ -241,6 +242,63 @@ func (a *App) activeThemeName(dark bool) string {
 	return names[max(0, slices.Index(ids, s(a.settings, key)))]
 }
 
+// systemDefaultFont is the option of Yaak's font selects for no font.
+const systemDefaultFont = "System default"
+
+// systemFonts is Yaak's useFonts: the system's font families, the
+// monospaced ones for the editor and the others for the interface.
+type systemFonts struct {
+	ui, editor []string
+	loaded     bool
+}
+
+// listFonts is Yaak's fonts list command, which lists the monospaced
+// families as editor fonts and the rest as interface fonts, each sorted.
+func listFonts() (uiFonts, editorFonts []string) {
+	for _, f := range ui.FontFamilies() {
+		switch {
+		case f.Registered:
+		case f.Monospaced:
+			editorFonts = append(editorFonts, f.Name)
+		default:
+			uiFonts = append(uiFonts, f.Name)
+		}
+	}
+	return uiFonts, editorFonts
+}
+
+// fontSelect is ui.Select with its options in a list that scrolls: a
+// system's fonts are too many for a popup as tall as its options, which
+// would run off the window.
+func fontSelect(c *ui.Context, value *string, options []string) ui.Element {
+	t := c.Theme()
+	sel := ui.SelectBase(c, value)
+	b := sel.Trigger.Justify(ui.SpaceBetween).AlignItems(ui.Center).Gap(t.Space(1.5)).Padding(t.Space(1.5), t.Space(3.5)).Radius(t.Radius).Border(1, t.Border).Background(t.Surface)
+	if b.Hovered() || sel.Open() {
+		b.Background(t.SurfaceHover)
+	}
+	b.Children(func() {
+		ui.Text(c, *value).SingleLine().Shrink(1).MinWidth(0)
+		ui.Icon(c, icons["down"]).FontSize(12).TextColor(t.TextMuted).Shrink(0)
+	})
+	sel.Popup(func(panel ui.Element) {
+		panel.Margin(t.Space(1), 0, 0, 0).Padding(t.Space(1)).Radius(t.Radius+2).Background(t.Background).Border(1, t.Border).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.18))
+		ui.Scroll(c).MaxHeight(320).FillWidth().Children(func() {
+			for _, opt := range options {
+				item := sel.Item(opt).Padding(t.Space(1.5), t.Space(2.5)).Radius(t.Radius)
+				switch {
+				case item.Highlighted():
+					item.Background(t.Accent).TextColor(t.AccentText)
+				case opt == *value:
+					item.Background(t.Surface)
+				}
+				item.Children(func() { ui.Text(c, opt).SingleLine() })
+			}
+		})
+	})
+	return b
+}
+
 var fontSizes = func() []string {
 	sizes := []string{}
 	for size := 8; size <= 30; size++ {
@@ -264,15 +322,34 @@ func (a *App) settingsInterface(c *ui.Context, p colors) {
 		})
 	})
 	settingsSection(c, p, "Fonts", "Fonts", func() {
-		fontRow := func(title, description, fontKey, sizeKey, fallback string) {
-			font := s(a.settings, fontKey)
+		if a.fonts == nil {
+			a.fonts = &systemFonts{}
+			fonts := a.fonts
+			a.background(func() (func(), error) {
+				uiFonts, editorFonts := listFonts()
+				return func() { fonts.ui, fonts.editor, fonts.loaded = uiFonts, editorFonts, true }, nil
+			})
+		}
+		fontRow := func(title, description, fontKey, sizeKey, fallback string, fonts []string) {
+			font := cmp.Or(s(a.settings, fontKey), systemDefaultFont)
 			size := strconv.Itoa(int(n(a.settings, sizeKey)))
 			if n(a.settings, sizeKey) == 0 {
 				size = fallback
 			}
 			settingRow(c, p, title, description, nil, func() {
-				if ui.TextInput(c, &font).Label(title + " setting").Placeholder("System default").Width(220).Changed() {
-					a.saveSetting(fontKey, nilIfEmpty(strings.TrimSpace(font)))
+				// Yaak's font select, once the fonts are listed.
+				if a.fonts.loaded {
+					options := append([]string{systemDefaultFont}, fonts...)
+					if !slices.Contains(options, font) {
+						options = append(options, font)
+					}
+					if fontSelect(c, &font, options).Label(title + " setting").Width(288).Changed() {
+						if font == systemDefaultFont {
+							a.saveSetting(fontKey, nil)
+						} else {
+							a.saveSetting(fontKey, font)
+						}
+					}
 				}
 				if ui.Select(c, &size, fontSizes).Label(title + " size").Width(72).Changed() {
 					value, _ := strconv.Atoi(size)
@@ -280,8 +357,8 @@ func (a *App) settingsInterface(c *ui.Context, p colors) {
 				}
 			})
 		}
-		fontRow("Interface font", "Font used for Yeek interface controls.", "interfaceFont", "interfaceFontSize", "14")
-		fontRow("Editor font", "Font used in request and response editors.", "editorFont", "editorFontSize", "12")
+		fontRow("Interface font", "Font used for Yeek interface controls.", "interfaceFont", "interfaceFontSize", "14", append(slices.Clone(a.fonts.ui), a.fonts.editor...))
+		fontRow("Editor font", "Font used in request and response editors.", "editorFont", "editorFontSize", "12", a.fonts.editor)
 	})
 	settingsSection(c, p, "Editor", "Editor", func() {
 		a.booleanSetting(c, p, "editorSoftWrap", "Wrap editor lines", "Wrap long lines in request and response editors.")

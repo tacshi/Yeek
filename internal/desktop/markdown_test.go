@@ -10,7 +10,7 @@ import (
 func TestInfoTabPreviewsMarkdownAndEditsName(t *testing.T) {
 	a, e := cookieApp(t)
 	m, err := e.Save(t.Context(), engine.Object{"model": "http_request", "workspaceId": a.workspace, "name": "Exact historical reference", "url": "http://127.0.0.1:1",
-		"description": "Expect **NA489/154** directly in `data`.\n\n- Inspect the title fields\n- Check [meta](https://example.com/meta)\n\n[local](file:///etc/passwd)"})
+		"description": "# Overview\n\nExpect **NA489/154** directly in `data`.\n\n- Inspect the title fields\n- Check [meta](https://example.com/meta)\n\n## Response\n\n| Field | Type |\n| --- | --- |\n| id | string |\n\n```json\n{\"id\": 1, \"ok\": true}\n```\n\n> Quoted\n\n[local](file:///etc/passwd)"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,6 +27,7 @@ func TestInfoTabPreviewsMarkdownAndEditsName(t *testing.T) {
 	if tt.HasText("**NA489/154**") || d.DescriptionMode != "preview" {
 		t.Fatal("description not rendered as Markdown")
 	}
+	snapshot(t, tt, "markdown_preview")
 	tt.Move(500, 300)
 	if err := tt.Click("Edit mode"); err != nil {
 		t.Fatal(err)
@@ -46,11 +47,20 @@ func TestInfoTabPreviewsMarkdownAndEditsName(t *testing.T) {
 }
 
 func TestMarkdownLinksOnlyOpenWebAddresses(t *testing.T) {
+	a, _ := cookieApp(t)
 	view := func(c *ui.Context) {
-		markdownView(c, colors{}, "[web](https://example.com) [file](file:///etc/passwd) [js](javascript:alert(1))")
+		a.markdownView(c, colors{}, "[web](https://example.com) [file](file:///etc/passwd) [js](javascript:alert(1))")
 	}
 	tt := ui.NewTester(view, 600, 200)
 	if !tt.HasText("web") || !tt.HasText("file") || !tt.HasText("js") {
 		t.Fatal(tt.Texts())
+	}
+	for _, link := range []string{"web", "file", "js"} {
+		if err := tt.Click(link); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if opened := tt.OpenedURLs(); len(opened) != 1 || opened[0] != "https://example.com" {
+		t.Fatal(opened)
 	}
 }

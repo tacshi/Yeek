@@ -37,7 +37,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	golang.org/x/image v0.46.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
@@ -59,9 +59,8 @@ require (
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/coder/websocket v1.8.15
 	github.com/ebitengine/purego v0.11.1
-	github.com/egoist/mygo v0.4.8
+	github.com/egoist/mygo v0.5.1
 	github.com/egoist/mygo/yeekui v0.0.0
-	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jhump/protoreflect/v2 v2.0.0-beta.2
@@ -70,11 +69,10 @@ require (
 	github.com/traefik/yaegi v0.16.1
 	github.com/vektah/gqlparser/v2 v2.5.61
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
-	github.com/yuin/goldmark v1.7.17
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.59.0
-	golang.org/x/text v0.42.0
+	golang.org/x/text v0.43.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
@@ -331,7 +332,7 @@ func (a *App) renameInput(c *ui.Context, p colors, m engine.Object) {
 	input := ui.TextInput(c, &t.rename).Label("Rename "+requestName(m)).Placeholder(s(m, "name")).Grow(1).MinWidth(0).Height(24).FontSize(13).Padding(0, 4).Background(p.background).Border(1, p.accent)
 	t.renameFrames++
 	if t.renameFrames == 1 {
-		input.Focus().SelectAll()
+		input.Focus().SetTextSelection(0, utf8.RuneCountInString(t.rename))
 	}
 	input.HandleInput(func(ev ui.InputEvent) bool {
 		if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEscape && ev.Mods == 0 {

@@ -1239,7 +1239,7 @@ func (a *App) markdownEditor(c *ui.Context, p colors, d *Draft, label string) {
 					ui.Text(c, "No description").FontSize(13).TextColor(p.subtle)
 					return
 				}
-				markdownView(c, p, d.Description)
+				a.markdownView(c, p, d.Description)
 			})
 		}
 		if !area.Hovered() && d.DescriptionMode == "preview" {

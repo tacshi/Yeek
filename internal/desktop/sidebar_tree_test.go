@@ -277,3 +277,18 @@ func TestMoveRequestsToWorkspaceAndSwitchBehavior(t *testing.T) {
 		t.Fatal("remembered choice not used")
 	}
 }
+
+// Renaming a row in place starts with its name selected, so typing
+// replaces it, as Yaak's sidebar does.
+func TestTreeRenameSelectsName(t *testing.T) {
+	a, _, ids := treeApp(t)
+	tt := ui.NewTester(a.View, 1360, 860)
+	a.startRename(ids["Alpha"])
+	tt.Frame()
+	tt.Type("Delta")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if a.tree.renaming != "" || s(a.models[ids["Alpha"]], "name") != "Delta" {
+		t.Fatal(a.tree.renaming, a.models[ids["Alpha"]]["name"])
+	}
+}

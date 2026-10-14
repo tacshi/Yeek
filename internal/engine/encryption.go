@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zalando/go-keyring"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -18,14 +17,25 @@ const encryptionTag = "yA4k3nC\x01"
 
 var keyEncoding = base32.NewEncoding("0123456789ABCDEFGHJKMNPQRSTVWXYZ").WithPadding(base32.NoPadding)
 
-type secretStore interface {
-	Get(service, user string) (string, error)
-	Set(service, user, value string) error
+// SecretStore keeps secrets in the system's credential store, by service
+// and account, as the app provides it (mygo.Secrets), so that the engine
+// needs no UI. Get fails with ErrSecretNotFound for a secret not stored.
+type SecretStore interface {
+	Get(service, account string) (string, error)
+	Set(service, account, value string) error
 }
-type systemSecrets struct{}
 
-func (systemSecrets) Get(service, user string) (string, error) { return keyring.Get(service, user) }
-func (systemSecrets) Set(service, user, value string) error    { return keyring.Set(service, user, value) }
+// ErrSecretNotFound is what a SecretStore's Get fails with when it has no
+// secret for the service and account.
+var ErrSecretNotFound = errors.New("secret not found in the OS keychain")
+
+// The service and account of the key that encrypts workspace keys, which
+// is Yeek's own secret, unlike those the keychain template function reads.
+const (
+	EncryptionKeyService = "app.yeek.desktop.EncryptionKey"
+	EncryptionKeyAccount = "encryption-key"
+)
+
 func encryptBytes(key, plain []byte) ([]byte, error) {
 	cipher, err := chacha20poly1305.NewX(key)
 	if err != nil {
@@ -55,18 +65,17 @@ func (e *Engine) masterEncryptionKey() ([]byte, error) {
 	if e.masterKey != nil {
 		return bytes.Clone(e.masterKey), nil
 	}
-	if e.secrets == nil {
-		e.secrets = systemSecrets{}
+	if e.Secrets == nil {
+		return nil, errors.New("no OS keychain")
 	}
-	const service = "app.yeek.desktop.EncryptionKey"
-	value, err := e.secrets.Get(service, "encryption-key")
+	value, err := e.Secrets.Get(EncryptionKeyService, EncryptionKeyAccount)
 	var key []byte
-	if errors.Is(err, keyring.ErrNotFound) {
+	if errors.Is(err, ErrSecretNotFound) {
 		key = make([]byte, 32)
 		if _, err = rand.Read(key); err != nil {
 			return nil, err
 		}
-		if err = e.secrets.Set(service, "encryption-key", "YKM_"+keyEncoding.EncodeToString(key)); err != nil {
+		if err = e.Secrets.Set(EncryptionKeyService, EncryptionKeyAccount, "YKM_"+keyEncoding.EncodeToString(key)); err != nil {
 			return nil, fmt.Errorf("save key in OS keychain: %w", err)
 		}
 	} else if err != nil {
