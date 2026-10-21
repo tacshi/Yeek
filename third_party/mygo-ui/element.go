@@ -27,6 +27,11 @@ const (
 	SpaceBetween
 	SpaceAround
 	SpaceEvenly
+	// Baseline lines up the first lines of text of the children of a row,
+	// or of a grid's row, as a large price beside its small unit does
+	// (AlignItems and AlignSelf). A child without text lines up its
+	// bottom. Across a column it is Start.
+	Baseline
 	alignAuto
 )
 
@@ -195,6 +200,50 @@ const (
 	setAll = setLang<<1 - 1
 )
 
+// layoutStyle is what lays an element out, of what the view sets on it:
+// an element whose layoutStyle, text style, children and the like are
+// those of the frame before lays out as it did then (layoutcache.go),
+// which compares them. Whatever else of the element its layout reads goes
+// into the comparison there; TestLayoutInputs keeps node's other fields
+// out of layout.
+type layoutStyle struct {
+	// First, as what changes most, so that comparing finds it soonest.
+	text string
+
+	kind                 kind
+	row                  bool
+	wrap                 bool
+	reverse, wrapReverse bool
+	// dir is the element's direction (dirRTL, dirSet), and logical which
+	// of its horizontal edges were set by their start or end
+	// (direction.go).
+	dir, logical           uint8
+	justify, align, self   Align
+	alignContent           Align
+	gapX, gapY             float32
+	pad                    [4]float32 // top, right, bottom, left
+	border                 [4]float32 // top, right, bottom, left
+	margin                 [4]float32 // Auto for auto margins
+	width, height          length
+	minW, minH, maxW, maxH length
+	grow, shrink           float32
+	basis                  length
+	inset                  [4]length
+	aspect                 float32
+	grid                   bool
+	justifyItems           Align // of a grid
+	cell                   gridCell
+	justifySelf            Align
+	// baselines is set on the row of a field in a form, which lines up
+	// the first lines of its label and control.
+	baselines bool
+
+	maxLines int
+	single   bool
+	noWrap   bool
+	ellipsis string
+}
+
 // Element is a node of a frame's user interface. The functions that create
 // elements return them so that their methods can style them and ask about
 // their interaction, and the methods return the element for chaining:
@@ -212,7 +261,6 @@ type node struct {
 	valueInput func(*node)
 	c          *context
 	id         uint64
-	kind       kind
 	flags      uint32
 	parent     *node
 	first      *node
@@ -224,30 +272,10 @@ type node struct {
 	// track is the ScrollState of a scroll container (TrackScroll).
 	track *ScrollState
 
-	// Layout.
-	row                  bool
-	wrap                 bool
-	reverse, wrapReverse bool
-	// dir is the element's direction (dirRTL, dirSet), and logical which
-	// of its horizontal edges were set by their start or end
-	// (direction.go).
-	dir, logical           uint8
-	justify, align, self   Align
-	alignContent           Align
-	gapX, gapY             float32
-	pad                    [4]float32 // top, right, bottom, left
-	margin                 [4]float32 // Auto for auto margins
-	width, height          length
-	minW, minH, maxW, maxH length
-	grow, shrink           float32
-	basis                  length
-	inset                  [4]length
-	aspect                 float32
-	grid                   bool
-	cols, rows             []Track // of a grid
-	justifyItems           Align   // of a grid
-	cell                   gridCell
-	justifySelf            Align
+	// layoutStyle holds what lays the element out, and cols and rows
+	// the tracks of a grid.
+	layoutStyle
+	cols, rows []Track
 
 	// Visual geometry, composed after layout.
 	transform        Transform
@@ -266,25 +294,39 @@ type node struct {
 	poseM    scene.Affine
 	poseFade float32
 	reposed  bool
+	// ink bounds, in the window, all that the element and those inside it
+	// may paint, as commit found it: x0, y0, x1, y1. Unless noCull, what
+	// it paints is no more than that, so that painting skips it where ink
+	// is clipped out (paintable).
+	ink    [4]float32
+	noCull bool
 	// backface hides it while its 3D transform turns its back to the
 	// viewer (BackfaceHidden).
 	backface bool
 
 	// Painting.
-	bg           Color
-	fill         fillKind
-	grad         LinearGradient
-	stripes      stripes
-	border       [4]float32 // top, right, bottom, left
-	borderC      Color
-	borderStyle  BorderStyle
-	radius       [4]float32
-	shadows      []shadow
-	material     Material
-	opacity      float32
-	opacitySet   bool
-	cursor       Cursor
-	paintFn      func(p *Painter, r Rect)
+	bg          Color
+	fill        fillKind
+	grad        LinearGradient
+	stripes     stripes
+	borderC     Color
+	borderStyle BorderStyle
+	radius      [4]float32
+	shadows     []shadow
+	material    Material
+	effect      Effect
+	effecting   bool
+	// grads holds a conic fill and a border's gradient, which few elements
+	// have; blur is the standard deviation of the element's blur, in DIPs.
+	grads      *gradients
+	blur       float32
+	opacity    float32
+	opacitySet bool
+	cursor     Cursor
+	paintFn    func(p *Painter, r Rect)
+	// styleFn sets the colors and opacity the element paints with, as it
+	// is painted: it changes nothing else, so that an element out of view
+	// can skip it.
 	styleFn      func(e *node)
 	paintAfterFn func(p *Painter, r Rect)
 
@@ -298,7 +340,6 @@ type node struct {
 	copyData   func(parts []SelectedText) transfer.Data
 
 	// Content.
-	text string
 	// A CodeEditor's syntax colors, marks and diagnostics (code_editor.go).
 	codePaint       *spanPaint
 	codeMarks       []CodeMark
@@ -315,15 +356,13 @@ type node struct {
 	runes     [2]int
 	frags     []Rect
 	ts        textStyle
-	maxLines  int
-	single    bool
-	noWrap    bool
-	ellipsis  string
 	image     *Bitmap
 	svg       *SVG // of an Icon, or an Image in its own colors
 	webView   NativeWebView
-	fit       Fit
-	gray      bool
+	// maximizeButton marks the window's maximize button (MaximizeButton).
+	maximizeButton bool
+	fit            Fit
+	gray           bool
 	// dismissed: Escape or a click outside closed the dialog or popover
 	// whose panel this is, in this frame (Dismissed).
 	dismissed bool
@@ -379,6 +418,10 @@ type node struct {
 	// arrows click the element they move to with groupSelects.
 	focusGroup   Orientation
 	groupSelects bool
+	// placeOn is a sibling, laid out in the parent's flow, whose box an
+	// absolute element's insets are measured from instead of the parent's.
+	// A split uses it to keep its handle on the divider.
+	placeOn *node
 	// overflow is set on a toolbar, whose layout notes there the controls
 	// it had no room for, and takes them out of the flow, collapsed.
 	overflow  *[]toolbarItem
@@ -405,11 +448,9 @@ type node struct {
 	description string
 	invalid     bool
 	// field is set on a Field, form on a Form, whose layout makes its
-	// labels as wide as the widest, and baselines on the row of a field in
-	// a form, which lines up the first lines of its label and control.
-	field     *fieldParts
-	form      *formBuild
-	baselines bool
+	// labels as wide as the widest.
+	field *fieldParts
+	form  *formBuild
 	// rowMinW is the least width of the rows of a list scrolling sideways,
 	// as a table's; followX is the scroll container whose horizontal
 	// offset the element's content follows, as a table's header follows
@@ -429,10 +470,12 @@ type node struct {
 	chooseMany bool
 	gridFit    *gridFit
 	tl         *text.Layout
-	measures   [4]measure
-	nmeasure   int
-	leaf       [2]float32 // the max-content and min-content widths of text
-	leafOK     bool
+	measured
+	// lay says what the layout cache may do with the element
+	// (layOwner, layReuse), and laid when layoutBox last laid it out, in
+	// engine.laySeq.
+	lay  uint8
+	laid uint64
 	// leaving marks a copy of an element gone, which its exit transition
 	// animates (1 if it was in its parent's flow, 2 if absolute), and
 	// ghosts an element holding such copies. attach is where Attach puts
@@ -447,8 +490,22 @@ type node struct {
 	serial int32
 }
 
+// measure is the height of an element at a width (naturalHeight).
 type measure struct {
-	availW, availH, w, h float32
+	availW, h float32
+}
+
+// measured is what the layout measured of an element in a frame, for
+// measuring it again.
+type measured struct {
+	measures [4]measure
+	nmeasure int
+	leaf     [2]float32 // the max-content and min-content widths of text
+	leafOK   bool
+	// intr holds the max-content and min-content widths of the element
+	// (intrinsic), measured once a frame, intrOK which of them it holds.
+	intr   [2]float32
+	intrOK uint8
 }
 
 // Rect is a rectangle in DIPs.
@@ -485,8 +542,8 @@ const (
 	BorderDashed
 )
 
-// LinearGradient blends two colors along a line across a box, as CSS's
-// linear-gradient does with two colors:
+// LinearGradient blends colors along a line across a box, as CSS's
+// linear-gradient does: two, From and To, or as many as its Stops.
 //
 //	e.LinearGradient(ui.LinearGradient{From: blue, To: yellow, Angle: 90, Oklab: true})
 type LinearGradient struct {
@@ -501,6 +558,67 @@ type LinearGradient struct {
 	// the colors' lightness and saturation, instead of in sRGB, as CSS's
 	// "in oklab" does.
 	Oklab bool
+	// Stops, unless empty, are the gradient's colors in place of From and
+	// To (and Start and End), at their places along the line from 0 to 1,
+	// in order:
+	//
+	//	ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{{red, 0}, {yellow, 0.5}, {blue, 1}}}
+	Stops []GradientStop
+}
+
+// GradientStop is a color of a gradient (LinearGradient, ConicGradient)
+// and its place along it, from 0 to 1, as CSS's color stops are. The
+// gradient shows its first color before its first stop, its last after
+// its last, and between two stops their colors blended; two stops at one
+// place make a sharp edge. A gradient takes 32 stops at most, in sRGB.
+type GradientStop struct {
+	Color Color
+	At    float32
+}
+
+// ConicGradient blends colors around a point, as CSS's conic-gradient()
+// does (SwiftUI's AngularGradient, Flutter's SweepGradient): its stops at
+// their places around a turn, clockwise from its angle.
+//
+//	e.ConicGradient(ui.ConicGradient{Stops: []ui.GradientStop{{red, 0}, {blue, 0.5}, {red, 1}}})
+type ConicGradient struct {
+	Stops []GradientStop
+	// Center is the point the colors turn around, in fractions of the
+	// box's width and height from its top left corner; the zero Point is
+	// its middle.
+	Center Point
+	// Angle is where the turn starts, in degrees clockwise from upwards, as
+	// CSS's "from": 90 starts at the right, where SwiftUI's and Flutter's
+	// start.
+	Angle float32
+	// Oklab mixes the colors in the Oklab color space, as LinearGradient's
+	// does.
+	Oklab bool
+}
+
+// gradients is a conic fill and a border's gradient, linear or conic.
+type gradients struct {
+	conic        ConicGradient
+	borderLinear LinearGradient
+	borderConic  ConicGradient
+	border       borderPaint
+}
+
+// borderPaint is what paints a border: its color, or a gradient.
+type borderPaint uint8
+
+const (
+	borderColor borderPaint = iota
+	borderLinear
+	borderConic
+)
+
+// grad returns the element's gradients, made the first time.
+func (e *node) gradients() *gradients {
+	if e.grads == nil {
+		e.grads = &gradients{}
+	}
+	return e.grads
 }
 
 type fillKind uint8
@@ -510,6 +628,7 @@ const (
 	fillGradient
 	fillStripes
 	fillMaterial
+	fillConic
 )
 
 type stripes struct {
@@ -868,7 +987,7 @@ func (e *node) Debug() *node { e.flags |= flagDebug; return e }
 // Background fills the element, in place of a gradient.
 func (e *node) Background(c Color) *node {
 	e.bg = c
-	if e.fill == fillGradient {
+	if e.fill == fillGradient || e.fill == fillConic {
 		e.fill = fillColor
 	}
 	return e
@@ -887,6 +1006,44 @@ func (e *node) LinearGradient(g LinearGradient) *node {
 	e.grad, e.fill = g, fillGradient
 	return e
 }
+
+// ConicGradient fills the element with a conic gradient, its colors
+// turning around a point (CSS's conic-gradient()):
+//
+//	ui.Box(c).Size(80, 80).Radius(40).ConicGradient(ui.ConicGradient{
+//		Stops: []ui.GradientStop{{red, 0}, {yellow, 1.0 / 3}, {blue, 2.0 / 3}, {red, 1}},
+//	})
+func (e *node) ConicGradient(g ConicGradient) *node {
+	e.gradients().conic, e.fill = g, fillConic
+	return e
+}
+
+// BorderLinearGradient paints the element's border (Border, BorderWidth)
+// with a linear gradient across the element, in place of its color.
+func (e *node) BorderLinearGradient(g LinearGradient) *node {
+	gr := e.gradients()
+	gr.borderLinear, gr.border = g, borderLinear
+	return e
+}
+
+// BorderConicGradient paints the element's border (Border, BorderWidth)
+// with a conic gradient around the element, in place of its color: a ring
+// of colors, as SwiftUI's strokeBorder with an AngularGradient draws.
+//
+//	ui.Box(c).Size(120, 80).Radius(16).Border(4, ui.Color{}).BorderConicGradient(ui.ConicGradient{Stops: rainbow})
+func (e *node) BorderConicGradient(g ConicGradient) *node {
+	gr := e.gradients()
+	gr.borderConic, gr.border = g, borderConic
+	return e
+}
+
+// Blur blurs the element, with its children, by sigma DIPs, the standard
+// deviation of a Gaussian, as CSS's filter: blur() does: what it draws
+// spreads that far around, transparent beyond, on the GPU. It renders
+// into a bitmap first, as Effect does, about 3 sigma larger each way, and
+// an element with an Effect draws through it instead. Hit testing, focus
+// and accessibility do not change: only what shows.
+func (e *node) Blur(sigma float32) *node { e.blur = max(sigma, 0); return e }
 
 // Stripes draws stripes of c over the background, width DIPs wide with
 // gap DIPs between them, running at angle degrees clockwise from upwards:
@@ -1192,6 +1349,19 @@ func (e *node) Focusable() *node { e.flags |= flagFocusable; return e }
 // window, as on a title bar.
 func (e *node) DragWindow() *node { e.flags |= flagDragWindow; return e }
 
+// MaximizeButton marks the element as the window's maximize button, which
+// the view draws in a window with a hidden title bar without the system's
+// (mygo.WindowOptions.HideWindowButtons): on Windows 11, holding the
+// pointer over it shows the snap layouts, as over the system's. It takes
+// the pointer as any element does, and the view maximizes the window when
+// it is clicked (mygo.Window.Maximize). The first such element of a frame
+// counts; elsewhere it does nothing.
+func (e *node) MaximizeButton() *node {
+	e.maximizeButton = true
+	placeMaximizeButton = sendMaximizeButton
+	return e
+}
+
 // PassThrough lets the pointer reach what is under the element.
 func (e *node) PassThrough() *node { e.flags |= flagPassThrough; return e }
 
@@ -1232,6 +1402,8 @@ func (e *node) Bounds() Rect {
 
 // add appends a child.
 func (e *node) add(child *node) {
+	// Lists build rows as they lay out, after the list was measured.
+	e.forgetIntrinsic()
 	child.parent = e
 	child.depth = e.depth + 1
 	if e.last == nil {

@@ -53,7 +53,7 @@ func (ed *editor) retry(fn func() bool) bool {
 }
 
 func (ed *editor) dispatch(ev ui.InputEvent) bool {
-	ed.frameNow = time.Now()
+	ed.frameNow = ev.Time
 	switch ev.Kind {
 	case ui.InputKeyDown:
 		return ed.key(ev)
@@ -292,7 +292,7 @@ func (ed *editor) extendGesture(off int) {
 		sels = append(slices.Clone(g.others), s)
 	}
 	ed.sels = mergeSels(sels)
-	ed.blinkStart = time.Now()
+	ed.blinkStart = ed.frameNow
 }
 
 // columnSelect selects the columns from where the press began to x, y on
@@ -381,12 +381,12 @@ func (ed *editor) pointerMove(ev ui.InputEvent) bool {
 		if off >= 0 && off >= h.start && off <= h.end {
 			h.hideAt = time.Time{}
 		} else if h.hideAt.IsZero() {
-			h.hideAt = time.Now().Add(hoverHideDelay)
+			h.hideAt = ed.frameNow.Add(hoverHideDelay)
 			changed = true
 		}
 	}
 	if off >= 0 && (ed.o.onHover != nil || len(ed.diags) > 0) && off != h.restOff {
-		h.restOff, h.restAt, h.pending = off, time.Now(), true
+		h.restOff, h.restAt, h.pending = off, ed.frameNow, true
 		changed = true
 	}
 	return changed
@@ -413,6 +413,18 @@ func (ed *editor) wheel(ev ui.InputEvent) bool {
 		ed.extendGesture(ed.offsetAt(cx, cy))
 	}
 	return moved
+}
+
+// trackWidth is the room the scroll bar's track takes at the right edge:
+// none when the editor fits its content, as it then never scrolls. The
+// old side of a split diff, which draws no scroll bar of its own
+// (noScrollbar), keeps the room all the same, so that both sides wrap
+// their lines at the same width.
+func (ed *editor) trackWidth() float32 {
+	if ed.o.fitContent {
+		return 0
+	}
+	return scrollbarWidth
 }
 
 // scrollbars reports which scroll bars the editor shows, and takes

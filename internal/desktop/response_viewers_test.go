@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"image"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
@@ -63,11 +65,18 @@ func fetchPreview(t *testing.T, url string, header ...string) *httptest.Response
 	return w
 }
 
+// settledImage draws the view once what moves in it has come to rest, as
+// a dialog fading in: a Tester's clock moves only when the test moves it.
+func settledImage(tt *ui.Tester) *image.RGBA {
+	tt.Advance(500 * time.Millisecond)
+	return tt.Image()
+}
+
 func snapshot(t *testing.T, tt *ui.Tester, name string) {
 	t.Helper()
 	if dir := os.Getenv("YEEK_VIEWERS"); dir != "" {
 		f, _ := os.Create(dir + "/" + name + ".png") // #nosec G304 G703 -- the test runner explicitly chooses the snapshot directory.
-		_ = png.Encode(f, tt.Image())
+		_ = png.Encode(f, settledImage(tt))
 		_ = f.Close()
 	}
 }

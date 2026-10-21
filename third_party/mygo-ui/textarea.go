@@ -74,7 +74,7 @@ func (a *area) wrappedHeight(e *node, ed *editor, cw float32) float32 {
 					at := runeOffset(part.Text, ed.caret-ed.buf.start(p))
 					part.Text = part.Text[:at] + ed.compose + part.Text[at:]
 				}
-				part.Spans, _ = ed.rangeSpans(ed.buf.start(p), ed.buf.end(p))
+				part.Spans = ed.rangeKey(ed.buf.start(p), ed.buf.end(p))
 				height += textSystem().Shape(part).Height
 			}
 			a.wrapped, a.wrappedParams, a.wrappedVersion = height, params, ed.buf.version
@@ -85,7 +85,7 @@ func (a *area) wrappedHeight(e *node, ed *editor, cw float32) float32 {
 	params.Text = ed.displayText()
 	params.KeepSpaces, params.MaxLines = true, 0
 	// Bold runs take more room, so the text may wrap sooner.
-	params.Spans, _ = ed.rangeSpans(0, ed.buf.n)
+	params.Spans = ed.rangeKey(0, ed.buf.n)
 	if params != a.wrappedParams {
 		a.wrappedParams = params
 		a.wrapped = textSystem().Layout(params).Height
@@ -182,7 +182,7 @@ func (a *area) paraLayout(ed *editor, p int) *text.Layout {
 	if ed.compose != "" && p == b.para(ed.caret) {
 		compose = ed.compose
 	}
-	spans, _ := ed.rangeSpans(b.start(p), b.end(p))
+	spans := ed.rangeKey(b.start(p), b.end(p))
 	if pr.layout != nil && pr.compose == compose && pr.spans == spans {
 		a.widest = max(a.widest, pr.layout.Width)
 		return pr.layout
@@ -526,7 +526,7 @@ func (a *area) paint(e *node, p *Painter, ox, oy float32) {
 	// A read-only code editor still shows where it was clicked.
 	if focused && (!ed.readOnly || ed.code) {
 		rt := e.c.rt
-		phase := time.Since(rt.blinkStart)
+		phase := e.c.now.Sub(rt.blinkStart)
 		const blink = 530 * time.Millisecond
 		if (phase/blink)%2 == 0 {
 			x, y, h := a.caretAt(ed, ed.caret, ed.composeCaret)

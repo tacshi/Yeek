@@ -58,7 +58,7 @@ func TestResponseTimeline(t *testing.T) {
 	}
 	if path := os.Getenv("YEEK_TIMELINE"); path != "" {
 		f, _ := os.Create(path) // #nosec G304 G703 -- the test runner explicitly chooses the snapshot destination.
-		_ = png.Encode(f, tt.Image())
+		_ = png.Encode(f, settledImage(tt))
 		_ = f.Close()
 	}
 	if err := tt.Click("Timeline"); err != nil {

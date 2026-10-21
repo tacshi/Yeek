@@ -21,13 +21,6 @@ func (a *App) markdownView(c *ui.Context, p colors, source string) ui.Element {
 		// language and copy button above it.
 		ui.Column(c).AlignSelf(ui.Stretch).Padding(9, 0, 0, 0).Radius(6).Background(p.sidebar).Clip().Children(func() { b.Body(c) })
 	}
-	// Links take the window theme's accent, not Theme.Link: Yaak's are
-	// text-notice.
-	theme := c.Theme()
-	links := *theme
-	links.Accent = p.notice
-	c.SetTheme(&links)
-	defer c.SetTheme(theme)
 	return markdown.View(c, source, a.markdown).MaxWidth(512).MinWidth(0)
 }
 

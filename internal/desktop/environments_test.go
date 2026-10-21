@@ -14,7 +14,7 @@ func envShot(t *testing.T, tt *ui.Tester, name string) {
 	if dir := os.Getenv("YEEK_ENVS"); dir != "" {
 		tt.Frame()
 		f, _ := os.Create(dir + "/" + name + ".png") // #nosec G304 G703 -- the test runner explicitly chooses the snapshot directory.
-		_ = png.Encode(f, tt.Image())
+		_ = png.Encode(f, settledImage(tt))
 		_ = f.Close()
 	}
 }
