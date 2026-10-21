@@ -7,7 +7,7 @@
 #   scripts/mac-release.sh --arch arm64     # only some: arm64, x64, universal
 #   scripts/mac-release.sh --skip-notarize  # signed, not notarized (faster)
 #
-# The disk images are copied to build/mac-release/dist as
+# The disk images are copied to build/mac-release as
 # Yeek-<version>-{arm64,x64,universal}.dmg. With the update signing key
 # (MYGO_UPDATER_PRIVATE_KEY, or the file `go tool mygo keygen` wrote, which
 # YEEK_UPDATE_KEY overrides), each build also gets its signed update archive
@@ -102,9 +102,8 @@ info "building Yeek $VERSION for macOS ${ARCHES[*]}"
 # cgo: the 1Password SDK signs in through the desktop app with it.
 CGO_ENABLED=1 go tool mygo build "${BUILD_ARGS[@]}"
 
-# MyGo names disk images by its platforms; dist names them by the usual ones.
-DIST="$OUT_DIR/dist"
-mkdir -p "$DIST"
+# MyGo names disk images by its platforms, in a folder each; the copies
+# beside those folders are named by the usual ones.
 for arch in "${ARCHES[@]}"; do
 	case "$arch" in
 	arm64) dmg="$OUT_DIR/darwin-arm64/Yeek $VERSION arm64.dmg" ;;
@@ -115,6 +114,6 @@ for arch in "${ARCHES[@]}"; do
 	if $NOTARIZE; then
 		xcrun stapler validate "$dmg" >/dev/null || die "$dmg is not notarized"
 	fi
-	cp "$dmg" "$DIST/Yeek-$VERSION-$arch.dmg"
-	info "$DIST/Yeek-$VERSION-$arch.dmg"
+	cp "$dmg" "$OUT_DIR/Yeek-$VERSION-$arch.dmg"
+	info "$OUT_DIR/Yeek-$VERSION-$arch.dmg"
 done
