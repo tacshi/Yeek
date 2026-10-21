@@ -6,7 +6,7 @@
 #   scripts/win-release.sh 0.2.0         # another version
 #   scripts/win-release.sh --arch x64    # only some: x64, arm64
 #
-# The installers are copied to build/windows-release/dist as
+# The installers are copied to build/windows-release as
 # Yeek-<version>-{x64,arm64}-setup.exe. With the update signing key
 # (MYGO_UPDATER_PRIVATE_KEY, or the file `go tool mygo keygen` wrote, which
 # YEEK_UPDATE_KEY overrides), each build also gets its signed update archive
@@ -83,14 +83,14 @@ info "building Yeek $VERSION for Windows ${ARCHES[*]}"
 # No cgo: Go cross-compiles, and the 1Password SDK needs none on Windows.
 CGO_ENABLED=0 go tool mygo build "${BUILD_ARGS[@]}"
 
-DIST="$OUT_DIR/dist"
-mkdir -p "$DIST"
+# MyGo names installers by its platforms, in a folder each; the copies
+# beside those folders are named by the usual ones.
 for arch in "${ARCHES[@]}"; do
 	case "$arch" in
 	x64 | amd64) setup="$OUT_DIR/windows-amd64/Yeek Setup $VERSION amd64.exe" arch=x64 ;;
 	arm64) setup="$OUT_DIR/windows-arm64/Yeek Setup $VERSION arm64.exe" ;;
 	esac
 	[[ -f "$setup" ]] || die "expected $setup after the build"
-	cp "$setup" "$DIST/Yeek-$VERSION-$arch-setup.exe"
-	info "$DIST/Yeek-$VERSION-$arch-setup.exe"
+	cp "$setup" "$OUT_DIR/Yeek-$VERSION-$arch-setup.exe"
+	info "$OUT_DIR/Yeek-$VERSION-$arch-setup.exe"
 done

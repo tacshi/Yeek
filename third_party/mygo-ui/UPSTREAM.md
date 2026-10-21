@@ -1,6 +1,6 @@
 # MyGo native UI
 
-Based on `github.com/egoist/mygo/ui` at v0.5.1, under the included MIT license. The framework and CLI are pinned to MyGo v0.5.1 too. Upstream's `ui/editor` and `ui/markdown` (with its `parser`) are copied unchanged as `editor` and `markdown`, except that they import this package and its packages in place of `ui`'s. Upstream's `ui/chart` and `ui/richtext` packages and tests are not copied.
+Based on `github.com/egoist/mygo/ui` at v0.6.2, under the included MIT license. The framework and CLI are pinned to MyGo v0.6.2 too. Upstream's `ui/editor` and `ui/markdown` (with its `parser`) are copied unchanged as `editor` and `markdown`, except that they import this package and its packages in place of `ui`'s. Upstream's `ui/chart` and `ui/richtext` packages and tests are not copied.
 
 As upstream does, the public API (`api_gen.go`) is generated from the private renderer API (`core*` functions and exported methods of `node` and `context`): run `go generate .` here after changing it. `internal/uigen` is upstream's generator, changed only to run from this directory.
 
@@ -15,3 +15,4 @@ Yeek's changes:
 - `CodeEditorState.Pasted` reports the text last pasted and whether it replaced the editor's whole text.
 - `Context.SetZoom` scales the whole interface, as a browser's zoom does, for Yaak's interface zoom: the window's size and pointer input are divided by the zoom and the device scale multiplied by it; menus, the input method's caret and assistive technology get window coordinates. A Tester keeps working in the interface's DIPs.
 - `Tester.Batch` delivers input before rendering, as events can arrive during one display frame.
+- The layout cache (`layoutcache.go`) compares the node fields layout reads. Upstream's `TestLayoutInputs` lists every field; of the fork's, `codePaint`, `codeMarks` and `codeDiagnostics` are read only while painting, and `attachCaret` is read by layout, but only on attached elements, which the cache always lays out again. The interface zoom's field is `uiZoom`, as upstream's `engine.zoom` handles pinches.

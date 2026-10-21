@@ -95,7 +95,7 @@ func TestNativeWorkspaceSnapshot(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() { _ = f.Close() }()
-		if err := png.Encode(f, tt.Image()); err != nil {
+		if err := png.Encode(f, settledImage(tt)); err != nil {
 			t.Fatal(err)
 		}
 	}

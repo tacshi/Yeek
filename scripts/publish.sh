@@ -183,7 +183,7 @@ $MAC && "$ROOT_DIR/scripts/mac-release.sh" "${BUILD_ARGS[@]}"
 $WINDOWS && "$ROOT_DIR/scripts/win-release.sh" "${BUILD_ARGS[@]}"
 
 if $NO_UPLOAD; then
-	info "built into build/release/out (installers in build/release/out/dist); nothing was published"
+	info "built into build/release/out; nothing was published"
 	exit 0
 fi
 

@@ -267,38 +267,6 @@ func listFonts() (uiFonts, editorFonts []string) {
 	return uiFonts, editorFonts
 }
 
-// fontSelect is ui.Select with its options in a list that scrolls: a
-// system's fonts are too many for a popup as tall as its options, which
-// would run off the window.
-func fontSelect(c *ui.Context, value *string, options []string) ui.Element {
-	t := c.Theme()
-	sel := ui.SelectBase(c, value)
-	b := sel.Trigger.Justify(ui.SpaceBetween).AlignItems(ui.Center).Gap(t.Space(1.5)).Padding(t.Space(1.5), t.Space(3.5)).Radius(t.Radius).Border(1, t.Border).Background(t.Surface)
-	if b.Hovered() || sel.Open() {
-		b.Background(t.SurfaceHover)
-	}
-	b.Children(func() {
-		ui.Text(c, *value).SingleLine().Shrink(1).MinWidth(0)
-		ui.Icon(c, icons["down"]).FontSize(12).TextColor(t.TextMuted).Shrink(0)
-	})
-	sel.Popup(func(panel ui.Element) {
-		panel.Margin(t.Space(1), 0, 0, 0).Padding(t.Space(1)).Radius(t.Radius+2).Background(t.Background).Border(1, t.Border).Shadow(0, 6, 20, 0, ui.RGBA(0, 0, 0, 0.18))
-		ui.Scroll(c).MaxHeight(320).FillWidth().Children(func() {
-			for _, opt := range options {
-				item := sel.Item(opt).Padding(t.Space(1.5), t.Space(2.5)).Radius(t.Radius)
-				switch {
-				case item.Highlighted():
-					item.Background(t.Accent).TextColor(t.AccentText)
-				case opt == *value:
-					item.Background(t.Surface)
-				}
-				item.Children(func() { ui.Text(c, opt).SingleLine() })
-			}
-		})
-	})
-	return b
-}
-
 var fontSizes = func() []string {
 	sizes := []string{}
 	for size := 8; size <= 30; size++ {
@@ -343,7 +311,7 @@ func (a *App) settingsInterface(c *ui.Context, p colors) {
 					if !slices.Contains(options, font) {
 						options = append(options, font)
 					}
-					if fontSelect(c, &font, options).Label(title + " setting").Width(288).Changed() {
+					if ui.Select(c, &font, options).Label(title + " setting").Width(288).Changed() {
 						if font == systemDefaultFont {
 							a.saveSetting(fontKey, nil)
 						} else {

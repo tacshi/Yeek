@@ -7,7 +7,7 @@ scripts/win-release.sh for Windows.
   scripts/win-release.ps1 0.2.0           # another version
   scripts/win-release.ps1 -Arch x64       # only some: x64, arm64
 
-The installers are copied to build/windows-release/dist as
+The installers are copied to build/windows-release as
 Yeek-<version>-{x64,arm64}-setup.exe. With the update signing key
 (MYGO_UPDATER_PRIVATE_KEY, or the file `go tool mygo keygen` wrote, which
 YEEK_UPDATE_KEY overrides), each build also gets its signed update archive
@@ -85,13 +85,13 @@ try {
 	[IO.File]::WriteAllText($ConfigPath, $Committed, $utf8)
 }
 
-$dist = Join-Path $Out 'dist'
-New-Item -ItemType Directory -Force -Path $dist | Out-Null
+# MyGo names installers by its platforms, in a folder each; the copies
+# beside those folders are named by the usual ones.
 foreach ($a in $Arch) {
 	$goArch = if ($a -eq 'x64') { 'amd64' } else { 'arm64' }
 	$setup = Join-Path $Out "windows-$goArch/Yeek Setup $Version $goArch.exe"
 	if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { Fail "expected $setup after the build" }
-	$target = Join-Path $dist "Yeek-$Version-$a-setup.exe"
+	$target = Join-Path $Out "Yeek-$Version-$a-setup.exe"
 	Copy-Item -LiteralPath $setup -Destination $target -Force
 	Info $target
 }

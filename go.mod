@@ -59,7 +59,7 @@ require (
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/coder/websocket v1.8.15
 	github.com/ebitengine/purego v0.11.1
-	github.com/egoist/mygo v0.5.1
+	github.com/egoist/mygo v0.6.2
 	github.com/egoist/mygo/yeekui v0.0.0
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/golang-jwt/jwt/v5 v5.3.1
