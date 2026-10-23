@@ -1407,16 +1407,6 @@ func (msgs Messages) CheckCertificateIndex(index int) string {
 	return Catalog.Format(msgs.locale, "checkCertificateIndex", map[string]any{"index": index})
 }
 
-// CheckForUpdates says "Check for updates"
-// in the language the app shows.
-func CheckForUpdates() string { return In(i18n.Locale()).CheckForUpdates() }
-
-// CheckForUpdates says "Check for updates"
-// in the language of msgs.
-func (msgs Messages) CheckForUpdates() string {
-	return Catalog.Format(msgs.locale, "checkForUpdates", nil)
-}
-
 // CheckForUpdatesTitle says "Check for Updates"
 // in the language the app shows.
 func CheckForUpdatesTitle() string { return In(i18n.Locale()).CheckForUpdatesTitle() }
@@ -1691,18 +1681,6 @@ func ChooseWhetherYeekFollowsYourSystem() string {
 // in the language of msgs.
 func (msgs Messages) ChooseWhetherYeekFollowsYourSystem() string {
 	return Catalog.Format(msgs.locale, "chooseWhetherYeekFollowsYourSystem", nil)
-}
-
-// ChooseWhetherYeekShouldUseStable says "Choose whether Yeek should use stable releases or beta releases."
-// in the language the app shows.
-func ChooseWhetherYeekShouldUseStable() string {
-	return In(i18n.Locale()).ChooseWhetherYeekShouldUseStable()
-}
-
-// ChooseWhetherYeekShouldUseStable says "Choose whether Yeek should use stable releases or beta releases."
-// in the language of msgs.
-func (msgs Messages) ChooseWhetherYeekShouldUseStable() string {
-	return Catalog.Format(msgs.locale, "chooseWhetherYeekShouldUseStable", nil)
 }
 
 // Chunk says "Chunk"
@@ -4661,18 +4639,6 @@ func EnableProxy() string { return In(i18n.Locale()).EnableProxy() }
 // in the language of msgs.
 func (msgs Messages) EnableProxy() string {
 	return Catalog.Format(msgs.locale, "enableProxy", nil)
-}
-
-// EnableSendAnonymousUsageStatistics says "Enable Send anonymous usage statistics"
-// in the language the app shows.
-func EnableSendAnonymousUsageStatistics() string {
-	return In(i18n.Locale()).EnableSendAnonymousUsageStatistics()
-}
-
-// EnableSendAnonymousUsageStatistics says "Enable Send anonymous usage statistics"
-// in the language of msgs.
-func (msgs Messages) EnableSendAnonymousUsageStatistics() string {
-	return Catalog.Format(msgs.locale, "enableSendAnonymousUsageStatistics", nil)
 }
 
 // EnableSetting says "Enable {setting}"
@@ -13223,16 +13189,6 @@ func (msgs Messages) SendAll() string {
 	return Catalog.Format(msgs.locale, "sendAll", nil)
 }
 
-// SendAnonymousUsageStatistics says "Send anonymous usage statistics"
-// in the language the app shows.
-func SendAnonymousUsageStatistics() string { return In(i18n.Locale()).SendAnonymousUsageStatistics() }
-
-// SendAnonymousUsageStatistics says "Send anonymous usage statistics"
-// in the language of msgs.
-func (msgs Messages) SendAnonymousUsageStatistics() string {
-	return Catalog.Format(msgs.locale, "sendAnonymousUsageStatistics", nil)
-}
-
 // SendClientCredentials says "Send Client Credentials"
 // in the language the app shows.
 func SendClientCredentials() string { return In(i18n.Locale()).SendClientCredentials() }
@@ -13937,16 +13893,6 @@ func SourceWasImportedElsewhereRefreshThe() string {
 // in the language of msgs.
 func (msgs Messages) SourceWasImportedElsewhereRefreshThe() string {
 	return Catalog.Format(msgs.locale, "sourceWasImportedElsewhereRefreshThe", nil)
-}
-
-// Stable says "Stable"
-// in the language the app shows.
-func Stable() string { return In(i18n.Locale()).Stable() }
-
-// Stable says "Stable"
-// in the language of msgs.
-func (msgs Messages) Stable() string {
-	return Catalog.Format(msgs.locale, "stable", nil)
 }
 
 // StageChangeName says "Stage change {name}"
@@ -15427,16 +15373,6 @@ func (msgs Messages) UpdateBehavior() string {
 	return Catalog.Format(msgs.locale, "updateBehavior", nil)
 }
 
-// UpdateChannel says "Update Channel"
-// in the language the app shows.
-func UpdateChannel() string { return In(i18n.Locale()).UpdateChannel() }
-
-// UpdateChannel says "Update Channel"
-// in the language of msgs.
-func (msgs Messages) UpdateChannel() string {
-	return Catalog.Format(msgs.locale, "updateChannel", nil)
-}
-
 // Updated says "updated"
 // in the language the app shows.
 func Updated() string { return In(i18n.Locale()).Updated() }
@@ -16153,16 +16089,6 @@ func XPathExpression() string { return In(i18n.Locale()).XPathExpression() }
 // in the language of msgs.
 func (msgs Messages) XPathExpression() string {
 	return Catalog.Format(msgs.locale, "xPathExpression", nil)
-}
-
-// YeekIsLocalFirstAndDoes says "Yeek is local-first and does not collect analytics or usage data."
-// in the language the app shows.
-func YeekIsLocalFirstAndDoes() string { return In(i18n.Locale()).YeekIsLocalFirstAndDoes() }
-
-// YeekIsLocalFirstAndDoes says "Yeek is local-first and does not collect analytics or usage data."
-// in the language of msgs.
-func (msgs Messages) YeekIsLocalFirstAndDoes() string {
-	return Catalog.Format(msgs.locale, "yeekIsLocalFirstAndDoes", nil)
 }
 
 // YeekVersionIsAvailable says "Yeek {version} is available"

@@ -54,7 +54,6 @@ func (a *App) checkForUpdates(user bool) {
 	}
 	updates.busy, updates.lastCheck = true, time.Now()
 	updates.Unlock()
-	a.checkingUpdates = user
 	go func() {
 		started := time.Now()
 		up, err := mygo.Updater.Check(a.ctx)
@@ -75,7 +74,6 @@ func (a *App) checkForUpdates(user bool) {
 			return
 		}
 		a.Window.Update(func() {
-			a.checkingUpdates = false
 			switch {
 			case errors.Is(err, mygo.ErrUpdatesDisabled):
 				if user {

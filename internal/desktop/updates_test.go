@@ -11,9 +11,14 @@ func TestSettingsGeneralUpdates(t *testing.T) {
 	a, _ := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
 	tt := ui.NewTester(a.View, 1360, 860)
-	for _, want := range []string{"Updates", "Update Channel", "Update Behavior", "Automatically download updates", "Send anonymous usage statistics", "App Info"} {
+	for _, want := range []string{"Updates", "Update Behavior", "Automatically download updates", "App Info"} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q", want)
+		}
+	}
+	for _, gone := range []string{"Update Channel", "Send anonymous usage statistics"} {
+		if tt.HasText(gone) {
+			t.Fatalf("%q is shown", gone)
 		}
 	}
 	if !b(a.settings, "autoupdate") || !b(a.settings, "autoDownloadUpdates") {

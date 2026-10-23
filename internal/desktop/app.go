@@ -157,7 +157,6 @@ type App struct {
 	environmentColor                           string
 	toasts                                     []toastItem
 	toastSerial                                int
-	checkingUpdates                            bool
 	folderEnvID, hotkeyFilter, recordingHotkey string
 	folderEnvRows                              []KV
 	valuePrompts                               []*valuePrompt

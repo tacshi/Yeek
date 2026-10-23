@@ -110,17 +110,6 @@ func settingValue(c *ui.Context, p colors, value string, reveal func()) {
 func (a *App) settingsGeneral(c *ui.Context, p colors) {
 	settingsHeading(c, p, locales.General(), locales.ConfigureGeneralSettingsForUpdateBehavior())
 	settingsSection(c, p, locales.Updates(), locales.Updates(), func() {
-		settingRow(c, p, locales.UpdateChannel(), locales.ChooseWhetherYeekShouldUseStable(), nil, func() {
-			channel := locales.Stable()
-			ui.Select(c, &channel, []string{locales.Stable()}).Label(locales.UpdateChannel()).Width(192)
-			if a.checkingUpdates {
-				ui.Box(c).Size(28, 28).Radius(4).Border(1, p.border).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
-					ui.Spinner(c).Size(12, 12).TextColor(p.subtle)
-				})
-			} else if sizedIconButton(c, "refresh", locales.CheckForUpdates(), 28, 14).Border(1, p.border).Radius(4).Clicked() {
-				a.checkForUpdates(true)
-			}
-		})
 		auto := b(a.settings, "autoupdate")
 		settingRow(c, p, locales.UpdateBehavior(), locales.ChooseWhetherUpdatesAreInstalledAutomatically(), nil, func() {
 			labels, values := []string{locales.Automatic(), locales.Manual()}, []bool{true, false}
@@ -134,10 +123,6 @@ func (a *App) settingsGeneral(c *ui.Context, p colors) {
 			if ui.Checkbox(c, &on, "").Label(locales.EnableAutomaticallyDownloadUpdates()).Disabled(!auto).Changed() {
 				a.saveSetting("autoDownloadUpdates", on)
 			}
-		})
-		settingRow(c, p, locales.SendAnonymousUsageStatistics(), locales.YeekIsLocalFirstAndDoes(), nil, func() {
-			off := false
-			ui.Checkbox(c, &off, "").Label(locales.EnableSendAnonymousUsageStatistics()).Disabled(true)
 		})
 	})
 	settingsSection(c, p, locales.AppInfo(), locales.AppInfo(), func() {
