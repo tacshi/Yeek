@@ -240,6 +240,6 @@ func TestJSONCommentsAndGraphQLGETOnWire(t *testing.T) {
 		t.Fatal(got, err)
 	}
 	if FixJSONBody("1/**/2") != "12" || FixJSONBody(`{"invalid": }`) != `{"invalid": }` || FixJSONBody(`{"a": 1 /* open`) != `{"a": 1 /* open` {
-		t.Fatal("comments stripped unlike Yaak")
+		t.Fatal("comments stripped")
 	}
 }

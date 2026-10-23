@@ -2,11 +2,14 @@ package engine
 
 import (
 	"encoding/json/v2"
-	"fmt"
+	"errors"
 	"maps"
+	"strconv"
 	"strings"
 	"time"
 	"uuid"
+
+	"yeek/locales"
 )
 
 type Object = map[string]any
@@ -69,7 +72,7 @@ var prefixes = map[string]string{
 
 func defaultModel(kind string) (Object, error) {
 	if _, ok := prefixes[kind]; !ok {
-		return nil, fmt.Errorf("unknown model %q", kind)
+		return nil, errors.New(locales.UnknownModelKind(strconv.Quote(kind)))
 	}
 	m := Object{"model": kind, "id": "", "createdAt": now(), "updatedAt": now()}
 	inherit := func() {

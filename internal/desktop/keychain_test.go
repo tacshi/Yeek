@@ -7,12 +7,14 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 	"github.com/zalando/go-keyring"
 	"yeek/internal/engine"
 )
 
 func TestMain(m *testing.M) {
 	newSecrets = func(string) engine.SecretStore { return &memorySecrets{} }
+	i18n.SetLocaleFunc(sourceLocale)
 	os.Exit(m.Run())
 }
 

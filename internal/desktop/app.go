@@ -17,6 +17,7 @@ import (
 	"github.com/egoist/mygo/yeekui"
 	"github.com/egoist/mygo/yeekui/markdown"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type KV struct {
@@ -231,6 +232,7 @@ func (a *App) OpenWindow() {
 	})
 	a.Window.OnClosed(func() { a.Close() })
 	a.Window.OnFocus(a.maybeCheckForUpdates)
+	a.applySavedLanguage()
 	go a.worker()
 	if a.active != "" {
 		a.openRequest(a.active)
@@ -619,7 +621,7 @@ func sendAllError(failed, total int, last error) error {
 	if total == 1 {
 		return last
 	}
-	return fmt.Errorf("%d of %d requests failed: %w", failed, total, last)
+	return fmt.Errorf("%s: %w", locales.FailedOfTotalRequestsFailed(failed, total), last)
 }
 func (a *App) prompt(kind, title, value, id string) {
 	a.errorMessage = ""
@@ -815,13 +817,13 @@ func requestName(m engine.Object) string {
 	if strings.TrimSpace(url) == "" {
 		switch {
 		case s(m, "model") == "http_request" && s(m, "bodyType") == "graphql":
-			return "GraphQL Request"
+			return locales.GraphQLRequest()
 		case s(m, "model") == "http_request":
-			return "HTTP Request"
+			return locales.HTTPRequest()
 		case s(m, "model") == "websocket_request":
-			return "WebSocket Request"
+			return locales.WebSocketRequest()
 		}
-		return "gRPC Request"
+		return locales.GRPCRequest()
 	}
 	if s(m, "model") == "grpc_request" && s(m, "service") != "" && s(m, "method") != "" {
 		service := s(m, "service")

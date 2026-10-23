@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 	"uuid"
+
+	"yeek/locales"
 )
 
 func (e *Engine) Variables(ctx context.Context, workspace, folder, environment string) (map[string]string, error) {
@@ -39,7 +41,7 @@ func VariablesFromModels(models []Object, workspace, folder, environment string)
 		if m := index[id]; m != nil {
 			return m, nil
 		}
-		return nil, fmt.Errorf("environment or folder %q does not exist", id)
+		return nil, errors.New(locales.EnvironmentOrFolderIdDoesNot(strconv.Quote(id)))
 	})
 }
 
@@ -70,7 +72,7 @@ func resolveVariables(envs []Object, workspace, folder, environment string, look
 	seen := map[string]bool{}
 	for environment != "" {
 		if seen[environment] {
-			return nil, errors.New("environment inheritance contains a cycle")
+			return nil, errors.New(locales.EnvironmentInheritanceContainsACycle())
 		}
 		seen[environment] = true
 		m, err := lookup(environment)
@@ -78,7 +80,7 @@ func resolveVariables(envs []Object, workspace, folder, environment string, look
 			return nil, err
 		}
 		if str(m, "workspaceId") != workspace || str(m, "model") != "environment" || str(m, "parentModel") == "folder" {
-			return nil, errors.New("select an environment in this workspace")
+			return nil, errors.New(locales.SelectAnEnvironmentInThisWorkspace())
 		}
 		chain = append(chain, m)
 		if str(m, "parentModel") != "environment" {
@@ -93,7 +95,7 @@ func resolveVariables(envs []Object, workspace, folder, environment string, look
 	clear(seen)
 	for folder != "" {
 		if seen[folder] {
-			return nil, errors.New("folder inheritance contains a cycle")
+			return nil, errors.New(locales.FolderInheritanceContainsACycle())
 		}
 		seen[folder] = true
 		folders = append(folders, folder)
@@ -102,7 +104,7 @@ func resolveVariables(envs []Object, workspace, folder, environment string, look
 			return nil, err
 		}
 		if str(m, "workspaceId") != workspace || str(m, "model") != "folder" {
-			return nil, errors.New("select a folder in this workspace")
+			return nil, errors.New(locales.SelectAFolderInThisWorkspace())
 		}
 		folder = str(m, "folderId")
 	}
@@ -187,11 +189,11 @@ func templateFunction(name string, args map[string]string) (string, error) {
 			case []any:
 				i, err := strconv.Atoi(key)
 				if err != nil || i < 0 || i >= len(node) {
-					return "", errors.New("JSON path does not exist")
+					return "", errors.New(locales.JSONPathDoesNotExist())
 				}
 				data = node[i]
 			default:
-				return "", errors.New("JSON path does not exist")
+				return "", errors.New(locales.JSONPathDoesNotExist())
 			}
 		}
 		if s, ok := data.(string); ok {
@@ -220,7 +222,7 @@ func (e *Engine) functions(ctx context.Context, workspace string, environmentIDs
 			return e.DecryptValue(ctx, workspace, args["value"])
 		case "keychain", "keyring":
 			if e.Secrets == nil {
-				return "", errors.New("no OS keychain")
+				return "", errors.New(locales.NoOSKeychain())
 			}
 			return e.Secrets.Get(args["service"], args["account"])
 		case "1password.item":
@@ -257,7 +259,7 @@ func (e *Engine) functions(ctx context.Context, workspace string, environmentIDs
 				return "", err
 			}
 			if len(responses) == 0 {
-				return "", errors.New("request has no response")
+				return "", errors.New(locales.RequestHasNoResponse())
 			}
 			response := responses[len(responses)-1]
 			switch args["attribute"] {
@@ -282,7 +284,7 @@ func (e *Engine) functions(ctx context.Context, workspace string, environmentIDs
 			}
 		default:
 			result, err := templateFunction(name, args)
-			if err != nil && strings.HasPrefix(err.Error(), "unknown template function") {
+			if _, unknown := err.(unknownFunctionError); unknown {
 				return e.pluginTemplate(ctx, name, args, workspace)
 			}
 			return result, err

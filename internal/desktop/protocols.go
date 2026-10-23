@@ -11,19 +11,20 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) protocolTabs(d *Draft) []tabItem {
-	tabs := []tabItem{{Label: "Message"}}
+	tabs := []tabItem{{ID: "Message", Label: locales.Message()}}
 	if d.Kind == "grpc_request" {
-		tabs = append(tabs, tabItem{Label: "Metadata", Badge: badgeCount(a.headerCount(d))})
+		tabs = append(tabs, tabItem{ID: "Metadata", Label: locales.Metadata(), Badge: badgeCount(a.headerCount(d))})
 	} else {
-		tabs = append(tabs, tabItem{Label: "Params", Badge: badgeCount(countNamed(d.Parameters, true))}, tabItem{Label: "Headers", Badge: badgeCount(a.headerCount(d))})
+		tabs = append(tabs, tabItem{ID: "Params", Label: locales.Params(), Badge: badgeCount(countNamed(d.Parameters, true))}, tabItem{ID: "Headers", Label: locales.Headers(), Badge: badgeCount(a.headerCount(d))})
 	}
 	return append(tabs,
 		tabItem{Label: authTabLabel(a, d.AuthType), Menu: func(m *ui.Menu) { a.authTypeMenu(m, d) }},
-		tabItem{Label: "Settings", Badge: badgeCount(overriddenSettings(d))},
-		tabItem{Label: "Info", Badge: badgeDot(strings.TrimSpace(d.Description) != "")},
+		tabItem{ID: "Settings", Label: locales.Settings(), Badge: badgeCount(overriddenSettings(d))},
+		tabItem{ID: "Info", Label: locales.Info(), Badge: badgeDot(strings.TrimSpace(d.Description) != "")},
 	)
 }
 
@@ -31,7 +32,7 @@ func (a *App) protocolRequest(c *ui.Context, p colors, d *Draft) {
 	tabs := a.protocolTabs(d)
 	d.Tab = max(0, min(d.Tab, len(tabs)-1))
 	tabBar(c, p, &d.Tab, tabs)
-	switch tabs[d.Tab].Label {
+	switch tabs[d.Tab].ID {
 	case "Message":
 		a.messageEditor(c, p, d)
 	case "Params":
@@ -83,38 +84,38 @@ func (a *App) messageEditor(c *ui.Context, p colors, d *Draft) {
 		}
 		schema := a.grpcSchema(d)
 		files := a.protoFiles(d.ID)
-		label := "Select Schema"
+		label := locales.SelectSchema()
 		switch {
 		case schema.loading:
-			label = "Inspecting Schema"
+			label = locales.InspectingSchema()
 		case schema.unimplemented():
-			label = "Select Proto Files"
+			label = locales.SelectProtoFiles()
 		case schema.err != "":
-			label = "Server Error"
+			label = locales.ServerError()
 		case len(files) > 0:
-			label = pluralizeCount("File", len(files))
+			label = locales.CountFiles(len(files))
 		case schema.services != nil:
-			label = "Schema Detected"
+			label = locales.SchemaDetected()
 		}
 		button := ui.MenuButton(c, label, func(m *ui.Menu) {
-			if schema.err != "" && !schema.unimplemented() && m.Item("Reflection failed: View Error").Chosen() {
-				a.ask("Reflection Failed", schema.err, "Retry", false, nil, func([]string) { a.reloadSchema(d) })
+			if schema.err != "" && !schema.unimplemented() && m.Item(locales.ReflectionFailedViewError()).Chosen() {
+				a.ask(locales.ReflectionFailed(), schema.err, locales.Retry(), false, nil, func([]string) { a.reloadSchema(d) })
 			}
-			if m.Item("Generate Example Message").Disabled(a.grpcMethod(d) == nil).Chosen() {
+			if m.Item(locales.GenerateExampleMessage()).Disabled(a.grpcMethod(d) == nil).Chosen() {
 				a.generateExample(d)
 			}
 			m.Separator()
-			if m.Item("Reload Schema").Chosen() {
+			if m.Item(locales.ReloadSchema()).Chosen() {
 				a.reloadSchema(d)
 			}
-			label := "Configure Schema…"
+			label := locales.ConfigureSchemaEllipsis()
 			if len(files) > 0 {
-				label = "Select Proto Files…"
+				label = locales.SelectProtoFilesEllipsis()
 			}
 			if m.Item(label).Chosen() {
-				a.prompt("grpc_schema", "Configure Schema", "", d.ID)
+				a.prompt("grpc_schema", locales.ConfigureSchema(), "", d.ID)
 			}
-		}).Label("Schema").FontSize(11).Padding(2, 8).Absolute().Top(4).Right(16)
+		}).Label(locales.Schema()).FontSize(11).Padding(2, 8).Absolute().Top(4).Right(16)
 		switch {
 		case schema.unimplemented():
 			button.TextColor(p.blue).Border(1, p.blue.Alpha(.5))
@@ -285,7 +286,7 @@ func (a *App) generateExample(d *Draft) {
 		d.Message, d.Dirty = example, true
 		return
 	}
-	a.confirmDialog("Generate Example", "The current message will be replaced with an example.", "Generate", false, func() {
+	a.confirmDialog(locales.GenerateExample(), locales.TheCurrentMessageWillBeReplaced(), locales.Generate(), false, func() {
 		if draft := a.drafts[d.ID]; draft != nil {
 			draft.Message, draft.Dirty = example, true
 		}
@@ -295,7 +296,7 @@ func (a *App) generateExample(d *Draft) {
 func (a *App) grpcControls(c *ui.Context, p colors, d *Draft) {
 	schema := a.grpcSchema(d)
 	running := a.running[d.ID]
-	label := "No Schema"
+	label := locales.NoSchema()
 	for _, service := range schema.services {
 		short := service.Name[strings.LastIndex(service.Name, ".")+1:]
 		for _, method := range service.Methods {
@@ -313,35 +314,35 @@ func (a *App) grpcControls(c *ui.Context, p colors, d *Draft) {
 				}
 			}
 		}
-	}).Label("gRPC method").Disabled(running || schema.services == nil).Height(34).MinWidth(80).Padding(0, 10).Radius(5).Background(ui.Transparent).Border(1, p.border).Font("monospace").FontSize(12)
+	}).Label(locales.GRPCMethod()).Disabled(running || schema.services == nil).Height(34).MinWidth(80).Padding(0, 10).Radius(5).Background(ui.Transparent).Border(1, p.border).Font("monospace").FontSize(12)
 	kind := a.grpcMethodType(d)
 	bordered := func(glyph, title string) ui.Element {
 		return iconButton(c, glyph, title).Size(34, 34).Radius(5).Border(1, p.border)
 	}
 	if kind == "client_streaming" || kind == "streaming" {
 		if running {
-			if bordered("close", "Cancel").Clicked() {
+			if bordered("close", locales.Cancel()).Clicked() {
 				a.Engine.Cancel(d.ID)
 			}
-			if bordered("check", "Commit").Clicked() {
+			if bordered("check", locales.Commit()).Clicked() {
 				a.finishGRPC(d)
 			}
-			if bordered("send", "Send").Clicked() {
+			if bordered("send", locales.Send()).Clicked() {
 				a.sendMessage(d)
 			}
 			return
 		}
-		if bordered("arrowUpDown", "Connect").Clicked() {
+		if bordered("arrowUpDown", locales.Connect()).Clicked() {
 			a.send()
 		}
 		return
 	}
-	glyph, title := "send", "Send"
+	glyph, title := "send", locales.Send()
 	switch {
 	case running:
-		glyph, title = "close", "Cancel"
+		glyph, title = "close", locales.Cancel()
 	case strings.Contains(kind, "streaming"):
-		glyph, title = "arrowUpDown", "Connect"
+		glyph, title = "arrowUpDown", locales.Connect()
 	}
 	if bordered(glyph, title).Disabled(!running && (kind == "no-schema" || kind == "no-method")).Clicked() {
 		a.send()
@@ -389,13 +390,13 @@ func (a *App) grpcSchemaDialog(c *ui.Context, p colors) {
 		var list []string
 		for i, s := range schema.services {
 			if i == 5 {
-				list = append(list, pluralizeCount("other", len(schema.services)-5))
+				list = append(list, locales.CountOthers(len(schema.services)-5))
 				break
 			}
 			list = append(list, s.Name)
 		}
 		if len(list) > 1 {
-			return strings.Join(list[:len(list)-1], ", ") + " and " + list[len(list)-1]
+			return locales.ListAndLast(strings.Join(list[:len(list)-1], locales.ListSeparator()), list[len(list)-1])
 		}
 		return strings.Join(list, "")
 	}
@@ -405,13 +406,13 @@ func (a *App) grpcSchemaDialog(c *ui.Context, p colors) {
 			if url == "" {
 				url = "n/a"
 			}
-			banner(p.orange, "Reflection failed on URL "+url+"\n"+strings.TrimSpace(schema.err))
+			banner(p.orange, locales.ReflectionFailedOnURLUrl(url)+"\n"+strings.TrimSpace(schema.err))
 		}
 		switch {
 		case len(files) > 0 && len(schema.services) > 0:
-			banner(p.border, "Found services "+names())
+			banner(p.border, locales.FoundServicesServices(names()))
 		case len(files) == 0 && len(schema.services) > 0:
-			banner(p.border, "Server reflection found services "+names()+". You can override this schema by manually selecting *.proto files.")
+			banner(p.border, locales.ServerReflectionFoundServicesServicesYou(names()))
 		}
 		var items []pathListItem
 		for _, path := range files {
@@ -424,22 +425,22 @@ func (a *App) grpcSchemaDialog(c *ui.Context, p colors) {
 		pathList(c, p, items, func(path string) {
 			a.setProtoFiles(d.ID, slices.DeleteFunc(slices.Clone(files), func(f string) bool { return f == path }))
 		}, []pathListAdd{
-			{"Proto files", func() { a.chooseProtoFiles(d.ID, false) }},
-			{"Import folder", func() { a.chooseProtoFiles(d.ID, true) }},
-		}, "Add proto files or an import folder", "", false, false, nil)
+			{locales.ProtoFiles(), func() { a.chooseProtoFiles(d.ID, false) }},
+			{locales.ImportFolder(), func() { a.chooseProtoFiles(d.ID, true) }},
+		}, locales.AddProtoFilesOrAnImport(), "", false, false, nil)
 		if schema.unimplemented() && len(files) == 0 {
-			banner(p.border, d.URL+" doesn't implement Server Reflection. Please manually add the .proto file to get started.")
+			banner(p.border, locales.UrlDoesntImplementServerReflectionPlease(d.URL))
 		}
 	})
 	dialogFooter(c, p, nil, func() {
-		label := "Refresh Schema"
+		label := locales.RefreshSchema()
 		if schema.loading {
-			label = "Refreshing…"
+			label = locales.RefreshingEllipsis()
 		}
 		if ui.Button(c, label).Disabled(schema.loading).Clicked() {
 			a.reloadSchema(d)
 		}
-		if ui.PrimaryButton(c, "Done").Clicked() {
+		if ui.PrimaryButton(c, locales.Done()).Clicked() {
 			a.dialogOpen = false
 		}
 	})
@@ -447,9 +448,9 @@ func (a *App) grpcSchemaDialog(c *ui.Context, p colors) {
 
 func (a *App) chooseProtoFiles(id string, directory bool) {
 	a.background(func() (func(), error) {
-		options := mygo.OpenDialogOptions{Parent: a.Window, Title: "Select Proto Files", Multiple: true, Filters: []mygo.FileFilter{{Name: "Proto Files", Extensions: []string{"proto"}}}}
+		options := mygo.OpenDialogOptions{Parent: a.Window, Title: locales.SelectProtoFiles(), Multiple: true, Filters: []mygo.FileFilter{{Name: locales.ProtoFilesTitle(), Extensions: []string{"proto"}}}}
 		if directory {
-			options = mygo.OpenDialogOptions{Parent: a.Window, Title: "Select Proto Directory", Directory: true}
+			options = mygo.OpenDialogOptions{Parent: a.Window, Title: locales.SelectProtoDirectory(), Directory: true}
 		}
 		paths, err := mygo.Dialog.Open(options)
 		if err != nil || len(paths) == 0 {
@@ -535,9 +536,9 @@ func (a *App) protocolResponse(c *ui.Context, p colors, d *Draft) {
 				label, color := websocketStatus(conn, p)
 				mono(label, color)
 				mono("•", p.subtle)
-				mono(pluralizeCount("Message", len(events)), p.muted)
+				mono(locales.CountMessages(len(events)), p.muted)
 			} else {
-				mono(pluralizeCount("Message", len(events)), p.muted)
+				mono(locales.CountMessages(len(events)), p.muted)
 				if s(conn, "state") != "closed" {
 					ui.Spinner(c).Size(12, 12).TextColor(p.subtle)
 				}
@@ -557,15 +558,15 @@ func (a *App) protocolResponse(c *ui.Context, p colors, d *Draft) {
 func websocketStatus(conn engine.Object, p colors) (string, ui.Color) {
 	switch {
 	case s(conn, "error") != "":
-		return "ERROR", p.red
+		return locales.ERROR(), p.red
 	case s(conn, "state") == "connected":
-		return "CONNECTED", p.green
+		return locales.CONNECTED(), p.green
 	case s(conn, "state") == "closing":
-		return "CLOSING", p.muted
+		return locales.CLOSING(), p.muted
 	case s(conn, "state") == "closed":
-		return "CLOSED", p.orange
+		return locales.CLOSED(), p.orange
 	}
-	return "CONNECTING", p.muted
+	return locales.CONNECTING(), p.muted
 }
 
 func (a *App) connectionHistoryButton(c *ui.Context, d *Draft, active engine.Object) {
@@ -574,27 +575,27 @@ func (a *App) connectionHistoryButton(c *ui.Context, d *Draft, active engine.Obj
 	if len(connections) > 0 && s(connections[0], "id") != s(active, "id") {
 		glyph = "pin"
 	}
-	iconButton(c, glyph, "Show connection history").Menu(func(m *ui.Menu) {
-		if m.Item("Clear Connection").Disabled(len(connections) == 0).Chosen() {
+	iconButton(c, glyph, locales.ShowConnectionHistory()).Menu(func(m *ui.Menu) {
+		if m.Item(locales.ClearConnection()).Disabled(len(connections) == 0).Chosen() {
 			a.deleteConnections(d, []engine.Object{active})
 		}
-		if len(connections) > 1 && m.Item("Clear "+pluralizeCount("Connection", len(connections))).Chosen() {
+		if len(connections) > 1 && m.Item(locales.ClearCountConnections(len(connections))).Chosen() {
 			a.deleteConnections(d, connections)
 		}
 		m.Separator()
-		m.Item("History").Disabled(true)
+		m.Item(locales.History()).Disabled(true)
 		now := time.Now()
 		last, recent, shownEmpty := "", false, false
 		for _, conn := range connections {
 			created, _ := time.Parse("2006-01-02T15:04:05.999999999", s(conn, "createdAt"))
 			group := historyGroup(created.Local(), now)
-			if group == "Just now" {
+			if group == locales.JustNow() {
 				recent = true
 			} else if !recent && !shownEmpty {
-				m.Item("No recent connections").Disabled(true)
+				m.Item(locales.NoRecentConnections()).Disabled(true)
 				shownEmpty = true
 			}
-			if group != "Just now" && group != last {
+			if group != locales.JustNow() && group != last {
 				m.Separator()
 				m.Item(group).Disabled(true)
 				last = group
@@ -609,7 +610,7 @@ func (a *App) connectionHistoryButton(c *ui.Context, d *Draft, active engine.Obj
 			}
 		}
 		if !recent && !shownEmpty {
-			m.Item("No recent connections").Disabled(true)
+			m.Item(locales.NoRecentConnections()).Disabled(true)
 		}
 	})
 }
@@ -657,15 +658,15 @@ func connectionEventDisplay(d *Draft, e engine.Object, p colors) (glyph string, 
 	case s(e, "messageType") == "error":
 		return "alert", p.orange, message, false
 	case s(e, "messageType") == "close":
-		return "info", p.muted, "Disconnected from server", false
+		return "info", p.muted, locales.DisconnectedFromServer(), false
 	case s(e, "messageType") == "open":
-		return "info", p.muted, "Connected to server", false
+		return "info", p.muted, locales.ConnectedToServer(), false
 	case message == "":
 		glyph, color = "arrowUp", p.accent
 		if b(e, "isServer") {
 			glyph, color = "arrowDown", p.blue
 		}
-		return glyph, color, "No content", true
+		return glyph, color, locales.NoContent(), true
 	}
 	if len([]rune(message)) > 1000 {
 		message = string([]rune(message)[:1000])
@@ -696,7 +697,7 @@ func websocketBytes(e engine.Object) []byte {
 
 func (a *App) eventViewer(c *ui.Context, p colors, d *Draft, conn engine.Object, events []engine.Object) {
 	if len(events) == 0 && s(conn, "error") == "" {
-		ui.Text(c, "No events recorded").Italic().FontSize(13).TextColor(p.subtle).Padding(12)
+		ui.Text(c, locales.NoEventsRecorded()).Italic().FontSize(13).TextColor(p.subtle).Padding(12)
 		return
 	}
 	if d.ConnEvent >= len(events) {
@@ -753,9 +754,9 @@ func (a *App) eventDetail(c *ui.Context, p colors, d *Draft, e engine.Object) {
 	if d.Kind == "grpc_request" {
 		switch s(e, "eventType") {
 		case "client_message", "server_message":
-			title, body, message = "Message Received", s(e, "content"), true
+			title, body, message = locales.MessageReceived(), s(e, "content"), true
 			if s(e, "eventType") == "client_message" {
-				title = "Message Sent"
+				title = locales.MessageSent()
 			}
 		default:
 			title = s(e, "content")
@@ -776,21 +777,21 @@ func (a *App) eventDetail(c *ui.Context, p colors, d *Draft, e engine.Object) {
 		}
 		switch s(e, "messageType") {
 		case "close":
-			title = "Connection Closed"
+			title = locales.ConnectionClosed()
 		case "open":
-			title = "Connection Open"
+			title = locales.ConnectionOpen()
 		case "error":
-			title = "WebSocket Error"
+			title = locales.WebSocketError()
 		default:
-			title = "Message Sent"
+			title = locales.MessageSent()
 			if b(e, "isServer") {
-				title = "Message Received"
+				title = locales.MessageReceived()
 			}
 		}
 		if len(data) > 0 {
-			label := "Show Hexdump"
+			label := locales.ShowHexdump()
 			if hexdump {
-				label = "Show Message"
+				label = locales.ShowMessage()
 			}
 			a.eventHeader(c, p, d, title, e, body, func() {
 				if ui.Button(c, label).FontSize(11).Padding(2, 8).Clicked() {
@@ -804,7 +805,7 @@ func (a *App) eventDetail(c *ui.Context, p colors, d *Draft, e engine.Object) {
 			a.eventHeader(c, p, d, title, e, "", nil)
 		}
 		if len(data) == 0 {
-			emptyState(c, p, "No Content")
+			emptyState(c, p, locales.NoContentTitle())
 			return
 		}
 		if !hexdump {
@@ -823,11 +824,11 @@ func (a *App) eventDetail(c *ui.Context, p colors, d *Draft, e engine.Object) {
 			ui.Text(c, s(e, "error")).Font("monospace").FontSize(12).TextColor(p.orange).Selectable()
 		}
 		if len(metadata) == 0 {
-			what := "metadata"
+			empty := locales.NoMetadata()
 			if s(e, "eventType") == "connection_end" {
-				what = "trailers"
+				empty = locales.NoTrailers()
 			}
-			emptyState(c, p, "No "+what)
+			emptyState(c, p, empty)
 			return
 		}
 		keyValueRows(c, p, metadata)
@@ -854,11 +855,11 @@ func (a *App) eventHeader(c *ui.Context, p colors, d *Draft, title string, e eng
 		if actions != nil {
 			actions()
 		}
-		if copyText != "" && smallIconButton(c, "copy", "Copy").Clicked() {
+		if copyText != "" && smallIconButton(c, "copy", locales.Copy()).Clicked() {
 			c.WriteClipboard(copyText)
 		}
 		ui.Text(c, eventTime(e)).Font("monospace").FontSize(12).TextColor(p.subtle)
-		if smallIconButton(c, "close", "Close event panel").Clicked() {
+		if smallIconButton(c, "close", locales.CloseEventPanel()).Clicked() {
 			d.ConnEvent = -1
 		}
 	})
@@ -867,8 +868,8 @@ func (a *App) eventHeader(c *ui.Context, p colors, d *Draft, title string, e eng
 func (a *App) eventBody(c *ui.Context, p colors, d *Draft, e engine.Object, body string) {
 	if len(body) > 1000*1000 && !d.ShowLarge {
 		ui.Column(c).Gap(8).Children(func() {
-			ui.Text(c, "Message previews larger than 1MB are hidden").Italic().FontSize(13).TextColor(p.subtle)
-			if ui.Button(c, "Try Showing").FontSize(11).Padding(2, 8).AlignSelf(ui.Start).Clicked() {
+			ui.Text(c, locales.MessagePreviewsLargerThan1MBAre()).Italic().FontSize(13).TextColor(p.subtle)
+			if ui.Button(c, locales.TryShowing()).FontSize(11).Padding(2, 8).AlignSelf(ui.Start).Clicked() {
 				d.ShowLarge = true
 			}
 		})

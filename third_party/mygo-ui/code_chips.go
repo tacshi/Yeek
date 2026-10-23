@@ -103,9 +103,6 @@ func (ed *editor) chipAt(x, y float32) int {
 	return -1
 }
 
-// overChip reports whether (x, y) is over a chip, which takes the default
-// cursor as Yaak's tags do, and repaints the chips as the pointer goes on
-// or off one.
 func (ed *editor) overChip(x, y float32) bool {
 	i := ed.chipAt(x, y)
 	if i != ed.hoverChip {

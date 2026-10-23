@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/dlclark/regexp2/v2"
+
+	"yeek/locales"
 )
 
 const (
@@ -26,7 +28,7 @@ func isLineTerminator(c rune) bool { return c == '\n' || c == '\r' || c == '\u20
 func evaluateJSONPath(text, q string) (string, error) {
 	root, err := parseJSON(text)
 	if err != nil {
-		return "", fmt.Errorf("Invalid JSON: %w", err) //nolint:staticcheck
+		return "", fmt.Errorf("%s: %w", locales.InvalidJSON(), err)
 	}
 	if keys, ok := literalKeys(q); ok {
 		v := fromDoc(root)
@@ -39,7 +41,7 @@ func evaluateJSONPath(text, q string) (string, error) {
 	}
 	values, err := newEngine(root).run(q, fromDoc(root))
 	if err != nil {
-		return "", fmt.Errorf("Invalid filter: %w", err) //nolint:staticcheck
+		return "", fmt.Errorf("%s: %w", locales.InvalidFilter(), err)
 	}
 	return stringifyResults(values), nil
 }

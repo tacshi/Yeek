@@ -14,6 +14,7 @@ import (
 
 	"yeek/internal/engine"
 	"yeek/internal/mcp"
+	"yeek/locales"
 )
 
 const (
@@ -87,7 +88,7 @@ func (m *MCPServer) sync(ctx context.Context) {
 			server, err = mcp.Serve(mcpHost{m}, appVersion(), cmp.Or(m.Addr, mcp.DefaultAddr), token)
 		}
 		if err != nil {
-			message := fmt.Sprintf("Failed to start the MCP server on port %s: %v", portOf(cmp.Or(m.Addr, mcp.DefaultAddr)), err)
+			message := locales.FailedToStartTheMCPServer(portOf(cmp.Or(m.Addr, mcp.DefaultAddr)), err.Error())
 			m.toastAll(func(a *App) { a.showToast("", message, "danger", 10*time.Second) })
 			return
 		}

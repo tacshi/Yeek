@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/formatter"
 	"github.com/vektah/gqlparser/v2/parser"
+
+	"yeek/locales"
 )
 
 const introspectionQuery = `query YeekIntrospection {
@@ -154,10 +155,10 @@ func (e *Engine) IntrospectGraphQL(ctx context.Context, original Object, options
 		return nil, err
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("introspection returned %s", res.Status)
+		return nil, errors.New(locales.IntrospectionReturnedStatus(res.Status))
 	}
 	if len(raw) > 16<<20 {
-		return nil, errors.New("GraphQL schema exceeds 16 MiB")
+		return nil, errors.New(locales.GraphQLSchemaExceeds16MiB())
 	}
 	if err = e.afterReceive(ctx, resolved.Model, res, raw); err != nil {
 		return nil, err
@@ -171,7 +172,7 @@ func (e *Engine) IntrospectGraphQL(ctx context.Context, original Object, options
 		if problems := objects(array(result, "errors")); len(problems) > 0 {
 			return nil, errors.New(str(problems[0], "message"))
 		}
-		return nil, errors.New("server did not return a GraphQL schema")
+		return nil, errors.New(locales.ServerDidNotReturnAGraphQL())
 	}
 	if _, err = LoadGraphQLSchema(raw); err != nil {
 		return nil, err
@@ -193,7 +194,7 @@ func (e *Engine) StoreGraphQLSchema(ctx context.Context, id, content, key, file 
 		return nil, err
 	}
 	if str(request, "model") != "http_request" {
-		return nil, errors.New("GraphQL schemas belong to HTTP requests")
+		return nil, errors.New(locales.GraphQLSchemasBelongToHTTPRequests())
 	}
 	existing, err := e.Store.Find(ctx, "graphql_introspection", "requestId", id)
 	if err != nil {

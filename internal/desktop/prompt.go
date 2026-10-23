@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type valuePrompt struct {
@@ -64,10 +65,10 @@ func (a *App) valuePromptDialog(c *ui.Context, p colors) {
 			}
 			submit := entry.Submitted()
 			ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					request.open = false
 				}
-				if ui.PrimaryButton(c, "Send").Clicked() || submit {
+				if ui.PrimaryButton(c, locales.Send()).Clicked() || submit {
 					a.finishValuePrompt(request, request.value, nil)
 				}
 			})

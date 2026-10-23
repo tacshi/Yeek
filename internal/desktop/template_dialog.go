@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type templateArgument struct {
@@ -161,7 +162,7 @@ func (f *templateForm) selectExpression(value engine.TemplateExpression) {
 }
 func (f *templateForm) expression() (engine.TemplateExpression, error) {
 	if f.name == "" {
-		return engine.TemplateExpression{}, errors.New("choose a variable or function")
+		return engine.TemplateExpression{}, errors.New(locales.ChooseAVariableOrFunction())
 	}
 	value := engine.TemplateExpression{Kind: f.kind, Value: f.name}
 	if f.kind == "function" {
@@ -197,7 +198,7 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 				}
 				ui.Text(c, label).Font("monospace").FontSize(14).Padding(1, 6).Radius(4).Background(p.border.Alpha(.3)).Border(1, p.border)
 				ui.Box(c).Grow(1)
-				if iconButton(c, "close", "Close dialog").Clicked() {
+				if iconButton(c, "close", locales.CloseDialog()).Clicked() {
 					f.open = false
 				}
 			})
@@ -213,8 +214,8 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 					f.args["value"] = arg
 				}
 				ui.Column(c).Gap(5).Children(func() {
-					ui.Text(c, "Value").FontSize(12).TextColor(p.muted)
-					field := ui.TextInput(c, &arg.text).Label("Value").Placeholder("••••••••••••").Password().AutoFocus().FillWidth()
+					ui.Text(c, locales.ValueTitle()).FontSize(12).TextColor(p.muted)
+					field := ui.TextInput(c, &arg.text).Label(locales.ValueTitle()).Placeholder("••••••••••••").Password().AutoFocus().FillWidth()
 					if field.Changed() {
 						f.revision++
 					}
@@ -235,10 +236,10 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 				a.renderTemplateValues(f)
 				a.templateBanner(c, p, f)
 				if hasAdvanced {
-					toggle := ui.ButtonBase(c).Label("Advanced").Gap(6).AlignSelf(ui.Start)
+					toggle := ui.ButtonBase(c).Label(locales.Advanced()).Gap(6).AlignSelf(ui.Start)
 					toggle.Children(func() {
 						disclosure(c, f.advanced, 11, p.subtle)
-						ui.Text(c, "Advanced").FontSize(13)
+						ui.Text(c, locales.Advanced()).FontSize(13)
 					})
 					if toggle.Clicked() {
 						f.advanced = !f.advanced
@@ -255,11 +256,11 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 		})
 		a.templatePreview(c, p, f)
 		dialogFooter(c, p, nil, func() {
-			if f.name == "secure" && ui.Button(c, "Reveal Encryption Key").Clicked() {
+			if f.name == "secure" && ui.Button(c, locales.RevealEncryptionKey()).Clicked() {
 				f.open = false
-				a.prompt("workspace_encryption", "Workspace Encryption", "", f.scope.workspace)
+				a.prompt("workspace_encryption", locales.WorkspaceEncryptionTitle(), "", f.scope.workspace)
 			}
-			if ui.PrimaryButton(c, "Save").Disabled(f.busy).Clicked() {
+			if ui.PrimaryButton(c, locales.Save()).Disabled(f.busy).Clicked() {
 				a.insertTemplate(f)
 			}
 		})
@@ -307,14 +308,14 @@ func (a *App) templatePreview(c *ui.Context, p colors, f *templateForm) {
 	}
 	ui.Column(c).Padding(12, 24, 12, 24).Gap(6).BorderWidth(1, 0, 0, 0).BorderColor(p.border).Children(func() {
 		ui.Row(c).Gap(6).Children(func() {
-			ui.Text(c, "Rendered Preview").FontSize(13).TextColor(p.muted)
+			ui.Text(c, locales.RenderedPreview()).FontSize(13).TextColor(p.muted)
 			if f.rendering {
 				ui.Spinner(c).Size(10, 10).TextColor(p.subtle)
 			}
 			ui.Box(c).Grow(1)
-			label, glyph := "Hide preview", "lockOpen"
+			label, glyph := locales.HidePreview(), "lockOpen"
 			if f.secrets {
-				label, glyph = "Show preview", "lock"
+				label, glyph = locales.ShowPreview(), "lock"
 			}
 			lock := smallIconButton(c, glyph, label).TextColor(p.subtle)
 			if !secret {
@@ -331,16 +332,16 @@ func (a *App) templatePreview(c *ui.Context, p colors, f *templateForm) {
 				case f.error != "":
 					content, italic, color = strings.TrimPrefix(f.error, "Render Error: "), true, p.red
 				case secret && !f.secrets:
-					content, italic, color = "------ sensitive values hidden ------", true, p.muted
+					content, italic, color = locales.SensitiveValuesHidden(), true, p.muted
 				case len(f.previewText) > 10000:
-					content, italic, color = "too large to preview", true, p.red
+					content, italic, color = locales.TooLargeToPreview(), true, p.red
 				}
 				text := ui.Text(c, content+" ").Font("monospace").FontSize(12).TextColor(color).Selectable()
 				if italic {
 					text.Italic()
 				}
 			})
-			if smallIconButton(c, "refresh", "Refresh preview").TextColor(p.muted).AlignSelf(ui.Center).Clicked() {
+			if smallIconButton(c, "refresh", locales.RefreshPreview()).TextColor(p.muted).AlignSelf(ui.Center).Clicked() {
 				f.refresh = true
 				f.previewRevision = ^uint64(0)
 				f.changedAt = time.Unix(0, 0)
@@ -371,7 +372,7 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 		ui.Row(c).Gap(8).Children(func() {
 			label := templateFieldLabel(field)
 			if f.name == "secure" && f.secureExisting != "" {
-				label = "Encrypted value (replace to change)"
+				label = locales.EncryptedValueReplaceToChange()
 			}
 			ui.Text(c, label).FontSize(12).TextColor(p.muted).Grow(1)
 		})
@@ -406,7 +407,7 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 				if arg.text != "" && !slices.Contains(ids, arg.text) {
 					ids = append(ids, arg.text)
 				}
-				label := "Choose request"
+				label := locales.ChooseRequest()
 				if arg.text != "" {
 					label = arg.text
 				}
@@ -415,7 +416,7 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 				}
 				ui.MenuButton(c, label, func(menu *ui.Menu) {
 					for _, id := range ids {
-						name := "Choose request"
+						name := locales.ChooseRequest()
 						if id != "" {
 							name = id
 						}
@@ -430,9 +431,9 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 			case "file":
 				ui.Row(c).Gap(8).Children(func() {
 					changed = ui.TextInput(c, &arg.text).Label(templateFieldLabel(field)).Grow(1).MinWidth(0).Changed()
-					if ui.Button(c, "Browse…").Clicked() {
+					if ui.Button(c, locales.BrowseEllipsis()).Clicked() {
 						a.background(func() (func(), error) {
-							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Template File"})
+							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.TemplateFile()})
 							return func() {
 								if f.open && len(paths) > 0 {
 									arg.text = paths[0]
@@ -543,7 +544,7 @@ func (a *App) insertTemplate(f *templateForm) {
 }
 func (f *templateForm) insert(tag string) {
 	if f.doc.completionSource != f.source {
-		f.error = "The field changed. Close this dialog and select the template again."
+		f.error = locales.TheFieldChangedCloseThisDialog()
 		return
 	}
 	f.doc.state.Replace(f.start, f.end, tag)

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 )
 
 type pathListItem struct {
@@ -46,7 +47,7 @@ func pathList(c *ui.Context, p colors, items []pathListItem, onRemove func(strin
 						}
 					})
 				})
-				if smallIconButton(c, "trash", "Remove "+name).TextColor(p.muted).Disabled(disabled).Shrink(0).Clicked() {
+				if smallIconButton(c, "trash", locales.RemoveName(name)).TextColor(p.muted).Disabled(disabled).Shrink(0).Clicked() {
 					onRemove(item.path)
 				}
 			})
@@ -65,7 +66,7 @@ func pathList(c *ui.Context, p colors, items []pathListItem, onRemove func(strin
 		row.Children(func() {
 			icon(c, "plus").FontSize(13).TextColor(p.subtle)
 			if hovering {
-				ui.Text(c, "Drop to add").FontSize(13).TextColor(p.muted)
+				ui.Text(c, locales.DropToAdd()).FontSize(13).TextColor(p.muted)
 				return
 			}
 			ui.Text(c, addLabel).FontSize(13).TextColor(p.muted)

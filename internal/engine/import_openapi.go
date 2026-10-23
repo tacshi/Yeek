@@ -7,7 +7,10 @@ import (
 	"maps"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+
+	"yeek/locales"
 )
 
 type openAPIImport struct {
@@ -35,7 +38,7 @@ func parseOpenAPIAt(root Object, origin string) ([]Object, error) {
 	version := importText(root["openapi"])
 	swagger := importText(root["swagger"])
 	if !strings.HasPrefix(version, "3.") && version != "3" && swagger != "2" && swagger != "2.0" {
-		return nil, errors.New("choose an OpenAPI 3.x or Swagger 2.0 document")
+		return nil, errors.New(locales.ChooseAnOpenAPI3XOr())
 	}
 	state := &openAPIImport{root: root, workspace: "import_workspace", variables: map[string]string{}, authVariables: map[string]string{}, serverOverrides: map[string]string{}, origin: origin}
 	state.servers = objects(array(root, "servers"))
@@ -98,7 +101,7 @@ func parseOpenAPIAt(root Object, origin string) ([]Object, error) {
 			key := cmp.Or(str(op, "operationId"), method+" "+path)
 			id := stableImportID("http_request", key)
 			if usedIDs[id] {
-				return nil, fmt.Errorf("OpenAPI has duplicate operation ID %q", key)
+				return nil, errors.New(locales.OpenAPIHasDuplicateOperationIDKey(strconv.Quote(key)))
 			}
 			usedIDs[id] = true
 			name := cmp.Or(str(op, "summary"), str(op, "operationId"), openAPIFirstLine(str(op, "description")), method+" "+path)
@@ -140,7 +143,7 @@ func parseOpenAPIAt(root Object, origin string) ([]Object, error) {
 		}
 	}
 	if len(requests) == 0 {
-		return nil, errors.New("OpenAPI document contains no HTTP operations")
+		return nil, errors.New(locales.OpenAPIDocumentContainsNoHTTPOperations())
 	}
 	counts := map[string]int{}
 	for _, request := range requests {

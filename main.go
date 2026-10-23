@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo"
 	"yeek/internal/desktop"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func main() {
@@ -166,19 +167,23 @@ func run() (runErr error) {
 				}
 			}
 		}
-		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-			{Role: mygo.RoleAppMenu},
-			{Label: "File", Submenu: []*mygo.MenuItem{
-				{Label: "New Request", Accelerator: "CmdOrCtrl+N", Click: action(func(a *desktop.App) { a.NewRequest() })},
-				{Label: "New Window", Accelerator: "CmdOrCtrl+Shift+N", Click: func(*mygo.MenuItem, *mygo.Window) { open() }},
-				mygo.Separator(),
-				{Label: "Import Collection…", Accelerator: "CmdOrCtrl+O", Click: action(func(a *desktop.App) { a.Import() })},
-				{Label: "Export Workspace…", Accelerator: "CmdOrCtrl+Shift+E", Click: action(func(a *desktop.App) { a.Export() })},
-				{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: action(func(a *desktop.App) { a.Settings() })},
-				mygo.Separator(), {Role: mygo.RoleClose},
-			}},
-			{Role: mygo.RoleEditMenu}, {Role: mygo.RoleViewMenu}, {Role: mygo.RoleWindowMenu},
-		}))
+		menu := func() *mygo.Menu {
+			return mygo.NewMenu([]*mygo.MenuItem{
+				{Role: mygo.RoleAppMenu},
+				{Label: locales.File(), Submenu: []*mygo.MenuItem{
+					{Label: locales.NewRequest(), Accelerator: "CmdOrCtrl+N", Click: action(func(a *desktop.App) { a.NewRequest() })},
+					{Label: locales.NewWindow(), Accelerator: "CmdOrCtrl+Shift+N", Click: func(*mygo.MenuItem, *mygo.Window) { open() }},
+					mygo.Separator(),
+					{Label: locales.ImportCollectionEllipsis(), Accelerator: "CmdOrCtrl+O", Click: action(func(a *desktop.App) { a.Import() })},
+					{Label: locales.ExportWorkspaceEllipsis(), Accelerator: "CmdOrCtrl+Shift+E", Click: action(func(a *desktop.App) { a.Export() })},
+					{Label: locales.SettingsEllipsis(), Accelerator: "CmdOrCtrl+,", Click: action(func(a *desktop.App) { a.Settings() })},
+					mygo.Separator(), {Role: mygo.RoleClose},
+				}},
+				{Role: mygo.RoleEditMenu}, {Role: mygo.RoleViewMenu}, {Role: mygo.RoleWindowMenu},
+			})
+		}
+		mygo.App.SetMenu(menu())
+		mygo.App.OnLocaleChanged(func(string) { mygo.App.SetMenu(menu()) })
 		a := open()
 		if a != nil {
 			for _, path := range pending {

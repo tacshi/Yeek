@@ -3,6 +3,7 @@ package desktop
 import (
 	"cmp"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type networkEditState struct {
@@ -74,7 +76,7 @@ func certificateModel(d *certificateDraft) (engine.Object, error) {
 	if d.port != "" {
 		value, err := strconv.Atoi(d.port)
 		if err != nil || value < 1 || value > 65535 {
-			return nil, fmt.Errorf("port must be between 1 and 65535")
+			return nil, errors.New(locales.PortMustBeBetween1And())
 		}
 		port = value
 	}
@@ -101,8 +103,8 @@ func (a *App) certificateSettings(c *ui.Context, p colors) {
 	}
 	changed := false
 	ui.Row(c).Gap(12).Children(func() {
-		ui.Text(c, "Client Certificates").FontSize(18).FontWeight(600).Grow(1)
-		if ui.Button(c, "Add Certificate").Clicked() {
+		ui.Text(c, locales.ClientCertificates()).FontSize(18).FontWeight(600).Grow(1)
+		if ui.Button(c, locales.AddCertificate()).Clicked() {
 			state.rows = append(state.rows, &certificateDraft{id: uuid.NewV4().String(), kind: "PEM", enabled: true, open: true})
 			changed = true
 		}
@@ -117,17 +119,17 @@ func (a *App) certificateSettings(c *ui.Context, p colors) {
 				}
 			}()
 			ui.Row(c).Gap(8).Children(func() {
-				if ui.Checkbox(c, &d.enabled, "").Label(fmt.Sprintf("Enable certificate %d", i+1)).Changed() {
+				if ui.Checkbox(c, &d.enabled, "").Label(locales.EnableCertificateIndex(i + 1)).Changed() {
 					changed = true
 				}
-				label := cmp.Or(d.host, "Configure Certificate")
+				label := cmp.Or(d.host, locales.ConfigureCertificate())
 				if d.port != "" {
 					label += ":" + d.port
 				}
 				if ui.ButtonBase(c).Grow(1).Children(func() { ui.Text(c, label).Font("monospace").FontSize(12) }).Clicked() {
 					toggleOpen = true
 				}
-				if smallIconButton(c, "close", fmt.Sprintf("Remove certificate %d", i+1)).Clicked() {
+				if smallIconButton(c, "close", locales.RemoveCertificateIndex(i+1)).Clicked() {
 					remove = i
 				}
 			})
@@ -136,21 +138,21 @@ func (a *App) certificateSettings(c *ui.Context, p colors) {
 			}
 			ui.Row(c).Gap(10).Children(func() {
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
-					ui.Text(c, "Host").FontSize(11).TextColor(p.muted)
-					if ui.TextInput(c, &d.host).Label(fmt.Sprintf("Certificate host %d", i+1)).Placeholder("api.example.com").FillWidth().Changed() {
+					ui.Text(c, locales.Host()).FontSize(11).TextColor(p.muted)
+					if ui.TextInput(c, &d.host).Label(locales.CertificateHostIndex(i + 1)).Placeholder("api.example.com").FillWidth().Changed() {
 						changed = true
 						d.info = ""
 					}
 				})
 				ui.Column(c).Width(115).Gap(4).Children(func() {
-					ui.Text(c, "Port").FontSize(11).TextColor(p.muted)
-					if ui.TextInput(c, &d.port).Label(fmt.Sprintf("Certificate port %d", i+1)).Placeholder("All ports").FillWidth().Changed() {
+					ui.Text(c, locales.Port()).FontSize(11).TextColor(p.muted)
+					if ui.TextInput(c, &d.port).Label(locales.CertificatePortIndex(i + 1)).Placeholder(locales.AllPorts()).FillWidth().Changed() {
 						changed = true
 						d.info = ""
 					}
 				})
 			})
-			if ui.Select(c, &d.kind, []string{"PEM", "PFX / PKCS#12"}).Label(fmt.Sprintf("Certificate format %d", i+1)).Changed() {
+			if ui.Select(c, &d.kind, []string{"PEM", "PFX / PKCS#12"}).Label(locales.CertificateFormatIndex(i + 1)).Changed() {
 				if d.kind == "PEM" {
 					d.pfx = ""
 				} else {
@@ -161,22 +163,22 @@ func (a *App) certificateSettings(c *ui.Context, p colors) {
 			}
 			fileChanged := func() { d.info = ""; a.persistCertificates() }
 			if d.kind == "PEM" {
-				if a.networkFile(c, p, &d.crt, fmt.Sprintf("Certificate file %d", i+1), "Certificate", []string{"pem", "crt", "cer"}, fileChanged) {
+				if a.networkFile(c, p, &d.crt, locales.CertificateFileIndex(i+1), locales.Certificate(), []string{"pem", "crt", "cer"}, fileChanged) {
 					changed = true
 					d.info = ""
 				}
-				if a.networkFile(c, p, &d.key, fmt.Sprintf("Private key file %d", i+1), "Private key", []string{"pem", "key"}, fileChanged) {
+				if a.networkFile(c, p, &d.key, locales.PrivateKeyFileIndex(i+1), locales.PrivateKey(), []string{"pem", "key"}, fileChanged) {
 					changed = true
 					d.info = ""
 				}
 			} else {
-				if a.networkFile(c, p, &d.pfx, fmt.Sprintf("PFX file %d", i+1), "PFX / PKCS#12", []string{"pfx", "p12"}, fileChanged) {
+				if a.networkFile(c, p, &d.pfx, locales.PFXFileIndex(i+1), "PFX / PKCS#12", []string{"pfx", "p12"}, fileChanged) {
 					changed = true
 					d.info = ""
 				}
 			}
-			ui.Text(c, "Passphrase").FontSize(11).TextColor(p.muted)
-			if ui.TextInput(c, &d.password).Password().Label(fmt.Sprintf("Certificate passphrase %d", i+1)).FillWidth().Changed() {
+			ui.Text(c, locales.Passphrase()).FontSize(11).TextColor(p.muted)
+			if ui.TextInput(c, &d.password).Password().Label(locales.CertificatePassphraseIndex(i + 1)).FillWidth().Changed() {
 				changed = true
 				d.info = ""
 			}
@@ -193,7 +195,7 @@ func (a *App) certificateSettings(c *ui.Context, p colors) {
 			if d.info != "" {
 				ui.Text(c, d.info).FontSize(11).TextColor(p.muted).Selectable()
 			}
-			if ui.Button(c, "Check Certificate").Label(fmt.Sprintf("Check certificate %d", i+1)).Disabled(d.busy || err != nil || d.host == "").FontSize(11).Clicked() {
+			if ui.Button(c, locales.CheckCertificate()).Label(locales.CheckCertificateIndex(i + 1)).Disabled(d.busy || err != nil || d.host == "").FontSize(11).Clicked() {
 				a.checkCertificate(d)
 			}
 		})
@@ -253,7 +255,7 @@ func (a *App) checkCertificate(d *certificateDraft) {
 				return
 			}
 			if pair.Leaf != nil {
-				d.info = fmt.Sprintf("Subject: %s\nIssuer: %s\nExpires: %s", pair.Leaf.Subject.String(), pair.Leaf.Issuer.String(), pair.Leaf.NotAfter.Local().Format(time.RFC3339))
+				d.info = locales.SubjectSubjectIssuerIssuerExpiresExpires(pair.Leaf.Subject.String(), pair.Leaf.Issuer.String(), pair.Leaf.NotAfter.Local().Format(time.RFC3339))
 			}
 		}, nil
 	})
@@ -265,7 +267,7 @@ func (a *App) networkFile(c *ui.Context, p colors, value *string, label, title s
 		ui.Text(c, title).FontSize(11).TextColor(p.muted)
 		ui.Row(c).Gap(7).Children(func() {
 			changed = ui.TextInput(c, value).Label(label).Grow(1).MinWidth(0).FontSize(12).Changed()
-			if ui.Button(c, "Browse…").Label("Browse " + label).FontSize(11).Clicked() {
+			if ui.Button(c, locales.BrowseEllipsis()).Label(locales.BrowseField(label)).FontSize(11).Clicked() {
 				a.background(func() (func(), error) {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: title, Filters: []mygo.FileFilter{{Name: title, Extensions: extensions}}})
 					return func() {
@@ -276,7 +278,7 @@ func (a *App) networkFile(c *ui.Context, p colors, value *string, label, title s
 					}, err
 				})
 			}
-			if *value != "" && smallIconButton(c, "close", "Clear "+label).Clicked() {
+			if *value != "" && smallIconButton(c, "close", locales.ClearField(label)).Clicked() {
 				*value = ""
 				changed = true
 			}
@@ -298,50 +300,52 @@ func (a *App) proxySettingsView(c *ui.Context, p colors) {
 	d := a.proxyEditor
 	if d.sync.refresh(a.settings["proxy"]) {
 		proxy := o(a.settings, "proxy")
-		d.mode = "Automatic"
+		d.mode = "automatic"
 		if s(proxy, "type") == "disabled" {
-			d.mode = "No proxy"
+			d.mode = "disabled"
 		}
 		if s(proxy, "type") == "enabled" {
-			d.mode = "Custom"
+			d.mode = "enabled"
 		}
 		d.http, d.https, d.bypass = s(proxy, "http"), s(proxy, "https"), s(proxy, "bypass")
 		d.enabled = !b(proxy, "disabled")
 		d.auth = proxy["auth"] != nil
 		d.user, d.password = s(o(proxy, "auth"), "user"), s(o(proxy, "auth"), "password")
 	}
-	ui.Text(c, "Proxy").FontSize(18).FontWeight(600)
-	nextMode, nextAuth := d.mode, d.auth
-	changed := ui.Select(c, &nextMode, []string{"Automatic", "No proxy", "Custom"}).Label("Proxy mode").Changed()
-	if d.mode == "Automatic" {
-		ui.Text(c, "Uses HTTP_PROXY, HTTPS_PROXY, and NO_PROXY from the environment.").FontSize(12).TextColor(p.muted)
+	ui.Text(c, locales.Proxy()).FontSize(18).FontWeight(600)
+	modes, labels := []string{"automatic", "disabled", "enabled"}, []string{locales.Automatic(), locales.NoProxy(), locales.Custom()}
+	label := labels[max(0, slices.Index(modes, d.mode))]
+	changed := ui.Select(c, &label, labels).Label(locales.ProxyMode()).Changed()
+	nextMode, nextAuth := modes[max(0, slices.Index(labels, label))], d.auth
+	if d.mode == "automatic" {
+		ui.Text(c, locales.UsesHTTPPROXYHTTPSPROXYAnd()).FontSize(12).TextColor(p.muted)
 	}
-	if d.mode == "Custom" {
-		if ui.Checkbox(c, &d.enabled, "Enable proxy").Changed() {
+	if d.mode == "enabled" {
+		if ui.Checkbox(c, &d.enabled, locales.EnableProxy()).Changed() {
 			changed = true
 		}
 		for _, field := range []struct {
 			label       string
 			value       *string
 			placeholder string
-		}{{"HTTP proxy", &d.http, "localhost:9090"}, {"HTTPS proxy", &d.https, "localhost:9090"}, {"Proxy bypass", &d.bypass, "localhost, *.example.com, 10.0.0.0/8"}} {
+		}{{locales.HTTPProxy(), &d.http, "localhost:9090"}, {locales.HTTPSProxy(), &d.https, "localhost:9090"}, {locales.ProxyBypass(), &d.bypass, "localhost, *.example.com, 10.0.0.0/8"}} {
 			ui.Column(c).Gap(4).Children(func() {
 				ui.Text(c, field.label).FontSize(12).TextColor(p.muted)
-				if ui.TextInput(c, field.value).Label(field.label + " value").Placeholder(field.placeholder).FillWidth().Changed() {
+				if ui.TextInput(c, field.value).Label(locales.FieldValue(field.label)).Placeholder(field.placeholder).FillWidth().Changed() {
 					changed = true
 				}
 			})
 		}
-		if ui.Checkbox(c, &nextAuth, "Proxy authentication").Changed() {
+		if ui.Checkbox(c, &nextAuth, locales.ProxyAuthentication()).Changed() {
 			changed = true
 		}
 		if d.auth {
-			ui.Text(c, "Username").FontSize(12).TextColor(p.muted)
-			if ui.TextInput(c, &d.user).Label("Proxy username").FillWidth().Changed() {
+			ui.Text(c, locales.Username()).FontSize(12).TextColor(p.muted)
+			if ui.TextInput(c, &d.user).Label(locales.ProxyUsername()).FillWidth().Changed() {
 				changed = true
 			}
-			ui.Text(c, "Password").FontSize(12).TextColor(p.muted)
-			if ui.TextInput(c, &d.password).Password().Label("Proxy password").FillWidth().Changed() {
+			ui.Text(c, locales.Password()).FontSize(12).TextColor(p.muted)
+			if ui.TextInput(c, &d.password).Password().Label(locales.ProxyPassword()).FillWidth().Changed() {
 				changed = true
 			}
 		}
@@ -365,10 +369,10 @@ func (a *App) persistProxy() {
 	}
 	d := a.proxyEditor
 	var value any
-	if d.mode == "No proxy" {
+	if d.mode == "disabled" {
 		value = engine.Object{"type": "disabled"}
 	}
-	if d.mode == "Custom" {
+	if d.mode == "enabled" {
 		var auth any
 		if d.auth {
 			auth = engine.Object{"user": d.user, "password": d.password}
@@ -423,19 +427,19 @@ func (a *App) dnsSettings(c *ui.Context, p colors, workspace engine.Object) {
 			d.rows = append(d.rows, &dnsDraft{id: uuid.NewV4().String(), host: s(entry, "hostname"), ipv4: addressText(networkArray(entry, "ipv4")), ipv6: addressText(networkArray(entry, "ipv6")), enabled: entry["enabled"] != false})
 		}
 	}
-	ui.Text(c, "DNS Overrides").FontSize(18).FontWeight(600)
+	ui.Text(c, locales.DNSOverrides()).FontSize(18).FontWeight(600)
 	changed := false
 	remove := -1
 	for i, row := range d.rows {
 		ui.Column(c).Key(row.id).Gap(7).Padding(10).Border(1, p.border).Radius(4).Children(func() {
 			ui.Row(c).Gap(7).Children(func() {
-				if ui.Checkbox(c, &row.enabled, "").Label(fmt.Sprintf("Enable DNS override %d", i+1)).Changed() {
+				if ui.Checkbox(c, &row.enabled, "").Label(locales.EnableDNSOverrideIndex(i + 1)).Changed() {
 					changed = true
 				}
-				if ui.TextInput(c, &row.host).Label(fmt.Sprintf("DNS hostname %d", i+1)).Placeholder("api.example.com").Grow(1).Changed() {
+				if ui.TextInput(c, &row.host).Label(locales.DNSHostnameIndex(i + 1)).Placeholder("api.example.com").Grow(1).Changed() {
 					changed = true
 				}
-				if smallIconButton(c, "close", fmt.Sprintf("Remove DNS override %d", i+1)).Clicked() {
+				if smallIconButton(c, "close", locales.RemoveDNSOverrideIndex(i+1)).Clicked() {
 					remove = i
 				}
 			})
@@ -443,9 +447,9 @@ func (a *App) dnsSettings(c *ui.Context, p colors, workspace engine.Object) {
 				label       string
 				value       *string
 				placeholder string
-			}{{"IPv4 addresses", &row.ipv4, "127.0.0.1"}, {"IPv6 addresses", &row.ipv6, "::1"}} {
+			}{{locales.IPv4Addresses(), &row.ipv4, "127.0.0.1"}, {locales.IPv6Addresses(), &row.ipv6, "::1"}} {
 				ui.Text(c, field.label).TextColor(p.muted).FontSize(11)
-				if ui.TextInput(c, field.value).Label(fmt.Sprintf("%s %d", field.label, i+1)).Placeholder(field.placeholder).FillWidth().Changed() {
+				if ui.TextInput(c, field.value).Label(locales.FieldIndex(field.label, i+1)).Placeholder(field.placeholder).FillWidth().Changed() {
 					changed = true
 				}
 			}
@@ -461,7 +465,7 @@ func (a *App) dnsSettings(c *ui.Context, p colors, workspace engine.Object) {
 		d.rows = slices.Delete(d.rows, remove, remove+1)
 		changed = true
 	}
-	if ui.Button(c, "Add DNS Override").Clicked() {
+	if ui.Button(c, locales.AddDNSOverride()).Clicked() {
 		d.rows = append(d.rows, &dnsDraft{id: uuid.NewV4().String(), enabled: true})
 		changed = true
 	}
@@ -489,13 +493,13 @@ func (a *App) caSettings(c *ui.Context, p colors, workspace engine.Object) {
 	if d.caSync.refresh(workspace["caFile"]) {
 		d.ca = s(workspace, "caFile")
 	}
-	ui.Text(c, "Additional CA Certificates").FontSize(18).FontWeight(600)
-	ui.Text(c, "Trust a PEM bundle or DER certificate alongside the system certificate authorities.").FontSize(12).TextColor(p.muted)
-	if a.networkFile(c, p, &d.ca, "CA file path", "CA file", []string{"pem", "crt", "cer"}, func() { a.persistCA(id) }) {
+	ui.Text(c, locales.AdditionalCACertificates()).FontSize(18).FontWeight(600)
+	ui.Text(c, locales.TrustAPEMBundleOrDER()).FontSize(12).TextColor(p.muted)
+	if a.networkFile(c, p, &d.ca, locales.CAFilePath(), locales.CAFile(), []string{"pem", "crt", "cer"}, func() { a.persistCA(id) }) {
 		a.persistCA(id)
 		d.error = ""
 	}
-	if ui.Button(c, "Check CA File").Disabled(d.ca == "" || d.checking).AlignSelf(ui.Start).Clicked() {
+	if ui.Button(c, locales.CheckCAFile()).Disabled(d.ca == "" || d.checking).AlignSelf(ui.Start).Clicked() {
 		path := d.ca
 		d.checking = true
 		a.background(func() (func(), error) {

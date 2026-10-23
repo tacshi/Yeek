@@ -43,7 +43,7 @@ func TestTemplateExpressionRoundTrip(t *testing.T) {
 	}
 }
 
-func TestTemplatePreviewRendersLikeYaak(t *testing.T) {
+func TestTemplatePreviewRenders(t *testing.T) {
 	e := testEngine(t)
 	w := saveTest(t, e, Object{"model": "workspace"})
 	wid := str(w, "id")
@@ -89,7 +89,7 @@ func TestTemplatePreviewRendersLikeYaak(t *testing.T) {
 	}
 }
 
-func TestResponseExpiredMatchesYaak(t *testing.T) {
+func TestResponseExpired(t *testing.T) {
 	old := Object{"createdAt": time.Now().UTC().Add(-time.Minute).Format("2006-01-02T15:04:05.000000000")}
 	for _, c := range []struct {
 		response Object

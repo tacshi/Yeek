@@ -2,7 +2,7 @@ package engine
 
 import "testing"
 
-func TestRemapTemplateTextMatchesYaak(t *testing.T) {
+func TestRemapTemplateText(t *testing.T) {
 	ids := map[string]string{"req_old": "rq_new"}
 	for _, c := range []struct{ text, want string }{
 		{"${[ response.header(request='req_old', header='req_old') ]}", "${[ response.header(request='rq_new', header='req_old') ]}"},

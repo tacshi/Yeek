@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type exportDialog struct {
@@ -23,7 +24,7 @@ func (a *App) exportFile() {
 	}
 	a.saveActive()
 	a.exports = &exportDialog{selected: map[string]bool{a.workspace: true}}
-	a.prompt("exports", "Export Data", "", "")
+	a.prompt("exports", locales.ExportData(), "", "")
 }
 
 func exportOptions(state *exportDialog, workspaces []engine.Object) engine.ExportOptions {
@@ -73,13 +74,13 @@ func (a *App) saveExport() {
 	workspaces := a.list("workspace")
 	options := exportOptions(state, workspaces)
 	if len(options.WorkspaceIDs) == 0 {
-		state.error = "Select a workspace to export."
+		state.error = locales.SelectAWorkspaceToExport()
 		return
 	}
 	state.busy, state.error = true, ""
 	filename := exportFilename(workspaces, options)
 	a.background(func() (func(), error) {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.Window, Title: "Export Data", DefaultPath: filename, Filters: []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}}})
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.Window, Title: locales.ExportData(), DefaultPath: filename, Filters: []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}}})
 		if err == nil && path != "" {
 			err = a.Engine.ExportToFile(a.ctx, path, options)
 		}
@@ -91,7 +92,7 @@ func (a *App) saveExport() {
 			}
 			if path != "" {
 				a.dialogOpen = false
-				a.showToast("", "Data export successful", "success", 5*time.Second)
+				a.showToast("", locales.DataExportSuccessful(), "success", 5*time.Second)
 			}
 		}, nil
 	})
@@ -131,11 +132,11 @@ func (a *App) exportDialog(c *ui.Context, p colors) {
 		ui.Column(c).FillWidth().Children(func() {
 			ui.Row(c).FillWidth().Padding(8, 0, 8, 4).Gap(16).BorderWidth(0, 0, 1, 0).BorderColor(p.border.Alpha(.6)).Children(func() {
 				checked := all
-				if checkbox(c, p, &checked, selected > 0 && !all, "All workspaces").Changed() {
+				if checkbox(c, p, &checked, selected > 0 && !all, locales.AllWorkspaces()).Changed() {
 					toggleAll()
 				}
-				header := ui.ButtonBase(c).Label("Workspace").Grow(1).Justify(ui.Start)
-				header.Children(func() { ui.Text(c, "Workspace").FontSize(13).FontWeight(600) })
+				header := ui.ButtonBase(c).Label(locales.Workspace()).Grow(1).Justify(ui.Start)
+				header.Children(func() { ui.Text(c, locales.Workspace()).FontSize(13).FontWeight(600) })
 				if header.Clicked() {
 					toggleAll()
 				}
@@ -153,9 +154,9 @@ func (a *App) exportDialog(c *ui.Context, p colors) {
 					}
 					name := s(w, "name")
 					if id == a.workspace {
-						name += " (current workspace)"
+						name = locales.NameCurrentWorkspace(name)
 					}
-					cell := ui.ButtonBase(c).Label("Export " + s(w, "name")).Grow(1).MinWidth(0).Justify(ui.Start)
+					cell := ui.ButtonBase(c).Label(locales.ExportName(s(w, "name"))).Grow(1).MinWidth(0).Justify(ui.Start)
 					cell.Children(func() { ui.Text(c, name).FontSize(13).SingleLine() })
 					if cell.Clicked() {
 						state.selected[id] = !state.selected[id]
@@ -163,12 +164,12 @@ func (a *App) exportDialog(c *ui.Context, p colors) {
 				})
 			}
 		})
-		a.detailsBanner(c, p, "Extra Settings", true, func() {
-			ui.Text(c, "Extra Settings").FontSize(13)
+		a.detailsBanner(c, p, locales.ExtraSettings(), true, func() {
+			ui.Text(c, locales.ExtraSettings()).FontSize(13)
 		}, func() {
 			ui.Row(c).Gap(6).Children(func() {
-				ui.Checkbox(c, &state.includePrivate, "Include private environments").FontSize(13)
-				icon(c, "info").FontSize(12).TextColor(p.subtle).Tooltip(`Environments marked as "sharable" will be exported by default`)
+				ui.Checkbox(c, &state.includePrivate, locales.IncludePrivateEnvironments()).FontSize(13)
+				icon(c, "info").FontSize(12).TextColor(p.subtle).Tooltip(locales.EnvironmentsMarkedAsSharableWillBe())
 			})
 		})
 		if state.error != "" {
@@ -176,16 +177,10 @@ func (a *App) exportDialog(c *ui.Context, p colors) {
 		}
 	})
 	dialogFooter(c, p, nil, func() {
-		if ui.Button(c, "Cancel").Clicked() {
+		if ui.Button(c, locales.Cancel()).Clicked() {
 			a.dialogOpen = false
 		}
-		label := "Export " + pluralizeCount("Workspace", selected)
-		switch selected {
-		case 0:
-			label = "Export Nothing"
-		case 1:
-			label = "Export Workspace"
-		}
+		label := locales.ExportCountWorkspaces(selected)
 		if ui.PrimaryButton(c, label).Disabled(selected == 0 || state.busy).Clicked() {
 			a.saveExport()
 		}

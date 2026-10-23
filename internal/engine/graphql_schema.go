@@ -16,6 +16,8 @@ import (
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/vektah/gqlparser/v2/parser"
 	"github.com/vektah/gqlparser/v2/validator"
+
+	"yeek/locales"
 )
 
 type GraphQLIndex struct{ Schema *ast.Schema }
@@ -27,16 +29,16 @@ type GraphQLDiagnostic struct {
 
 func LoadGraphQLSchema(content []byte) (*GraphQLIndex, error) {
 	if len(content) > 16<<20 {
-		return nil, errors.New("GraphQL schema exceeds 16 MiB")
+		return nil, errors.New(locales.GraphQLSchemaExceeds16MiB())
 	}
 	content = bytes.TrimSpace(content)
 	if len(content) == 0 {
-		return nil, errors.New("GraphQL schema is empty")
+		return nil, errors.New(locales.GraphQLSchemaIsEmpty())
 	}
 	if content[0] == '{' {
 		var document Object
 		if err := json.Unmarshal(content, &document); err != nil {
-			return nil, fmt.Errorf("schema JSON: %w", err)
+			return nil, fmt.Errorf("%s: %w", locales.SchemaJSON(), err)
 		}
 		schema := obj(obj(document, "data"), "__schema")
 		if len(schema) == 0 {
@@ -46,7 +48,7 @@ func LoadGraphQLSchema(content []byte) (*GraphQLIndex, error) {
 			schema = document
 		}
 		if len(schema) == 0 {
-			return nil, errors.New("JSON has no GraphQL introspection schema")
+			return nil, errors.New(locales.JSONHasNoGraphQLIntrospectionSchema())
 		}
 		sdl, err := graphQLSchemaSDL(schema)
 		if err != nil {
@@ -56,10 +58,10 @@ func LoadGraphQLSchema(content []byte) (*GraphQLIndex, error) {
 	}
 	schema, err := gqlparser.LoadSchema(&ast.Source{Name: "schema", Input: string(content)})
 	if err != nil {
-		return nil, fmt.Errorf("GraphQL schema: %w", err)
+		return nil, fmt.Errorf("%s: %w", locales.GraphQLSchemaTitle(), err)
 	}
 	if schema.Query == nil {
-		return nil, errors.New("GraphQL schema has no query root")
+		return nil, errors.New(locales.GraphQLSchemaHasNoQueryRoot())
 	}
 	return &GraphQLIndex{Schema: schema}, nil
 }
@@ -81,7 +83,7 @@ func graphQLSchemaSDL(schema Object) (string, error) {
 	var failure error
 	name := func(value string) string {
 		if !graphQLName(value) && failure == nil {
-			failure = fmt.Errorf("invalid GraphQL name %q", value)
+			failure = errors.New(locales.InvalidGraphQLName(strconv.Quote(value)))
 		}
 		return value
 	}
@@ -95,7 +97,7 @@ func graphQLSchemaSDL(schema Object) (string, error) {
 	var typeName func(Object, int) string
 	typeName = func(typ Object, depth int) string {
 		if depth > 32 {
-			failure = errors.New("schema type nesting exceeds 32 levels")
+			failure = errors.New(locales.SchemaTypeNestingExceeds32Levels())
 			return ""
 		}
 		switch str(typ, "kind") {
@@ -147,7 +149,7 @@ func graphQLSchemaSDL(schema Object) (string, error) {
 		description(str(typ, "description"))
 		keyword := map[string]string{"OBJECT": "type", "INTERFACE": "interface", "INPUT_OBJECT": "input", "ENUM": "enum", "UNION": "union", "SCALAR": "scalar"}[str(typ, "kind")]
 		if keyword == "" {
-			return "", fmt.Errorf("unknown schema kind %q", str(typ, "kind"))
+			return "", errors.New(locales.UnknownSchemaKindKind(strconv.Quote(str(typ, "kind"))))
 		}
 		out.WriteString(keyword + " " + name(typeID))
 		interfaces := objects(array(typ, "interfaces"))
@@ -257,7 +259,7 @@ func GraphQLDiagnostics(index *GraphQLIndex, query, variables, operation string)
 		return result
 	}
 	if operation != "" && doc.Operations.ForName(operation) == nil {
-		return append(result, GraphQLDiagnostic{Message: "Operation " + strconv.Quote(operation) + " does not exist", Line: 1, Column: 1, End: min(1, utf8.RuneCountInString(query))})
+		return append(result, GraphQLDiagnostic{Message: locales.OperationNameDoesNotExist(strconv.Quote(operation)), Line: 1, Column: 1, End: min(1, utf8.RuneCountInString(query))})
 	}
 	if strings.TrimSpace(variables) == "" {
 		variables = "{}"
@@ -267,10 +269,10 @@ func GraphQLDiagnostics(index *GraphQLIndex, query, variables, operation string)
 	}
 	var values map[string]any
 	if err := json.Unmarshal([]byte(variables), &values); err != nil {
-		return append(result, GraphQLDiagnostic{Message: "Variables must be a JSON object: " + err.Error(), Line: 1, Column: 1, Variables: true})
+		return append(result, GraphQLDiagnostic{Message: locales.VariablesMustBeAJSONObject(err.Error()), Line: 1, Column: 1, Variables: true})
 	}
 	if values == nil {
-		return append(result, GraphQLDiagnostic{Message: "Variables must be a JSON object", Line: 1, Column: 1, Variables: true})
+		return append(result, GraphQLDiagnostic{Message: locales.VariablesMustBeAJSONObjectTitle(), Line: 1, Column: 1, Variables: true})
 	}
 	if index != nil {
 		op := doc.Operations.ForName(operation)

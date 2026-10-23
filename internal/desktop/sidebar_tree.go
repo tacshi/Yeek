@@ -2,12 +2,12 @@ package desktop
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type treeState struct {
@@ -61,8 +61,8 @@ func (a *App) requestTree(c *ui.Context, p colors) bool {
 	}
 	if len(rows) == 0 && a.search == "" {
 		ui.Column(c).Padding(18, 12).Gap(12).Children(func() {
-			ui.Text(c, "No requests yet").TextColor(p.muted).FontSize(12)
-			if ui.Button(c, "New HTTP Request").Clicked() {
+			ui.Text(c, locales.NoRequestsYet()).TextColor(p.muted).FontSize(12)
+			if ui.Button(c, locales.NewHTTPRequest()).Clicked() {
 				a.addRequest("http_request", "")
 			}
 		})
@@ -131,7 +131,7 @@ func (a *App) treeRow(c *ui.Context, p colors, r treeRow, rows []treeRow) {
 			}
 		}
 		if folder {
-			chevron := ui.ButtonBase(c).Label("Toggle folder").Size(14, 20).Justify(ui.Center)
+			chevron := ui.ButtonBase(c).Label(locales.ToggleFolder()).Size(14, 20).Justify(ui.Center)
 			chevron.Children(func() { disclosure(c, open, 11, p.subtle) })
 			if chevron.Clicked() {
 				a.expanded[id] = !a.expanded[id]
@@ -312,7 +312,7 @@ func (a *App) startRename(id string) {
 
 func (a *App) renameInput(c *ui.Context, p colors, m engine.Object) {
 	t := &a.tree
-	input := ui.TextInput(c, &t.rename).Label("Rename "+requestName(m)).Placeholder(s(m, "name")).Grow(1).MinWidth(0).Height(24).FontSize(13).Padding(0, 4).Background(p.background).Border(1, p.accent)
+	input := ui.TextInput(c, &t.rename).Label(locales.RenameName(requestName(m))).Placeholder(s(m, "name")).Grow(1).MinWidth(0).Height(24).FontSize(13).Padding(0, 4).Background(p.background).Border(1, p.accent)
 	t.renameFrames++
 	if t.renameFrames == 1 {
 		input.Focus().SetTextSelection(0, utf8.RuneCountInString(t.rename))
@@ -443,43 +443,29 @@ func (a *App) deleteTreeItems(ids []string) {
 		return
 	}
 	a.deleteIDs = slices.Clone(ids)
-	title := "Delete " + pluralizeCount("Item", len(ids))
+	title := locales.DeleteCountItems(len(ids))
 	if len(ids) == 1 {
-		title = "Delete " + modelTypeLabel(a.models[ids[0]])
+		title = locales.DeleteKind(modelTypeLabel(a.models[ids[0]]))
 	}
 	a.prompt("delete_items", title, "", "")
-}
-
-func pluralize(word string, count int) string {
-	if count == 1 {
-		return word
-	}
-	return word + "s"
-}
-
-func pluralizeCount(word string, count int) string {
-	if count == 1 {
-		return "1 " + word
-	}
-	return strconv.Itoa(count) + " " + word + "s"
 }
 
 func modelTypeLabel(m engine.Object) string {
 	switch s(m, "model") {
 	case "http_request":
-		return "HTTP Request"
+		return locales.HTTPRequest()
 	case "grpc_request":
-		return "gRPC Request"
+		return locales.GRPCRequest()
 	case "websocket_request":
-		return "WebSocket Request"
+		return locales.WebSocketRequest()
 	case "folder":
-		return "Folder"
+		return locales.Folder()
 	case "environment":
-		return "Environment"
+		return locales.Environment()
 	case "workspace":
-		return "Workspace"
+		return locales.Workspace()
 	}
-	return "Item"
+	return locales.Item()
 }
 
 func (a *App) treeMenu(menu *ui.Menu, m engine.Object) {
@@ -495,20 +481,20 @@ func (a *App) treeMenu(menu *ui.Menu, m engine.Object) {
 	id := s(child, "id")
 	folder := s(child, "model") == "folder"
 	onlyHTTP := !slices.ContainsFunc(items, func(m engine.Object) bool { return s(m, "model") != "http_request" })
-	if one && folder && menu.Item("Folder Settings").Chosen() {
+	if one && folder && menu.Item(locales.FolderSettings()).Chosen() {
 		a.openScope(child)
 	}
-	if onlyHTTP && a.hotkeyItem(menu.Item("Send"), "request.send").Chosen() {
+	if onlyHTTP && a.hotkeyItem(menu.Item(locales.Send()), "request.send").Chosen() {
 		a.sendRequests(treeIDs(items))
 	}
-	if one && folder && menu.Item("Send All").Disabled(len(a.folderRequests(id)) == 0).Chosen() {
+	if one && folder && menu.Item(locales.SendAll()).Disabled(len(a.folderRequests(id)) == 0).Chosen() {
 		a.sendFolder(id)
 	}
-	if one && s(child, "model") == "http_request" && menu.Item("Copy as Curl").Chosen() {
+	if one && s(child, "model") == "http_request" && menu.Item(locales.CopyAsCurl()).Chosen() {
 		a.openRequest(id)
 		a.copyCurl()
 	}
-	if one && s(child, "model") == "grpc_request" && menu.Item("Copy as gRPCurl").Chosen() {
+	if one && s(child, "model") == "grpc_request" && menu.Item(locales.CopyAsGRPCurl()).Chosen() {
 		a.copyGrpcurl(id)
 	}
 	if one {
@@ -521,25 +507,25 @@ func (a *App) treeMenu(menu *ui.Menu, m engine.Object) {
 	}
 	a.gitTreeMenu(menu, items, onlyHTTP || one && (folder || s(child, "model") == "grpc_request" || len(a.Engine.PluginActions()) > 0))
 	menu.Separator()
-	if one && a.hotkeyItem(menu.Item("Rename"), "sidebar.selected.rename").Chosen() {
+	if one && a.hotkeyItem(menu.Item(locales.Rename()), "sidebar.selected.rename").Chosen() {
 		a.startRename(id)
 	}
-	if a.hotkeyItem(menu.Item("Duplicate"), "model.duplicate").Chosen() {
+	if a.hotkeyItem(menu.Item(locales.Duplicate()), "model.duplicate").Chosen() {
 		for _, m := range items {
 			a.duplicate(s(m, "id"))
 		}
 	}
 	requests := slices.DeleteFunc(slices.Clone(items), func(m engine.Object) bool { return !strings.HasSuffix(s(m, "model"), "_request") })
 	if len(a.list("workspace")) > 1 && len(requests) > 0 && len(requests) == len(items) {
-		label := "Move"
+		label := locales.Move()
 		if len(items) > 1 {
-			label = "Move " + pluralizeCount("Request", len(requests))
+			label = locales.MoveCountRequests(len(requests))
 		}
 		if a.hotkeyItem(menu.Item(label), "sidebar.selected.move").Chosen() {
 			a.moveToWorkspace(requests)
 		}
 	}
-	if a.hotkeyItem(menu.Item("Delete"), "sidebar.selected.delete").Chosen() {
+	if a.hotkeyItem(menu.Item(locales.Delete()), "sidebar.selected.delete").Chosen() {
 		a.deleteTreeItems(treeIDs(items))
 	}
 	if one && folder {

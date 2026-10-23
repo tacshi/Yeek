@@ -13,7 +13,7 @@ type curlCapture struct {
 	Header            http.Header
 }
 
-func TestCurlExportMatchesYaakScenarios(t *testing.T) {
+func TestCurlExportScenarios(t *testing.T) {
 	received := make(chan curlCapture, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -163,7 +163,7 @@ func TestCurlExportDigestAndAWSFlags(t *testing.T) {
 		{Object{"accessKeyId": "ak", "secretAccessKey": "sk", "sessionToken": "", "region": "us-east-1", "service": "s3"}, "awsv4", []string{"--aws-sigv4 'aws:amz:us-east-1:s3'", "--user 'ak:sk'"}},
 		{Object{"accessKeyId": "ak", "secretAccessKey": "sk", "sessionToken": "st", "region": "us-east-1", "service": "s3"}, "awsv4", []string{"--aws-sigv4 'aws:amz:us-east-1:s3'", "--user 'ak:sk'", "--header 'X-Amz-Security-Token: st'"}},
 	} {
-		r := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "method": "GET", "url": "https://yaak.app", "authenticationType": c.kind, "authentication": c.auth})
+		r := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "method": "GET", "url": "https://api.example.com", "authenticationType": c.kind, "authentication": c.auth})
 		command, err := e.Curl(t.Context(), str(r, "id"), "")
 		if err != nil {
 			t.Fatal(err)

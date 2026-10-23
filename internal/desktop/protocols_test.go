@@ -18,7 +18,7 @@ import (
 	"yeek/internal/engine"
 )
 
-func TestGRPCRequestLikeYaak(t *testing.T) {
+func TestGRPCRequest(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestNewRequestNamesAndCreateMenu(t *testing.T) {
 	}
 }
 
-func TestWebSocketRequestLikeYaak(t *testing.T) {
+func TestWebSocketRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {

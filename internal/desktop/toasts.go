@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 )
 
 type toastItem struct {
@@ -137,7 +138,7 @@ func (a *App) toastCard(c *ui.Context, p colors, t *toastItem, dismissed *string
 				})
 			}
 		})
-		if smallIconButton(c, "close", "Dismiss").Absolute().Top(8).Right(8).Opacity(.6).Clicked() {
+		if smallIconButton(c, "close", locales.Dismiss()).Absolute().Top(8).Right(8).Opacity(.6).Clicked() {
 			*dismissed = t.id
 		}
 		if t.timeout > 0 && !t.held {

@@ -9,24 +9,26 @@ import (
 
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/xpath"
+
+	"yeek/locales"
 )
 
 func FilterXPath(text, query string) (out string, err error) {
 	if strings.TrimSpace(query) == "" {
-		return "", errors.New("Invalid filter: empty expression") //nolint:staticcheck
+		return "", errors.New(locales.InvalidFilterEmptyExpression())
 	}
 	expression, err := xpath.Compile(query)
 	if err != nil {
-		return "", fmt.Errorf("Invalid filter: %w", err) //nolint:staticcheck
+		return "", fmt.Errorf("%s: %w", locales.InvalidFilter(), err)
 	}
 	doc, err := xmlquery.Parse(strings.NewReader(text))
 	if err != nil {
-		return "", fmt.Errorf("Invalid XML: %w", err) //nolint:staticcheck
+		return "", fmt.Errorf("%s: %w", locales.InvalidXML(), err)
 	}
 	mergeAdjacentText(doc)
 	defer func() {
 		if r := recover(); r != nil {
-			out, err = "", fmt.Errorf("Invalid filter: %v", r) //nolint:staticcheck
+			out, err = "", errors.New(locales.InvalidFilterReason(fmt.Sprint(r)))
 		}
 	}()
 	switch v := expression.Evaluate(xmlquery.CreateXPathNavigator(doc)).(type) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"yeek/locales"
 )
 
 const updateCheckInterval = 12 * time.Hour
@@ -78,16 +79,16 @@ func (a *App) checkForUpdates(user bool) {
 			switch {
 			case errors.Is(err, mygo.ErrUpdatesDisabled):
 				if user {
-					a.alertDialog("Updates Unavailable", "This build of Yeek can't update itself. Development builds, and copies installed by a package manager, are updated outside the app.")
+					a.alertDialog(locales.UpdatesUnavailable(), locales.ThisBuildOfYeekCantUpdate())
 				}
 			case err != nil:
 				log.Printf("Failed to check for updates: %v", err)
 				if user {
-					a.showToast(updateToastID, "Failed to check for updates: "+err.Error(), "danger", 0)
+					a.showToast(updateToastID, locales.FailedToCheckForUpdatesError(err.Error()), "danger", 0)
 				}
 			case up == nil:
 				if user {
-					a.alertDialog("No Update Available", "You are currently on the latest version "+appVersion())
+					a.alertDialog(locales.NoUpdateAvailable(), locales.YouAreCurrentlyOnTheLatest(appVersion()))
 				}
 			case installed:
 				a.showUpdateInstalledToast(up.Version)
@@ -99,9 +100,9 @@ func (a *App) checkForUpdates(user bool) {
 }
 
 func (a *App) showUpdateAvailableToast(up *mygo.Update) {
-	whatsNew := toastAction{"What's New", func() { _ = mygo.Shell.OpenExternal(releaseURL(up.Version)) }}
-	a.showToastActions(updateToastID, "Yeek "+up.Version+" is available", "Download and install the update?", "info", 0,
-		toastAction{"Download and Install", func() { a.installUpdate(up) }}, whatsNew)
+	whatsNew := toastAction{locales.WhatsNew(), func() { _ = mygo.Shell.OpenExternal(releaseURL(up.Version)) }}
+	a.showToastActions(updateToastID, locales.YeekVersionIsAvailable(up.Version), locales.DownloadAndInstallTheUpdate(), "info", 0,
+		toastAction{locales.DownloadAndInstall(), func() { a.installUpdate(up) }}, whatsNew)
 }
 
 func (a *App) installUpdate(up *mygo.Update) {
@@ -112,7 +113,7 @@ func (a *App) installUpdate(up *mygo.Update) {
 	}
 	updates.busy = true
 	updates.Unlock()
-	a.showToast(updateToastID, "Downloading Yeek "+up.Version+"...", "info", 0)
+	a.showToast(updateToastID, locales.DownloadingYeekVersionEllipsis(up.Version), "info", 0)
 	go func() {
 		err := up.Install(a.ctx, nil)
 		updates.Lock()
@@ -124,7 +125,7 @@ func (a *App) installUpdate(up *mygo.Update) {
 		a.Window.Update(func() {
 			if err != nil {
 				log.Printf("Failed to install: %v", err)
-				a.showToast(updateToastID, "Failed to install the update: "+err.Error(), "danger", 0)
+				a.showToast(updateToastID, locales.FailedToInstallTheUpdateError(err.Error()), "danger", 0)
 				return
 			}
 			log.Printf("Installed %s", up.Version)
@@ -134,8 +135,8 @@ func (a *App) installUpdate(up *mygo.Update) {
 }
 
 func (a *App) showUpdateInstalledToast(version string) {
-	a.showToastActions(updateToastID, "Yeek "+version+" was installed", "Start using the new version now?", "info", 0,
-		toastAction{"Relaunch Yeek", relaunchApp})
+	a.showToastActions(updateToastID, locales.YeekVersionWasInstalled(version), locales.StartUsingTheNewVersionNow(), "info", 0,
+		toastAction{locales.RelaunchYeek(), relaunchApp})
 }
 
 var relaunching atomic.Bool

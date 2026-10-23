@@ -3,16 +3,17 @@ package engine
 import (
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"yeek/locales"
 )
 
 const maxTemplateDepth = 50
 
-var errTemplateStackExceeded = errors.New("template nesting is too deep")
+var errTemplateStackExceeded error = &localizedError{locales.TemplateNestingIsTooDeep}
 
 type templateRunner func(string, map[string]string) (string, error)
 
@@ -214,10 +215,10 @@ func (p *templateParser) str() (string, bool, error) {
 			}
 			decoded, err := base64.RawURLEncoding.DecodeString(text.String())
 			if err != nil {
-				return "", false, fmt.Errorf("Failed to decode string %s", text.String()) //nolint:staticcheck
+				return "", false, errors.New(locales.FailedToDecodeStringString(text.String())) //nolint:staticcheck
 			}
 			if !utf8.Valid(decoded) {
-				return "", false, fmt.Errorf("Failed to decode utf8 string %s", text.String()) //nolint:staticcheck
+				return "", false, errors.New(locales.FailedToDecodeUtf8StringString(text.String())) //nolint:staticcheck
 			}
 			return string(decoded), true, nil
 		}
@@ -299,15 +300,15 @@ func evalTemplate(value templateValue, vars map[string]string, stack map[string]
 			text, ok = vars[name]
 		}
 		if !ok {
-			return "", fmt.Errorf("variable %q is not defined", name)
+			return "", errors.New(locales.VariableNameIsNotDefined(strconv.Quote(name)))
 		}
 		if stack[name] {
-			return "", fmt.Errorf("variable %q refers to itself", name)
+			return "", errors.New(locales.VariableNameRefersToItself(strconv.Quote(name)))
 		}
 		stack[name] = true
 		defer delete(stack, name)
 		return renderWith(text, vars, stack, depth, run)
 	default:
-		return "", errors.New("unknown template value")
+		return "", errors.New(locales.UnknownTemplateValue())
 	}
 }

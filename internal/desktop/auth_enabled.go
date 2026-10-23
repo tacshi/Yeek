@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 )
 
 type authConditionPreview struct {
@@ -24,7 +25,7 @@ func (a *App) authEnabledControl(c *ui.Context, p colors, d *Draft) {
 	}
 	ui.Column(c).Key("auth-enabled").Gap(12).Children(func() {
 		ui.Row(c).Children(func() {
-			if ui.Segmented(c, &selected, "Enabled", "Disabled", "Enabled when...").Label("Authentication enabled").Changed() {
+			if ui.Segmented(c, &selected, locales.Enabled(), locales.Disabled(), locales.EnabledWhenEllipsis()).Label(locales.AuthenticationEnabled()).Changed() {
 				value := []any{false, true, ""}[selected]
 				a.deferUntilInputs(func() { d.AuthDisabled = value; d.Dirty = true })
 			}
@@ -36,7 +37,7 @@ func (a *App) authEnabledControl(c *ui.Context, p colors, d *Draft) {
 		}
 		a.previewAuthCondition(d, condition)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			entry := a.templateInput(c, p, &condition, d.ID+":auth:disabled", "Dynamic Disabled", "Enabled when this renders a non-empty value", false).Grow(1).Height(28).Border(1, p.border).Radius(4)
+			entry := a.templateInput(c, p, &condition, d.ID+":auth:disabled", locales.DynamicDisabled(), locales.EnabledWhenThisRendersANon(), false).Grow(1).Height(28).Border(1, p.border).Radius(4)
 			if entry.Changed() {
 				d.AuthDisabled = condition
 				d.Dirty = true

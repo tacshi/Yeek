@@ -6,6 +6,7 @@ import (
 
 	"uuid"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) handleURLPaste(d *Draft) {
@@ -63,7 +64,7 @@ func (a *App) overwriteFromCurl(d *Draft, command string) {
 			fresh := newDraft(saved)
 			fresh.Tab, fresh.ResponseTab = d.Tab, d.ResponseTab
 			a.drafts[d.ID] = fresh
-			a.toast("Updated request from Curl")
+			a.toast(locales.UpdatedRequestFromCurl())
 		}, err
 	})
 }

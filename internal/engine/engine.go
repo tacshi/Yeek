@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"yeek/locales"
 )
 
 type Engine struct {
@@ -103,7 +105,7 @@ func (e *Engine) Save(ctx context.Context, m Object) (Object, error) {
 	err := e.Store.Write(ctx, Object{"type": "background"}, func(t *modelTx) error {
 		if str(m, "id") != "" && str(m, "createdAt") != "" {
 			if _, err := t.get(ctx, str(m, "id")); err != nil {
-				return errors.New("this item was deleted; reload the workspace")
+				return errors.New(locales.ThisItemWasDeletedReloadThe())
 			}
 		}
 		var err error
@@ -140,10 +142,10 @@ func (e *Engine) begin(ctx context.Context, id string) (context.Context, func(),
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.closing {
-		return nil, nil, errors.New("application is closing")
+		return nil, nil, errors.New(locales.ApplicationIsClosing())
 	}
 	if _, ok := e.pending[id]; ok {
-		return nil, nil, errors.New("request is already running")
+		return nil, nil, errors.New(locales.RequestIsAlreadyRunning())
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	stop := context.AfterFunc(e.ctx, cancel)
@@ -160,14 +162,14 @@ func (e *Engine) begin(ctx context.Context, id string) (context.Context, func(),
 }
 func (e *Engine) Body(id string) ([]byte, error) {
 	if !validBodyID(id) {
-		return nil, errors.New("invalid response ID")
+		return nil, errors.New(locales.InvalidResponseID())
 	}
 	return e.bodies.ReadFile(id)
 }
 
 func (e *Engine) OpenBody(id string) (*os.File, error) {
 	if !validBodyID(id) {
-		return nil, errors.New("invalid response ID")
+		return nil, errors.New(locales.InvalidResponseID())
 	}
 	return e.bodies.Open(id)
 }
@@ -184,7 +186,7 @@ func (e *Engine) DefaultHeaders() []any {
 
 func (e *Engine) BodyPreview(id string, limit int64) ([]byte, bool, error) {
 	if !validBodyID(id) {
-		return nil, false, errors.New("invalid response ID")
+		return nil, false, errors.New(locales.InvalidResponseID())
 	}
 	file, err := e.bodies.Open(id)
 	if err != nil {
@@ -200,7 +202,7 @@ func (e *Engine) BodyPreview(id string, limit int64) ([]byte, bool, error) {
 }
 func (e *Engine) SaveBody(id, path string) error {
 	if !validBodyID(id) {
-		return errors.New("invalid response ID")
+		return errors.New(locales.InvalidResponseID())
 	}
 	source, err := e.bodies.Open(id)
 	if err != nil {

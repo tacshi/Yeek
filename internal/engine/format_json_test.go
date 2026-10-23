@@ -2,7 +2,7 @@ package engine
 
 import "testing"
 
-func TestFormatJSONMatchesYaak(t *testing.T) {
+func TestFormatJSON(t *testing.T) {
 	for _, c := range []struct{ name, input, want string }{
 		{"test_simple_object", `{"foo":"bar","baz":"qux"}`, `{
   "foo": "bar",

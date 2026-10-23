@@ -8,25 +8,30 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type requestSetting struct {
-	key, title, description, kind string
-	models                        []string
-	fallback                      any
+	key                string
+	title, description func() string
+	kind               string
+	models             []string
+	fallback           any
 }
 
 var (
-	settingRequestTimeout       = requestSetting{"settingRequestTimeout", "Request Timeout", "Maximum request duration in milliseconds. Set to 0 to disable.", "integer", []string{"workspace", "folder", "http_request"}, 0.0}
-	settingRequestMessageSize   = requestSetting{"settingRequestMessageSize", "Message Size Limit", "Maximum gRPC or WebSocket message size in MB. Set to 0 to disable.", "megabytes", []string{"workspace", "folder", "websocket_request", "grpc_request"}, float64(64 << 20)}
-	settingValidateCertificates = requestSetting{"settingValidateCertificates", "Validate TLS certificates", "When disabled, skip validation of server certificates.", "boolean", []string{"workspace", "folder", "http_request", "websocket_request", "grpc_request"}, true}
-	settingFollowRedirects      = requestSetting{"settingFollowRedirects", "Follow redirects", "Follow HTTP redirects automatically.", "boolean", []string{"workspace", "folder", "http_request"}, true}
-	settingHTTPVersion          = requestSetting{"settingHttpVersion", "HTTP version", "Force HTTP/1.1 or HTTP/2 for servers that don't negotiate the version correctly.", "httpVersion", []string{"workspace", "folder", "http_request"}, "auto"}
-	settingSendCookies          = requestSetting{"settingSendCookies", "Automatically send cookies", "Attach matching cookies from the active cookie jar to outgoing requests.", "boolean", []string{"workspace", "folder", "http_request", "websocket_request"}, true}
-	settingStoreCookies         = requestSetting{"settingStoreCookies", "Automatically store cookies", "Save cookies from Set-Cookie response headers to the active cookie jar.", "boolean", []string{"workspace", "folder", "http_request", "websocket_request"}, true}
+	settingRequestTimeout       = requestSetting{"settingRequestTimeout", locales.RequestTimeout, locales.MaximumRequestDurationInMillisecondsSet, "integer", []string{"workspace", "folder", "http_request"}, 0.0}
+	settingRequestMessageSize   = requestSetting{"settingRequestMessageSize", locales.MessageSizeLimit, locales.MaximumGRPCOrWebSocketMessageSize, "megabytes", []string{"workspace", "folder", "websocket_request", "grpc_request"}, float64(64 << 20)}
+	settingValidateCertificates = requestSetting{"settingValidateCertificates", locales.ValidateTLSCertificates, locales.WhenDisabledSkipValidationOfServer, "boolean", []string{"workspace", "folder", "http_request", "websocket_request", "grpc_request"}, true}
+	settingFollowRedirects      = requestSetting{"settingFollowRedirects", locales.FollowRedirects, locales.FollowHTTPRedirectsAutomatically, "boolean", []string{"workspace", "folder", "http_request"}, true}
+	settingHTTPVersion          = requestSetting{"settingHttpVersion", locales.HTTPVersionTitle, locales.ForceHTTP11OrHTTP, "httpVersion", []string{"workspace", "folder", "http_request"}, "auto"}
+	settingSendCookies          = requestSetting{"settingSendCookies", locales.AutomaticallySendCookies, locales.AttachMatchingCookiesFromTheActive, "boolean", []string{"workspace", "folder", "http_request", "websocket_request"}, true}
+	settingStoreCookies         = requestSetting{"settingStoreCookies", locales.AutomaticallyStoreCookies, locales.SaveCookiesFromSetCookieResponse, "boolean", []string{"workspace", "folder", "http_request", "websocket_request"}, true}
 )
 
-var httpVersionLabels, httpVersionValues = []string{"Automatic", "HTTP/1.1", "HTTP/2"}, []string{"auto", "http1", "http2"}
+var httpVersionValues = []string{"auto", "http1", "http2"}
+
+func httpVersionLabels() []string { return []string{locales.Automatic(), "HTTP/1.1", "HTTP/2"} }
 
 func (r requestSetting) supports(kind string) bool { return slices.Contains(r.models, kind) }
 
@@ -44,7 +49,7 @@ func settingRow(c *ui.Context, p colors, title, description string, reset func()
 		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 			ui.Row(c).Gap(6).Children(func() {
 				ui.Text(c, title).FontSize(13)
-				if reset != nil && smallIconButton(c, "undo", "Reset override").Clicked() {
+				if reset != nil && smallIconButton(c, "undo", locales.ResetOverride()).Clicked() {
 					reset()
 				}
 			})
@@ -77,8 +82,8 @@ func (a *App) modelSettingsEditor(c *ui.Context, p colors, d *Draft, showSection
 			}
 		})
 	}
-	section("Requests", requests)
-	section("Cookies", cookies)
+	section(locales.Requests(), requests)
+	section(locales.Cookies(), cookies)
 }
 
 func (a *App) requestSettingRow(c *ui.Context, p colors, d *Draft, setting requestSetting) {
@@ -114,29 +119,30 @@ func (a *App) requestSettingRow(c *ui.Context, p colors, d *Draft, setting reque
 			d.Dirty = true
 		}
 	}
-	settingRow(c, p, setting.title, setting.description, reset, func() {
+	settingRow(c, p, setting.title(), setting.description(), reset, func() {
 		switch setting.kind {
 		case "boolean":
 			on, _ := value.(bool)
-			if ui.Checkbox(c, &on, "").Label("Enable " + setting.title).Changed() {
+			if ui.Checkbox(c, &on, "").Label(locales.EnableSetting(setting.title())).Changed() {
 				set(on)
 			}
 		case "integer":
 			number := n(engine.Object{"v": value}, "v")
 			placeholder := strconv.FormatFloat(n(engine.Object{"v": setting.fallback}, "v"), 'f', -1, 64)
-			if text, ok := numberUnitInput(c, p, strconv.FormatFloat(number, 'f', -1, 64), setting.title+" setting", "ms", placeholder, validInteger); ok {
+			if text, ok := numberUnitInput(c, p, strconv.FormatFloat(number, 'f', -1, 64), locales.SettingSetting(setting.title()), "ms", placeholder, validInteger); ok {
 				set(parseNumber(text, math.Trunc))
 			}
 		case "megabytes":
 			bytes := n(engine.Object{"v": value}, "v")
-			if text, ok := numberUnitInput(c, p, formatMegabytes(bytes), setting.title+" setting", "MB", "0", validMegabytes); ok {
+			if text, ok := numberUnitInput(c, p, formatMegabytes(bytes), locales.SettingSetting(setting.title()), "MB", "0", validMegabytes); ok {
 				set(parseNumber(text, func(mb float64) float64 { return math.Round(mb * bytesPerMB) }))
 			}
 		case "httpVersion":
 			version, _ := value.(string)
-			label := httpVersionLabels[max(0, slices.Index(httpVersionValues, version))]
-			if ui.Select(c, &label, httpVersionLabels).Label(setting.title + " setting").Width(settingControlWidth).Changed() {
-				set(httpVersionValues[slices.Index(httpVersionLabels, label)])
+			labels := httpVersionLabels()
+			label := labels[max(0, slices.Index(httpVersionValues, version))]
+			if ui.Select(c, &label, labels).Label(locales.SettingSetting(setting.title())).Width(settingControlWidth).Changed() {
+				set(httpVersionValues[slices.Index(labels, label)])
 			}
 		}
 	})

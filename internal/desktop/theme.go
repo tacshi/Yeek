@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type colors struct{ background, sidebar, header, response, border, text, muted, subtle, accent, green, orange, blue, red, notice ui.Color }
@@ -136,12 +137,12 @@ func statusLabel(response engine.Object, short bool) string {
 		if short {
 			return "CONN"
 		}
-		return "CONNECTING"
+		return locales.CONNECTING()
 	case n(response, "status") < 100:
 		if short {
 			return "ERR"
 		}
-		return "ERROR"
+		return locales.ERROR()
 	case short:
 		return fmt.Sprintf("%.0f", n(response, "status"))
 	}
@@ -231,9 +232,9 @@ var icons = func() map[string]*ui.SVG {
 func icon(c *ui.Context, name string) ui.Element { return ui.Icon(c, icons[name]).FontSize(16) }
 
 func chevronToggle(c *ui.Context, p colors, open bool, name string) ui.Element {
-	glyph, label := "chevron", "Expand "+name
+	glyph, label := "chevron", locales.ExpandName(name)
 	if open {
-		glyph, label = "down", "Collapse "+name
+		glyph, label = "down", locales.CollapseName(name)
 	}
 	button := ui.ButtonBase(c).Label(label).Size(20, 20).Radius(4).Justify(ui.Center)
 	if button.Hovered() {

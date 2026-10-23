@@ -193,7 +193,7 @@ func TestRequestNetworkSettingsInheritAndOverride(t *testing.T) {
 	}
 }
 
-func TestNumberUnitInputsMatchYaak(t *testing.T) {
+func TestNumberUnitInputs(t *testing.T) {
 	for bytes, want := range map[float64]string{64 << 20: "64", 1.5 * (1 << 20): "1.5", 1234567: "1.177", 0: "0"} {
 		if got := formatMegabytes(bytes); got != want {
 			t.Errorf("formatMegabytes(%v) = %q, want %q", bytes, got, want)

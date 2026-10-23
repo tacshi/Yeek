@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/yeekui"
 )
 
-func TestExtractRepoNameMatchesYaak(t *testing.T) {
+func TestExtractRepoName(t *testing.T) {
 	for url, want := range map[string]string{
 		"https://github.com/user/repo.git": "repo",
 		"git@github.com:user/repo.git":     "repo",
@@ -39,8 +39,8 @@ func TestCloneGitRepositoryDialog(t *testing.T) {
 	if f.directory() != "/projects/api" {
 		t.Fatal(f.directory())
 	}
-	f.hasSubdirectory, f.subdirectory = true, "yaak"
-	if f.workspaceDirectory() != "/projects/api/yaak" {
+	f.hasSubdirectory, f.subdirectory = true, "workspace"
+	if f.workspaceDirectory() != "/projects/api/workspace" {
 		t.Fatal(f.workspaceDirectory())
 	}
 	f.hasOverride, f.override = true, "/elsewhere"

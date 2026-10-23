@@ -20,6 +20,8 @@ import (
 	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
 type insomniaResources struct {
@@ -1131,11 +1133,11 @@ func parseOrderedDocument(data []byte) (Object, error) {
 		return nil, err
 	}
 	if len(node.Content) == 0 {
-		return nil, errors.New("empty document")
+		return nil, errors.New(locales.EmptyDocument())
 	}
 	root, _ := orderedValue(node.Content[0]).(map[string]any)
 	if root == nil {
-		return nil, errors.New("not an object")
+		return nil, errors.New(locales.NotAnObject())
 	}
 	return root, nil
 }

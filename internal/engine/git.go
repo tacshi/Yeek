@@ -3,10 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +15,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
 type GitFile struct {
@@ -128,7 +130,7 @@ func (e *Engine) GitStage(dir string, files []string, staged bool) error {
 	}
 	for _, path := range files {
 		if filepath.IsAbs(path) || path == ".." || strings.HasPrefix(filepath.Clean(path), ".."+string(filepath.Separator)) {
-			return errors.New("git paths must stay inside the workspace")
+			return errors.New(locales.GitPathsMustStayInsideThe())
 		}
 	}
 	if staged {
@@ -225,7 +227,7 @@ func (e *Engine) GitRestore(ctx context.Context, dir, path string) error {
 	}
 	spec := ":(top,literal)" + path
 	if s := status.File(path); s.Worktree == git.Untracked || s.Staging == git.Added {
-		if err := gitRun(ctx, root, "Failed to restore", "rm", "--cached", "--quiet", "--ignore-unmatch", "--", spec); err != nil {
+		if err := gitRun(ctx, root, locales.FailedToRestore(), "rm", "--cached", "--quiet", "--ignore-unmatch", "--", spec); err != nil {
 			return err
 		}
 		if err := os.RemoveAll(filepath.Join(root, filepath.FromSlash(path))); err != nil {
@@ -233,13 +235,13 @@ func (e *Engine) GitRestore(ctx context.Context, dir, path string) error {
 		}
 		return nil
 	}
-	return gitRun(ctx, root, "Failed to restore", "checkout", "HEAD", "--", spec)
+	return gitRun(ctx, root, locales.FailedToRestore(), "checkout", "HEAD", "--", spec)
 }
 
 func checkGitPath(path string) error {
 	clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(path)))
 	if path == "" || filepath.IsAbs(path) || strings.HasPrefix(path, "/") || clean != path || clean == ".." || strings.HasPrefix(clean, "../") {
-		return fmt.Errorf("invalid git path %q", path)
+		return errors.New(locales.InvalidGitPathPath(strconv.Quote(path)))
 	}
 	return nil
 }
@@ -372,7 +374,7 @@ func (e *Engine) GitRestoreFromCommit(ctx context.Context, dir, hash, path strin
 	if blobHash(commit, path).IsZero() {
 		return os.RemoveAll(filepath.Join(root, filepath.FromSlash(path)))
 	}
-	return gitRun(ctx, root, "Failed to restore", "checkout", commit.Hash.String(), "--", ":(top,literal)"+path)
+	return gitRun(ctx, root, locales.FailedToRestore(), "checkout", commit.Hash.String(), "--", ":(top,literal)"+path)
 }
 
 func gitFileModel(root string, head *object.Commit, path string) Object {

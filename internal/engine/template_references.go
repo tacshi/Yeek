@@ -4,11 +4,12 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"yeek/locales"
 )
 
 type referenceDepthKey struct{}
@@ -17,7 +18,7 @@ type selectedCookieJarKey struct{}
 func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[string]string, workspace, environment string) (string, error) {
 	depth, _ := ctx.Value(referenceDepthKey{}).(int)
 	if depth >= 16 {
-		return "", errors.New("request templates contain a cycle or exceed 16 levels")
+		return "", errors.New(locales.RequestTemplatesContainACycleOr())
 	}
 	ctx = context.WithValue(ctx, referenceDepthKey{}, depth+1)
 	if name == "cookie.value" {
@@ -42,13 +43,13 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 	id := cmp.Or(args["requestId"], args["request"])
 	request, err := e.Store.Get(ctx, id)
 	if err != nil {
-		return "", fmt.Errorf("referenced request %q does not exist", id)
+		return "", errors.New(locales.ReferencedRequestIdDoesNotExist(strconv.Quote(id)))
 	}
 	if str(request, "model") != "http_request" {
-		return "", errors.New("template needs an HTTP request")
+		return "", errors.New(locales.TemplateNeedsAnHTTPRequest())
 	}
 	if str(request, "workspaceId") != workspace {
-		return "", errors.New("referenced request must belong to this workspace")
+		return "", errors.New(locales.ReferencedRequestMustBelongToThis())
 	}
 	if strings.HasPrefix(name, "request.") {
 		if name == "request.name" {
@@ -136,7 +137,7 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 		}
 		return u.String(), nil
 	}
-	return "", fmt.Errorf("unknown request template %q", name)
+	return "", errors.New(locales.UnknownRequestTemplateName(strconv.Quote(name)))
 }
 
 func rewriteTemplateReferences(value any, ids map[string]string) any {

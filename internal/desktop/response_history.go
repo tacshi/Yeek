@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) requestResponses(requestID string) []engine.Object {
@@ -99,27 +100,27 @@ func historyGroup(created, now time.Time) string {
 	ago := now.Sub(created)
 	switch {
 	case ago < 5*time.Minute:
-		return "Just now"
+		return locales.JustNow()
 	case ago < 15*time.Minute:
-		return "5 minutes ago"
+		return locales.N5MinutesAgo()
 	case ago < time.Hour:
-		return "15 minutes ago"
+		return locales.N15MinutesAgo()
 	case ago < 3*time.Hour:
-		return "1 hour ago"
+		return locales.N1HourAgo()
 	case ago < 6*time.Hour:
-		return "3 hours ago"
+		return locales.N3HoursAgo()
 	}
 	y, m, d := now.Date()
 	cy, cm, cd := created.Date()
 	switch {
 	case y == cy && m == cm && d == cd:
-		return "Today"
+		return locales.Today()
 	case now.AddDate(0, 0, -1).Format(time.DateOnly) == created.Format(time.DateOnly):
-		return "Yesterday"
+		return locales.Yesterday()
 	case y == cy:
-		return created.Format("Jan 2")
+		return formatDate(created, "Jan 2", "MMMd")
 	}
-	return created.Format("Jan 2, 2006")
+	return formatDate(created, "Jan 2, 2006", "yMMMd")
 }
 
 func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Object) {
@@ -128,17 +129,17 @@ func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Ob
 	if len(responses) > 0 {
 		latest = s(responses[0], "id")
 	}
-	if m.Item("Delete").Chosen() {
+	if m.Item(locales.Delete()).Chosen() {
 		a.deleteResponses([]engine.Object{active})
 	}
-	if m.Item("Delete all").Disabled(len(responses) == 0).Chosen() {
+	if m.Item(locales.DeleteAll()).Disabled(len(responses) == 0).Chosen() {
 		a.deleteResponses(responses)
 	}
-	if latest != s(active, "id") && m.Item("Unpin Response").Disabled(len(responses) == 0).Chosen() {
+	if latest != s(active, "id") && m.Item(locales.UnpinResponse()).Disabled(len(responses) == 0).Chosen() {
 		a.pinResponse(requestID, s(active, "id"))
 	}
 	m.Separator()
-	m.Item("Recent").Disabled(true)
+	m.Item(locales.Recent()).Disabled(true)
 	now := time.Now()
 	last, recent, shownEmpty := "", false, false
 	for i, response := range responses {
@@ -147,13 +148,13 @@ func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Ob
 			created, _ = time.Parse("2006-01-02T15:04:05.999999999", s(response, "createdAt"))
 		}
 		group := historyGroup(created.Local(), now)
-		if group == "Just now" {
+		if group == locales.JustNow() {
 			recent = true
 		} else if !recent && !shownEmpty {
-			m.Item("No recent requests").Disabled(true)
+			m.Item(locales.NoRecentRequests()).Disabled(true)
 			shownEmpty = true
 		}
-		if group != "Just now" && group != last {
+		if group != locales.JustNow() && group != last {
 			m.Separator()
 			m.Item(group).Disabled(true)
 			last = group
@@ -168,7 +169,7 @@ func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Ob
 		}
 	}
 	if !recent && !shownEmpty {
-		m.Item("No recent requests").Disabled(true)
+		m.Item(locales.NoRecentRequests()).Disabled(true)
 	}
 }
 
@@ -177,5 +178,5 @@ func (a *App) historyIcon(c *ui.Context, requestID string, active engine.Object)
 	if latest := a.responses[requestID]; latest != nil && s(latest, "id") != s(active, "id") {
 		glyph = "pin"
 	}
-	return iconButton(c, glyph, "Show response history")
+	return iconButton(c, glyph, locales.ShowResponseHistory())
 }

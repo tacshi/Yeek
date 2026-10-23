@@ -17,7 +17,7 @@ func TestSettingsGeneralUpdates(t *testing.T) {
 		}
 	}
 	if !b(a.settings, "autoupdate") || !b(a.settings, "autoDownloadUpdates") {
-		t.Fatal("updates are automatic by default, as in Yaak", a.settings)
+		t.Fatal("updates are automatic by default", a.settings)
 	}
 	if err := tt.Click("Enable Automatically download updates"); err != nil {
 		t.Fatal(err)

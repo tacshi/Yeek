@@ -18,6 +18,8 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
+
+	"yeek/locales"
 )
 
 type authChallenge struct {
@@ -165,11 +167,11 @@ func unsupportedDigestAlgorithm(algorithm *string) error {
 	if algorithm != nil {
 		name = *algorithm
 	}
-	return fmt.Errorf("Unsupported Digest algorithm: %s. Supported algorithms are %s", name, strings.Join(digestAlgorithms, ", ")) //nolint:staticcheck
+	return errors.New(locales.UnsupportedDigestAlgorithm(name, strings.Join(digestAlgorithms, ", "))) //nolint:staticcheck
 }
 
 func unsupportedDigestQop(qop []string) error {
-	return fmt.Errorf("Unsupported Digest qop: %s. Supported values are %s", strings.Join(qop, ", "), strings.Join(digestQops, " and ")) //nolint:staticcheck
+	return errors.New(locales.UnsupportedDigestQop(strings.Join(qop, ", "), strings.Join(digestQops, " and "))) //nolint:staticcheck
 }
 
 func digestChallengeProblem(c digestChallenge) error {
@@ -177,7 +179,7 @@ func digestChallengeProblem(c digestChallenge) error {
 		return unsupportedDigestAlgorithm(c.Algorithm)
 	}
 	if c.Nonce == "" {
-		return errors.New(`Digest challenge is missing the required "nonce" parameter`) //nolint:staticcheck
+		return errors.New(locales.DigestChallengeIsMissingTheRequired()) //nolint:staticcheck
 	}
 	if c.Qop != nil && !slices.ContainsFunc(c.Qop, func(q string) bool { return slices.Contains(digestQops, q) }) {
 		return unsupportedDigestQop(c.Qop)
@@ -196,9 +198,9 @@ func selectDigestChallenge(challenges []authChallenge, realm string) (digestChal
 	}
 	if len(params) == 0 {
 		if len(offered) == 0 {
-			return digestChallenge{}, errors.New("Server did not offer Digest authentication (no WWW-Authenticate header in the response)") //nolint:staticcheck
+			return digestChallenge{}, errors.New(locales.ServerDidNotOfferDigestAuthentication()) //nolint:staticcheck
 		}
-		return digestChallenge{}, fmt.Errorf("Server did not offer Digest authentication. It offered: %s", strings.Join(offered, ", ")) //nolint:staticcheck
+		return digestChallenge{}, errors.New(locales.ServerDidNotOfferDigestAuthenticationIt(strings.Join(offered, ", "))) //nolint:staticcheck
 	}
 	inRealm := params
 	if realm != "" {
@@ -211,7 +213,7 @@ func selectDigestChallenge(challenges []authChallenge, realm string) (digestChal
 		}
 	}
 	if len(inRealm) == 0 {
-		return digestChallenge{}, fmt.Errorf("Server did not offer a Digest realm named %q. It offered: %s", realm, strings.Join(digests, ", ")) //nolint:staticcheck
+		return digestChallenge{}, errors.New(locales.ServerDidNotOfferADigestRealm(strconv.Quote(realm), strings.Join(digests, ", "))) //nolint:staticcheck
 	}
 	for _, p := range inRealm {
 		if c := toDigestChallenge(p); digestChallengeProblem(c) == nil {

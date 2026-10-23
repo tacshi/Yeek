@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) oauthBrowser(ctx context.Context, authorization engine.OAuthAuthorization) (string, error) {
@@ -16,7 +17,7 @@ func (a *App) oauthBrowser(ctx context.Context, authorization engine.OAuthAuthor
 	}
 	completed := make(chan result, 1)
 	if a.Window == nil || a.Window.IsDestroyed() {
-		return "", errors.New("open a Yeek window to authorize")
+		return "", errors.New(locales.OpenAYeekWindowToAuthorize())
 	}
 	var root *mygo.Window
 	counted := false
@@ -68,7 +69,7 @@ func (a *App) oauthBrowser(ctx context.Context, authorization engine.OAuthAuthor
 				if err != nil || u.Scheme != "http" && u.Scheme != "https" && request.URL != "about:blank" {
 					return nil
 				}
-				return &mygo.WindowOptions{Title: "OAuth Sign-in", Width: 760, Height: 760, Parent: window}
+				return &mygo.WindowOptions{Title: locales.OAuthSignIn(), Width: 760, Height: 760, Parent: window}
 			})
 			page.OnDidFailLoad(func(failure *mygo.LoadError) {
 				if engine.OAuthCallbackMatches(failure.URL, authorization.RedirectURI) {
@@ -81,11 +82,11 @@ func (a *App) oauthBrowser(ctx context.Context, authorization engine.OAuthAuthor
 				attach(window)
 			}
 		})
-		root = mygo.NewWindow(mygo.WindowOptions{Title: "OAuth Sign-in", Width: 860, Height: 780, Parent: a.Window})
+		root = mygo.NewWindow(mygo.WindowOptions{Title: locales.OAuthSignIn(), Width: 860, Height: 780, Parent: a.Window})
 		a.oauthBrowserCount++
 		counted = true
 		attach(root)
-		root.OnClosed(func() { finish("", errors.New("authorization window closed")) })
+		root.OnClosed(func() { finish("", errors.New(locales.AuthorizationWindowClosed())) })
 		if err := root.Page().LoadURL(authorization.URL); err != nil {
 			finish("", err)
 		}

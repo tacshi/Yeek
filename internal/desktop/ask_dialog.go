@@ -1,9 +1,8 @@
 package desktop
 
 import (
-	"fmt"
-
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 )
 
 type askInput struct {
@@ -30,7 +29,7 @@ func (a *App) confirmDialog(title, description, confirm string, danger bool, don
 }
 
 func (a *App) alertDialog(title, body string) {
-	a.ask(title, body, "Okay", false, nil, func([]string) {})
+	a.ask(title, body, locales.Okay(), false, nil, func([]string) {})
 	a.asking.alert = true
 }
 
@@ -71,13 +70,13 @@ func (a *App) askDialog(c *ui.Context, p colors) {
 			})
 		}
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			if !s.alert && ui.Button(c, "Cancel").Clicked() {
+			if !s.alert && ui.Button(c, locales.Cancel()).Clicked() {
 				a.dialogOpen, a.asking = false, nil
 				if s.cancel != nil {
 					s.cancel()
 				}
 			}
-			confirm := ui.PrimaryButton(c, s.confirm).Label(fmt.Sprintf("Confirm %s", s.confirm))
+			confirm := ui.PrimaryButton(c, s.confirm).Label(locales.ConfirmAction(s.confirm))
 			if s.danger {
 				confirm.Background(p.red)
 			}

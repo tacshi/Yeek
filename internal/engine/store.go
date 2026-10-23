@@ -15,6 +15,8 @@ import (
 	"sync"
 
 	_ "modernc.org/sqlite"
+
+	"yeek/locales"
 )
 
 type Store struct {
@@ -157,7 +159,7 @@ func (t *modelTx) upsert(ctx context.Context, patch Object) (Object, error) {
 		prev, e := t.get(ctx, id)
 		if e == nil {
 			if str(prev, "model") != kind {
-				return nil, errors.New("model kind cannot change")
+				return nil, errors.New(locales.ModelKindCannotChange())
 			}
 			maps.Copy(m, prev)
 			created = false
@@ -168,7 +170,7 @@ func (t *modelTx) upsert(ctx context.Context, patch Object) (Object, error) {
 		id = newID(kind)
 	}
 	if id == "__proto__" || id == "constructor" || id == "prototype" {
-		return nil, errors.New("invalid model ID")
+		return nil, errors.New(locales.InvalidModelID())
 	}
 	createdAt := m["createdAt"]
 	maps.Copy(m, patch)
@@ -178,19 +180,19 @@ func (t *modelTx) upsert(ctx context.Context, patch Object) (Object, error) {
 	if workspace := str(m, "workspaceId"); workspace != "" {
 		parent, e := t.get(ctx, workspace)
 		if e != nil || str(parent, "model") != "workspace" {
-			return nil, fmt.Errorf("workspace %q does not exist", workspace)
+			return nil, errors.New(locales.WorkspaceWorkspaceDoesNotExist(strconv.Quote(workspace)))
 		}
 	}
 	if parentID := str(m, "folderId"); parentID != "" {
 		parent, e := t.get(ctx, parentID)
 		if e != nil || str(parent, "model") != "folder" || str(parent, "workspaceId") != str(m, "workspaceId") {
-			return nil, errors.New("folder must belong to this workspace")
+			return nil, errors.New(locales.FolderMustBelongToThisWorkspace())
 		}
 		seen := map[string]bool{id: true}
 		for parent != nil {
 			p := str(parent, "id")
 			if seen[p] {
-				return nil, errors.New("folder cannot contain itself")
+				return nil, errors.New(locales.FolderCannotContainItself())
 			}
 			seen[p] = true
 			p = str(parent, "folderId")
@@ -227,7 +229,7 @@ func (t *modelTx) ensureWorkspace(ctx context.Context, id string) error {
 		return err
 	}
 	if str(w, "model") != "workspace" {
-		return errors.New("not a workspace")
+		return errors.New(locales.NotAWorkspace())
 	}
 	all, err := t.all(ctx)
 	if err != nil {
@@ -274,7 +276,7 @@ func (t *modelTx) delete(ctx context.Context, id string) error {
 		return err
 	}
 	if str(root, "model") == "settings" {
-		return errors.New("settings cannot be deleted")
+		return errors.New(locales.SettingsCannotBeDeleted())
 	}
 	all, err := t.all(ctx)
 	if err != nil {
@@ -320,7 +322,7 @@ func (s *Store) Duplicate(ctx context.Context, id string, source Object) (result
 		}
 		allowed := []string{"folder", "environment", "http_request", "grpc_request", "websocket_request", "workspace"}
 		if !slices.Contains(allowed, str(root, "model")) {
-			return errors.New("this model cannot be duplicated")
+			return errors.New(locales.ThisModelCannotBeDuplicated())
 		}
 		var siblings []string
 		for _, m := range all {

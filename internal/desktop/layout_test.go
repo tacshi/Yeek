@@ -52,7 +52,7 @@ func TestSidebarFilterMatchesFolderContents(t *testing.T) {
 	}
 }
 
-func TestYaakMethodAndStatusLabels(t *testing.T) {
+func TestMethodAndStatusLabels(t *testing.T) {
 	for method, want := range map[string]string{"get": "GET ", "DELETE": "DELE", "PATCH": "PTCH", "PROPFIND": "PROP", "graphql": "GQL "} {
 		if got := shortMethod(method); got != want {
 			t.Errorf("shortMethod(%q) = %q, want %q", method, got, want)

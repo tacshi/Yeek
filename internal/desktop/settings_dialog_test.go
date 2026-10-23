@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/yeekui"
 )
 
-func TestSettingsDialogTabsInYaakOrder(t *testing.T) {
+func TestSettingsDialogTabsInOrder(t *testing.T) {
 	a, _ := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
 	tt := ui.NewTester(a.View, 1360, 860)
@@ -146,7 +146,7 @@ func TestSettingsFontSelects(t *testing.T) {
 	}
 	tt.Frame()
 	snapshot(t, tt, "font_select")
-	if !tt.HasText(systemDefaultFont) || tt.HasText(sans) {
+	if !tt.HasText(systemDefaultFont()) || tt.HasText(sans) {
 		t.Fatal("editor fonts", tt.Texts())
 	}
 	if err := tt.Click(mono); err != nil {
@@ -169,7 +169,7 @@ func TestSettingsFontSelects(t *testing.T) {
 	if err := tt.Click("Editor font setting"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click(systemDefaultFont); err != nil {
+	if err := tt.Click(systemDefaultFont()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

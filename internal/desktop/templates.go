@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type templateScope struct{ workspace, folder, environment, request, cookieJar string }
@@ -266,14 +267,14 @@ func (a *App) templateInput(c *ui.Context, p colors, value *string, key, label, 
 		a.templateChipClicked(doc, *value)
 	}
 	input.ContextMenu(func(menu *ui.Menu) {
-		if menu.Item("Undo").Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyZ).Chosen() {
+		if menu.Item(locales.Undo()).Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyZ).Chosen() {
 			doc.state.Command("undo")
 		}
-		if menu.Item("Redo").Disabled(readOnly).Shortcut(ui.Cmd|ui.Shift, ui.KeyZ).Chosen() {
+		if menu.Item(locales.Redo()).Disabled(readOnly).Shortcut(ui.Cmd|ui.Shift, ui.KeyZ).Chosen() {
 			doc.state.Command("redo")
 		}
 		menu.Separator()
-		for _, action := range []struct{ label, command string }{{"Cut", "cut"}, {"Copy", "copy"}, {"Paste", "paste"}, {"Select All", "selectAll"}} {
+		for _, action := range []struct{ label, command string }{{locales.Cut(), "cut"}, {locales.Copy(), "copy"}, {locales.Paste(), "paste"}, {locales.SelectAll(), "selectAll"}} {
 			if menu.Item(action.label).Disabled(readOnly && (action.command == "cut" || action.command == "paste")).Chosen() {
 				doc.state.Command(action.command)
 			}
@@ -431,7 +432,7 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor ui.Element, doc
 			first := max(0, min(selected-5, len(v.options)-8))
 			for i := first; i < min(first+8, len(v.options)); i++ {
 				option := v.options[i]
-				row := ui.Row(c).Key(i).Height(31).Padding(4, 8).Gap(10).Radius(3).Label("Complete "+option.name).EditorSuggestion(editor, i, len(v.options), i == selected)
+				row := ui.Row(c).Key(i).Height(31).Padding(4, 8).Gap(10).Radius(3).Label(locales.CompleteName(option.name)).EditorSuggestion(editor, i, len(v.options), i == selected)
 				if i == selected || row.Hovered() {
 					row.Background(p.accent.Alpha(.16))
 				}

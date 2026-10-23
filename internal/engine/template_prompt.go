@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"yeek/locales"
 )
 
 type TemplatePrompt struct {
@@ -20,7 +22,7 @@ type TemplatePrompter func(context.Context, TemplatePrompt) (string, error)
 
 type templatePrompterKey struct{}
 
-var ErrPromptCancelled = errors.New("prompt cancelled")
+var ErrPromptCancelled error = &localizedError{locales.PromptCancelled}
 
 func WithTemplatePrompter(ctx context.Context, prompter TemplatePrompter) context.Context {
 	return context.WithValue(ctx, templatePrompterKey{}, prompter)
@@ -48,7 +50,7 @@ func slugify(s string) string {
 
 func promptKey(args map[string]string) (string, error) {
 	if args["key"] == "" && args["label"] == "" {
-		return "", errors.New("A label or key is required when storing values") //nolint:staticcheck
+		return "", errors.New(locales.ALabelOrKeyIsRequired()) //nolint:staticcheck
 	}
 	var parts []string
 	for _, part := range []string{args["namespace"], cmp.Or(args["key"], args["label"])} {
@@ -112,8 +114,8 @@ func (e *Engine) maybeGetValue(ctx context.Context, args map[string]string, stor
 
 func (e *Engine) promptTemplate(ctx context.Context, args map[string]string) (string, error) {
 	prompt := TemplatePrompt{
-		Title:       cmp.Or(args["title"], "Enter Value"),
-		Label:       cmp.Or(args["label"], "Value"),
+		Title:       cmp.Or(args["title"], locales.EnterValue()),
+		Label:       cmp.Or(args["label"], locales.ValueTitle()),
 		Placeholder: args["placeholder"],
 		Default:     args["defaultValue"],
 		Password:    args["password"] == "true",
@@ -122,12 +124,12 @@ func (e *Engine) promptTemplate(ctx context.Context, args map[string]string) (st
 	switch store {
 	case promptStoreNone, promptStoreExpire, promptStoreForever:
 	default:
-		return "", errors.New("prompt.text store must be none, expire, or forever")
+		return "", errors.New(locales.PromptTextStoreMustBeNone())
 	}
 	key := ""
 	if store != promptStoreNone {
 		if args["namespace"] == "" {
-			return "", errors.New("Namespace is required when storing values") //nolint:staticcheck
+			return "", errors.New(locales.NamespaceIsRequiredWhenStoringValues()) //nolint:staticcheck
 		}
 		var err error
 		if key, err = promptKey(args); err != nil {
@@ -142,7 +144,7 @@ func (e *Engine) promptTemplate(ctx context.Context, args map[string]string) (st
 		if prompt.Default != "" {
 			return prompt.Default, nil
 		}
-		return "", errors.New("prompt.text needs an open Yeek window")
+		return "", errors.New(locales.PromptTextNeedsAnOpenYeek())
 	}
 	value, err := prompter(ctx, prompt)
 	if err != nil {

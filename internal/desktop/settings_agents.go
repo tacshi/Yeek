@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/mcp"
+	"yeek/locales"
 )
 
 var agentClients = []struct{ label, value string }{
@@ -20,20 +21,20 @@ func appAgentSetup(client, url, token string) agentSetup {
 	authorization := "Bearer " + token
 	switch client {
 	case "claude_code":
-		return agentSetup{"Run in a terminal.", fmt.Sprintf(`claude mcp add --transport http yeek %s --header "Authorization: %s"`, url, authorization)}
+		return agentSetup{locales.RunInATerminal(), fmt.Sprintf(`claude mcp add --transport http yeek %s --header "Authorization: %s"`, url, authorization)}
 	case "codex":
 		quoted := func(s string) string { data, _ := json.Marshal(s); return string(data) }
-		return agentSetup{"Add to ~/.codex/config.toml.", strings.Join([]string{
+		return agentSetup{locales.AddToCodexConfigToml(), strings.Join([]string{
 			"[mcp_servers.yeek]",
 			"url = " + quoted(url),
 			`http_headers = { "Authorization" = ` + quoted(authorization) + " }",
 		}, "\n")}
 	case "cursor":
-		return agentSetup{"Add to ~/.cursor/mcp.json.", setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": map[string]any{"url": url, "headers": map[string]any{"Authorization": authorization}}}})}
+		return agentSetup{locales.AddToCursorMcpJson(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": map[string]any{"url": url, "headers": map[string]any{"Authorization": authorization}}}})}
 	case "vscode":
-		return agentSetup{"Add to your user mcp.json (MCP: Open User Configuration).", setupJSON(map[string]any{"servers": map[string]any{"yeek": orderedSetup{{"type", "http"}, {"url", url}, {"headers", map[string]any{"Authorization": authorization}}}}})}
+		return agentSetup{locales.AddToYourUserMcpJson(), setupJSON(map[string]any{"servers": map[string]any{"yeek": orderedSetup{{"type", "http"}, {"url", url}, {"headers", map[string]any{"Authorization": authorization}}}}})}
 	}
-	return agentSetup{"For clients that read an mcpServers config, through the mcp-remote bridge.", setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": orderedSetup{
+	return agentSetup{locales.ForClientsThatReadAnMcpServers(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": orderedSetup{
 		{"command", "npx"},
 		{"args", []string{"-y", "mcp-remote", url, "--header", "Authorization: " + authorization}},
 	}}})}
@@ -111,48 +112,51 @@ func describedSection(c *ui.Context, p colors, title, description string, rows f
 }
 
 func (a *App) settingsAgents(c *ui.Context, p colors) {
-	settingsHeading(c, p, "Agents", "Connect AI coding agents like Claude Code and Cursor to Yeek, so they can read, edit, and send your requests.")
+	settingsHeading(c, p, locales.Agents(), locales.ConnectAICodingAgentsLikeClaude())
 	url := "http://" + mcp.DefaultAddr + mcp.Path
 	enabled := b(a.settings, "mcpServerEnabled")
 	token := mcpToken(a.list("key_value"))
-	describedSection(c, p, "MCP server in the app", "For agents that connect over HTTP, or to act on the workspaces open in Yeek.", func() {
-		settingRow(c, p, "Enable MCP server", "Serve Yeek's tools at "+url+" while Yeek is open.", nil, func() {
+	describedSection(c, p, locales.MCPServerInTheApp(), locales.ForAgentsThatConnectOverHTTP(), func() {
+		settingRow(c, p, locales.EnableMCPServer(), locales.ServeYeeksToolsAtUrlWhile(url), nil, func() {
 			on := enabled
-			if ui.Checkbox(c, &on, "").Label("MCP server enabled").Changed() {
+			if ui.Checkbox(c, &on, "").Label(locales.MCPServerEnabled()).Changed() {
 				a.saveSetting("mcpServerEnabled", on)
 			}
 		})
 		if enabled && token != "" {
-			settingRow(c, p, "Token", "Agents send this as a bearer token.", nil, func() { settingValue(c, p, token, nil) })
+			settingRow(c, p, locales.Token(), locales.AgentsSendThisAsABearer(), nil, func() { settingValue(c, p, token, nil) })
 		}
 	})
-	describedSection(c, p, "Connect an agent", "Pick your agent or editor to see how to add Yeek's MCP tools to it.", func() {
+	describedSection(c, p, locales.ConnectAnAgent(), locales.PickYourAgentOrEditorTo(), func() {
 		client := a.agentClient()
 		ui.Row(c).FillWidth().Padding(14, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 			selected := 0
 			labels := make([]string, len(agentClients))
 			for i, option := range agentClients {
 				labels[i] = option.label
+				if option.value == "other" {
+					labels[i] = locales.Other()
+				}
 				if option.value == client {
 					selected = i
 				}
 			}
-			if ui.Segmented(c, &selected, labels...).Label("Agent").Changed() {
+			if ui.Segmented(c, &selected, labels...).Label(locales.Agent()).Changed() {
 				a.setAgentClient(agentClients[selected].value)
 			}
 			ui.Spacer(c)
 		})
 		if !enabled || token == "" {
-			settingRow(c, p, "Through the app", "Turn on the MCP server above to connect this way.", nil, func() {})
+			settingRow(c, p, locales.ThroughTheApp(), locales.TurnOnTheMCPServerAbove(), nil, func() {})
 			return
 		}
 		setup := appAgentSetup(client, url, token)
 		ui.Column(c).Key("Through the app").FillWidth().Padding(14, 0).Gap(4).Children(func() {
-			ui.Text(c, "Through the app").FontSize(13)
+			ui.Text(c, locales.ThroughTheApp()).FontSize(13)
 			ui.Text(c, setup.where).FontSize(12).TextColor(p.muted)
 			ui.Row(c).FillWidth().Margin(8, 0, 0, 0).Padding(8, 8, 8, 10).Gap(8).Radius(6).Border(1, p.border).AlignItems(ui.Start).Children(func() {
 				ui.Text(c, setup.snippet).Font("monospace").FontSize(12).Wrap().Selectable().Grow(1).MinWidth(0)
-				if smallIconButton(c, "copy", "Copy setup").Border(1, p.border).Clicked() {
+				if smallIconButton(c, "copy", locales.CopySetup()).Border(1, p.border).Clicked() {
 					c.WriteClipboard(setup.snippet)
 				}
 			})

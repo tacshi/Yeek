@@ -1,5 +1,3 @@
-# Synthetic regression based on the migration cases described by
-# https://github.com/w33ble/insomnia-yaak-converter (no customer data).
 type: collection.insomnia.rest/5.0
 name: Chained GraphQL
 meta:

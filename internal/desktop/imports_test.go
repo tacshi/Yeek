@@ -27,7 +27,7 @@ func TestImportDialogPreviewsThenApplies(t *testing.T) {
 	tt := ui.NewTester(a.View, 1360, 860)
 	a.importFile()
 	tt.Frame()
-	for _, text := range []string{"Import Data", "files", "folder", "URL", "Supports OpenAPI, Swagger, Postman, Insomnia, Bruno, curl, and Yaak exports", "Import into", "Cancel", "Preview Import"} {
+	for _, text := range []string{"Import Data", "files", "folder", "URL", "Supports Yeek, OpenAPI, Swagger, Postman, Insomnia, Bruno and curl exports", "Import into", "Cancel", "Preview Import"} {
 		if !tt.HasText(text) {
 			t.Fatalf("missing %q: %v", text, tt.Texts())
 		}
@@ -173,7 +173,7 @@ func TestImportDialogSelectionAndFailedSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if len(a.imports.sources) != 0 || !tt.HasText("Supports OpenAPI, Swagger, Postman, Insomnia, Bruno, curl, and Yaak exports") {
+	if len(a.imports.sources) != 0 || !tt.HasText("Supports Yeek, OpenAPI, Swagger, Postman, Insomnia, Bruno and curl exports") {
 		t.Fatal("source not removed")
 	}
 }
@@ -246,7 +246,7 @@ func TestProtoFilesShowAsAPathList(t *testing.T) {
 	}
 }
 
-func TestSplitPathMatchesYaak(t *testing.T) {
+func TestSplitPath(t *testing.T) {
 	for path, want := range map[string][2]string{
 		"/a/b/c/d/e.json":                    {"e.json", "…/b/c/d"},
 		"/a/b/e.json":                        {"e.json", "a/b"},

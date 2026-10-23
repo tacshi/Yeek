@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-type completionPreset struct{ label, value, info string }
+type completionPreset struct {
+	label, value string
+	info         func() string
+}
 
 func (o completionPreset) text() string {
 	if o.value != "" {
@@ -89,7 +92,10 @@ func genericOptions(presets []completionPreset, minMatch int, source string, car
 		if o.label == typed {
 			continue
 		}
-		option := templateOption{name: o.label, apply: o.text(), info: o.info, generic: true, end: caret}
+		option := templateOption{name: o.label, apply: o.text(), generic: true, end: caret}
+		if o.info != nil {
+			option.info = o.info()
+		}
 		switch {
 		case strings.HasPrefix(label, query):
 			prefixed = append(prefixed, option)

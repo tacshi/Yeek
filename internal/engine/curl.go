@@ -5,11 +5,12 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"maps"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"yeek/locales"
 )
 
 func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'" }
@@ -81,7 +82,7 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 			return "", err
 		}
 		if bytes.IndexByte(inlineBody, 0) >= 0 {
-			return "", errors.New("use a binary file body to copy data containing NUL as cURL")
+			return "", errors.New(locales.UseABinaryFileBodyTo())
 		}
 	}
 	request, err := http.NewRequestWithContext(ctx, method, target.String(), bytes.NewReader(inlineBody))
@@ -124,7 +125,7 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 			return "", err
 		}
 	default:
-		return "", fmt.Errorf("copy as cURL does not support authentication type %q", authKind)
+		return "", errors.New(locales.CopyAsCURLDoesNotSupport(strconv.Quote(authKind)))
 	}
 	option("--url", request.URL.String())
 	if cookies := headers.Values("Cookie"); len(cookies) > 1 {
@@ -141,7 +142,7 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 	case "binary":
 		path := str(obj(model, "body"), "filePath")
 		if strings.TrimSpace(path) == "" {
-			return "", errors.New("choose a file before copying cURL")
+			return "", errors.New(locales.ChooseAFileBeforeCopyingCURL())
 		}
 		if !hasContentType {
 			option("--header", "Content-Type: application/octet-stream")
@@ -156,7 +157,7 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 			}
 			name := str(row, "name")
 			if strings.ContainsAny(name, "=\r\n\x00") {
-				return "", errors.New("cURL form names cannot contain '=' or control characters")
+				return "", errors.New(locales.CURLFormNamesCannotContainOr())
 			}
 			if err = ValidateMultipartMetadata(str(row, "filename"), str(row, "contentType")); err != nil {
 				return "", err
@@ -165,7 +166,7 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 			if IsFileFormField(row) {
 				path := str(row, "file")
 				if strings.TrimSpace(path) == "" {
-					return "", fmt.Errorf("%s: choose a file before copying cURL", name)
+					return "", errors.New(locales.NameChooseAFileBeforeCopying(name))
 				}
 				value = "@" + curlFormQuote(path)
 				if filename := str(row, "filename"); filename != "" {
@@ -176,7 +177,7 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 				}
 			} else if contentType == "" {
 				if strings.ContainsRune(value, 0) {
-					return "", errors.New("use a file field to copy data containing NUL as cURL")
+					return "", errors.New(locales.UseAFileFieldToCopy())
 				}
 				option("--form-string", name+"="+value)
 				count++
@@ -207,7 +208,7 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 	}
 	for _, part := range parts {
 		if strings.ContainsRune(part, 0) {
-			return "", errors.New("cURL arguments cannot contain NUL")
+			return "", errors.New(locales.CURLArgumentsCannotContainNUL())
 		}
 	}
 	return strings.Join(parts, " "), nil

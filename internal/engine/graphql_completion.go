@@ -8,6 +8,8 @@ import (
 
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/lexer"
+
+	"yeek/locales"
 )
 
 type GraphQLSuggestion struct {
@@ -495,16 +497,16 @@ func (p *graphQLCursor) suggestions(source string) []GraphQLSuggestion {
 			if ctx.dollar {
 				insert = name
 			}
-			add("$"+name, insert, typ.String(), "Operation variable")
+			add("$"+name, insert, typ.String(), locales.OperationVariable())
 		}
 	}
 	switch ctx.kind {
 	case "document":
 		for _, keyword := range []string{"query", "mutation", "subscription", "fragment"} {
-			add(keyword, keyword+" ", "operation", "")
+			add(keyword, keyword+" ", locales.OperationLower(), "")
 		}
 	case "selection":
-		add("{", "{\n  \n}", "selection set", "")
+		add("{", "{\n  \n}", locales.SelectionSet(), "")
 		options[0].Caret = 4
 	case "fields", "inputFields":
 		if ctx.parent != nil {
@@ -513,7 +515,7 @@ func (p *graphQLCursor) suggestions(source string) []GraphQLSuggestion {
 			}
 		}
 		if ctx.kind == "fields" && ctx.parent != nil {
-			add("__typename", "__typename", "String!", "Runtime object type")
+			add("__typename", "__typename", "String!", locales.RuntimeObjectType())
 		}
 	case "arguments":
 		for _, arg := range ctx.args {
@@ -575,18 +577,18 @@ func (p *graphQLCursor) suggestions(source string) []GraphQLSuggestion {
 			add(typ.Name, typ.Name, string(typ.Kind), typ.Description)
 		}
 	case "fragments":
-		add("on", "on ", "inline fragment", "")
+		add("on", "on ", locales.InlineFragment(), "")
 		tokens, _ := graphQLTokens(source, utf8.RuneCountInString(source)+1)
 		for i := 0; i+3 < len(tokens); i++ {
 			if tokens[i].Value == "fragment" && tokens[i+2].Value == "on" {
 				typ := p.lookup(tokens[i+3].Value)
 				if typ != nil && p.overlap(ctx.parent, typ) {
-					add(tokens[i+1].Value, tokens[i+1].Value, typ.Name, "Fragment")
+					add(tokens[i+1].Value, tokens[i+1].Value, typ.Name, locales.Fragment())
 				}
 			}
 		}
 	case "on":
-		add("on", "on ", "type condition", "")
+		add("on", "on ", locales.TypeCondition(), "")
 	case "directives":
 		if p.index != nil {
 			for _, directive := range p.index.Schema.Directives {

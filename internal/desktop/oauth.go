@@ -5,12 +5,14 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type oauthEditorState struct {
@@ -29,7 +31,7 @@ func (a *App) oauthState(d *Draft) *oauthEditorState {
 	}
 	state := a.oauthEditors[d.ID]
 	if state == nil {
-		state = &oauthEditorState{pairTab: "Authorization Params", pairs: map[string][]KV{}, pairSource: map[string]string{}}
+		state = &oauthEditorState{pairTab: "authorizationParams", pairs: map[string][]KV{}, pairSource: map[string]string{}}
 		a.oauthEditors[d.ID] = state
 	}
 	return state
@@ -146,13 +148,13 @@ func (a *App) oauthText(c *ui.Context, p colors, d *Draft, key, label string, se
 	ui.Column(c).Key(key).Gap(5).Children(func() {
 		ui.Text(c, label).FontSize(12).TextColor(p.muted)
 		if multiline {
-			if ui.TextArea(c, &value).Label("OAuth " + label).Height(100).Font("monospace").FontSize(12).Changed() {
+			if ui.TextArea(c, &value).Label(locales.OAuthField(label)).Height(100).Font("monospace").FontSize(12).Changed() {
 				d.Auth[key] = value
 				d.Dirty = true
 			}
 			return
 		}
-		entry := a.templateInput(c, p, &value, d.ID+":oauth:"+key, "OAuth "+label, "", false).FillWidth().Height(32).Border(1, p.border).Radius(4)
+		entry := a.templateInput(c, p, &value, d.ID+":oauth:"+key, locales.OAuthField(label), "", false).FillWidth().Height(32).Border(1, p.border).Radius(4)
 		if secret {
 			entry.Password()
 		}
@@ -171,7 +173,7 @@ func (a *App) oauthChoice(c *ui.Context, p colors, d *Draft, key, label string, 
 	}
 	ui.Column(c).Key(key).Gap(5).Children(func() {
 		ui.Text(c, label).FontSize(12).TextColor(p.muted)
-		if ui.Select(c, &selected, labels).Label("OAuth " + label).FillWidth().Changed() {
+		if ui.Select(c, &selected, labels).Label(locales.OAuthField(label)).FillWidth().Changed() {
 			for i, label := range labels {
 				if label == selected {
 					value := values[i]
@@ -216,65 +218,65 @@ func (a *App) oauthEditor(c *ui.Context, p colors, d *Draft) {
 	if _, exists := d.Auth["headerPrefix"]; !exists {
 		d.Auth["headerPrefix"] = "Bearer"
 	}
-	a.oauthChoice(c, p, d, "grantType", "Grant Type", []string{"authorization_code", "client_credentials", "implicit", "password", "refresh_token"}, []string{"Authorization Code", "Client Credentials", "Implicit", "Password", "Refresh Token"})
+	a.oauthChoice(c, p, d, "grantType", locales.GrantType(), []string{"authorization_code", "client_credentials", "implicit", "password", "refresh_token"}, []string{locales.AuthorizationCode(), locales.ClientCredentials(), locales.Implicit(), locales.Password(), locales.RefreshToken()})
 	grant := d.Auth["grantType"]
-	a.oauthText(c, p, d, "clientId", "Client ID", false, false)
+	a.oauthText(c, p, d, "clientId", locales.ClientID(), false, false)
 	if grant == "client_credentials" {
-		a.oauthChoice(c, p, d, "clientCredentialsMethod", "Client Authentication", []string{"client_secret", "client_assertion"}, []string{"Client Secret", "JWT Client Assertion"})
+		a.oauthChoice(c, p, d, "clientCredentialsMethod", locales.ClientAuthentication(), []string{"client_secret", "client_assertion"}, []string{locales.ClientSecretTitle(), locales.JWTClientAssertion()})
 	}
 	if grant != "implicit" {
 		if d.Auth["clientCredentialsMethod"] == "client_assertion" && grant == "client_credentials" {
 			algorithms := []string{"HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "EdDSA", "none"}
-			a.oauthChoice(c, p, d, "clientAssertionAlgorithm", "Assertion Algorithm", algorithms, algorithms)
-			a.oauthText(c, p, d, "clientAssertionSecret", "Assertion Key", true, true)
-			a.oauthCheckbox(c, d, "clientAssertionSecretBase64", "Assertion key is base64 encoded", false)
+			a.oauthChoice(c, p, d, "clientAssertionAlgorithm", locales.AssertionAlgorithm(), algorithms, algorithms)
+			a.oauthText(c, p, d, "clientAssertionSecret", locales.AssertionKey(), true, true)
+			a.oauthCheckbox(c, d, "clientAssertionSecretBase64", locales.AssertionKeyIsBase64Encoded(), false)
 		} else {
-			a.oauthText(c, p, d, "clientSecret", "Client Secret", true, false)
+			a.oauthText(c, p, d, "clientSecret", locales.ClientSecretTitle(), true, false)
 		}
-		a.oauthText(c, p, d, "accessTokenUrl", "Token URL", false, false)
+		a.oauthText(c, p, d, "accessTokenUrl", locales.TokenURL(), false, false)
 	}
 	if grant == "authorization_code" || grant == "implicit" {
-		a.oauthText(c, p, d, "authorizationUrl", "Authorization URL", false, false)
-		a.oauthText(c, p, d, "redirectUri", "Redirect URI", false, false)
-		a.oauthChoice(c, p, d, "useExternalBrowser", "Sign-in Browser", []string{"false", "true"}, []string{"MyGo Sign-in Window", "System Browser"})
+		a.oauthText(c, p, d, "authorizationUrl", locales.AuthorizationURL(), false, false)
+		a.oauthText(c, p, d, "redirectUri", locales.RedirectURI(), false, false)
+		a.oauthChoice(c, p, d, "useExternalBrowser", locales.SignInBrowser(), []string{"false", "true"}, []string{locales.MyGoSignInWindow(), locales.SystemBrowser()})
 		if d.Auth["useExternalBrowser"] == "true" && d.Auth["redirectUri"] == "" {
-			a.oauthText(c, p, d, "callbackPort", "Callback Port", false, false)
+			a.oauthText(c, p, d, "callbackPort", locales.CallbackPort(), false, false)
 		}
 	}
 	if grant == "authorization_code" {
-		a.oauthCheckbox(c, d, "usePkce", "Use PKCE", true)
+		a.oauthCheckbox(c, d, "usePkce", locales.UsePKCE(), true)
 		if d.Auth["usePkce"] != "false" {
-			a.oauthChoice(c, p, d, "pkceChallengeMethod", "PKCE Method", []string{"S256", "plain"}, []string{"S256", "plain"})
+			a.oauthChoice(c, p, d, "pkceChallengeMethod", locales.PKCEMethod(), []string{"S256", "plain"}, []string{"S256", "plain"})
 		}
 	}
 	if grant == "implicit" {
-		a.oauthChoice(c, p, d, "responseType", "Response Type", []string{"token", "id_token", "id_token token"}, []string{"Access Token", "ID Token", "ID and Access Token"})
+		a.oauthChoice(c, p, d, "responseType", locales.ResponseType(), []string{"token", "id_token", "id_token token"}, []string{locales.AccessTokenTitle(), locales.IDToken(), locales.IDAndAccessToken()})
 	}
 	if grant == "password" {
-		a.oauthText(c, p, d, "username", "Username", false, false)
-		a.oauthText(c, p, d, "password", "Password", true, false)
+		a.oauthText(c, p, d, "username", locales.Username(), false, false)
+		a.oauthText(c, p, d, "password", locales.Password(), true, false)
 	}
 	if grant == "refresh_token" {
-		a.oauthText(c, p, d, "refreshToken", "Refresh Token", true, false)
+		a.oauthText(c, p, d, "refreshToken", locales.RefreshToken(), true, false)
 	}
-	a.oauthText(c, p, d, "scope", "Scope", false, false)
-	if ui.Button(c, "More OAuth Options").Clicked() {
+	a.oauthText(c, p, d, "scope", locales.Scope(), false, false)
+	if ui.Button(c, locales.MoreOAuthOptions()).Clicked() {
 		a.deferUntilInputs(func() { state.advanced = !state.advanced })
 	}
 	if state.advanced {
-		a.oauthText(c, p, d, "audience", "Audience", false, false)
-		a.oauthText(c, p, d, "state", "State", false, false)
+		a.oauthText(c, p, d, "audience", locales.Audience(), false, false)
+		a.oauthText(c, p, d, "state", locales.State(), false, false)
 		if grant == "authorization_code" && d.Auth["usePkce"] != "false" {
-			a.oauthText(c, p, d, "pkceCodeVerifier", "PKCE Verifier", true, false)
+			a.oauthText(c, p, d, "pkceCodeVerifier", locales.PKCEVerifier(), true, false)
 		}
-		a.oauthChoice(c, p, d, "tokenName", "Token to Send", []string{"access_token", "id_token"}, []string{"Access Token", "ID Token"})
+		a.oauthChoice(c, p, d, "tokenName", locales.TokenToSend(), []string{"access_token", "id_token"}, []string{locales.AccessTokenTitle(), locales.IDToken()})
 		if grant != "implicit" {
-			a.oauthChoice(c, p, d, "credentials", "Send Client Credentials", []string{"body", "basic", "none"}, []string{"Request Body", "Basic Authentication", "Client ID Only"})
+			a.oauthChoice(c, p, d, "credentials", locales.SendClientCredentials(), []string{"body", "basic", "none"}, []string{locales.RequestBody(), locales.BasicAuthentication(), locales.ClientIDOnly()})
 		}
-		a.oauthText(c, p, d, "headerName", "Header Name", false, false)
-		a.oauthText(c, p, d, "headerPrefix", "Header Prefix", false, false)
+		a.oauthText(c, p, d, "headerName", locales.HeaderName(), false, false)
+		a.oauthText(c, p, d, "headerPrefix", locales.HeaderPrefix(), false, false)
 		a.oauthPairsEditor(c, p, d, state)
-		if ui.Button(c, "Clear All Sign-in Sessions").Disabled(a.oauthBrowserCount > 0).Clicked() {
+		if ui.Button(c, locales.ClearAllSignInSessions()).Disabled(a.oauthBrowserCount > 0).Clicked() {
 			a.background(func() (func(), error) {
 				err := mygo.App.ClearBrowsingData()
 				return func() {
@@ -288,7 +290,7 @@ func (a *App) oauthEditor(c *ui.Context, p colors, d *Draft) {
 		}
 	}
 	manual := d.Auth["tokenSource"] == "manual" || d.Auth["tokenSource"] == "" && d.Auth["accessToken"] != ""
-	if ui.Checkbox(c, &manual, "Use an explicit token").Changed() {
+	if ui.Checkbox(c, &manual, locales.UseAnExplicitToken()).Changed() {
 		a.deferUntilInputs(func() {
 			d.Auth["tokenSource"] = "automatic"
 			if manual {
@@ -298,28 +300,28 @@ func (a *App) oauthEditor(c *ui.Context, p colors, d *Draft) {
 		})
 	}
 	if manual {
-		a.oauthText(c, p, d, "accessToken", "Explicit Access Token", true, false)
+		a.oauthText(c, p, d, "accessToken", locales.ExplicitAccessToken(), true, false)
 	}
 	a.oauthTokenView(c, p, d, state)
 	a.deferUntilInputs(func() { a.syncOAuthState(d, state) })
 }
 func (a *App) oauthPairsEditor(c *ui.Context, p colors, d *Draft, state *oauthEditorState) {
-	labels := []string{"Authorization Params", "Token Headers", "Token Body Params", "Refresh Headers", "Refresh Body Params"}
+	labels := []string{locales.AuthorizationParams(), locales.TokenHeaders(), locales.TokenBodyParams(), locales.RefreshHeaders(), locales.RefreshBodyParams()}
 	keys := []string{"authorizationParams", "tokenHeaders", "tokenBodyParams", "refreshHeaders", "refreshBodyParams"}
-	group := state.pairTab
-	if ui.Select(c, &group, labels).Label("OAuth parameter group").FillWidth().Changed() {
-		a.deferUntilInputs(func() { state.pairTab = group })
+	group := labels[max(0, slices.Index(keys, state.pairTab))]
+	if ui.Select(c, &group, labels).Label(locales.OAuthParameterGroup()).FillWidth().Changed() {
+		chosen := keys[max(0, slices.Index(labels, group))]
+		a.deferUntilInputs(func() { state.pairTab = chosen })
 	}
-	for i, label := range labels {
-		if state.pairTab != label {
+	for _, key := range keys {
+		if state.pairTab != key {
 			continue
 		}
-		key := keys[i]
 		if state.pairSource[key] != d.Auth[key] {
 			var rows []any
 			if text := d.Auth[key]; text != "" {
 				if json.Unmarshal([]byte(text), &rows) != nil {
-					ui.Text(c, "Invalid custom parameter JSON").TextColor(p.red)
+					ui.Text(c, locales.InvalidCustomParameterJSON()).TextColor(p.red)
 					return
 				}
 			}
@@ -341,32 +343,32 @@ func (a *App) oauthPairsEditor(c *ui.Context, p colors, d *Draft, state *oauthEd
 func (a *App) oauthTokenView(c *ui.Context, p colors, d *Draft, state *oauthEditorState) {
 	ui.Column(c).Padding(12).Gap(10).Border(1, p.border).Radius(5).Children(func() {
 		if state.token == nil {
-			ui.Text(c, "No stored token").TextColor(p.muted)
+			ui.Text(c, locales.NoStoredToken()).TextColor(p.muted)
 		} else {
-			label := "No expiry provided"
+			label := locales.NoExpiryProvided()
 			if !state.token.ExpiresAt.IsZero() {
 				c.After(time.Second)
-				prefix := "Expires "
+				when := formatDate(state.token.ExpiresAt.Local(), "2 Jan 2006 15:04:05", "yMMMdHHmmss")
+				label = locales.ExpiresDate(when)
 				if state.token.Expired(time.Now()) {
-					prefix = "Expired "
+					label = locales.ExpiredDate(when)
 				}
-				label = prefix + state.token.ExpiresAt.Local().Format("2 Jan 2006 15:04:05")
 			}
 			ui.Text(c, label).FontSize(12).TextColor(p.muted)
 			value := state.token.Value()
 			ui.Row(c).Gap(8).Children(func() {
-				entry := ui.TextInput(c, &value).ReadOnly(true).Label("Stored OAuth token").Grow(1)
+				entry := ui.TextInput(c, &value).ReadOnly(true).Label(locales.StoredOAuthToken()).Grow(1)
 				if !state.showToken {
 					entry.Password()
 				}
-				label := "Show"
+				label := locales.Show()
 				if state.showToken {
-					label = "Hide"
+					label = locales.Hide()
 				}
 				if ui.Button(c, label).Clicked() {
 					state.showToken = !state.showToken
 				}
-				if ui.Button(c, "Copy Token").Clicked() {
+				if ui.Button(c, locales.CopyToken()).Clicked() {
 					c.WriteClipboard(value)
 				}
 			})
@@ -376,25 +378,25 @@ func (a *App) oauthTokenView(c *ui.Context, p colors, d *Draft, state *oauthEdit
 		}
 		ui.Row(c).Gap(8).Children(func() {
 			if state.busy {
-				ui.Text(c, map[string]string{"Fetch": "Fetching token…", "Refresh": "Refreshing token…", "Delete": "Deleting token…"}[state.operation]).Grow(1).TextColor(p.muted)
-				if ui.Button(c, "Cancel Authorization").Clicked() {
+				ui.Text(c, map[string]string{"Fetch": locales.FetchingTokenEllipsis(), "Refresh": locales.RefreshingTokenEllipsis(), "Delete": locales.DeletingTokenEllipsis()}[state.operation]).Grow(1).TextColor(p.muted)
+				if ui.Button(c, locales.CancelAuthorization()).Clicked() {
 					if state.cancel != nil {
 						state.cancel()
 					}
 				}
 				return
 			}
-			if ui.PrimaryButton(c, "Fetch Token").Clicked() {
+			if ui.PrimaryButton(c, locales.FetchToken()).Clicked() {
 				a.runOAuth(d, "Fetch")
 			}
 			if state.token != nil {
-				if ui.Button(c, "Refresh Token").Disabled(s(state.token.Response, "refresh_token") == "").Clicked() {
+				if ui.Button(c, locales.RefreshToken()).Disabled(s(state.token.Response, "refresh_token") == "").Clicked() {
 					a.runOAuth(d, "Refresh")
 				}
-				if ui.Button(c, "Delete Token").Clicked() {
+				if ui.Button(c, locales.DeleteToken()).Clicked() {
 					a.runOAuth(d, "Delete")
 				}
-				if ui.Button(c, "Token Response").Clicked() {
+				if ui.Button(c, locales.TokenResponse()).Clicked() {
 					state.showResponse = !state.showResponse
 				}
 			}

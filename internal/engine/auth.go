@@ -25,6 +25,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsv4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/golang-jwt/jwt/v5"
+
+	"yeek/locales"
 )
 
 func extendedAuth(req *http.Request, kind string, a Object) error {
@@ -67,7 +69,7 @@ func extendedAuth(req *http.Request, kind string, a Object) error {
 	case "oauth1":
 		return signOAuth1(req, a)
 	default:
-		return fmt.Errorf("unknown authentication type %q", kind)
+		return errors.New(locales.UnknownAuthenticationTypeKind(strconv.Quote(kind)))
 	}
 }
 func requestBytes(req *http.Request) ([]byte, error) {
@@ -85,11 +87,11 @@ func signJWT(a Object) (string, error) {
 	alg := cmp.Or(str(a, "algorithm"), "HS256")
 	method := jwt.GetSigningMethod(alg)
 	if method == nil || alg == "none" {
-		return "", errors.New("choose a supported JWT signing algorithm")
+		return "", errors.New(locales.ChooseASupportedJWTSigningAlgorithm())
 	}
 	claims := jwt.MapClaims{}
 	if err := json.Unmarshal([]byte(cmp.Or(str(a, "payload"), "{}")), &claims); err != nil {
-		return "", fmt.Errorf("JWT payload: %w", err)
+		return "", fmt.Errorf("%s: %w", locales.JWTPayload(), err)
 	}
 	token := jwt.NewWithClaims(method, claims)
 	headers := Object{}
@@ -194,7 +196,7 @@ func signOAuth1(req *http.Request, a Object) error {
 	case "PLAINTEXT":
 		oauth.Set("oauth_signature", key)
 	default:
-		return errors.New("unsupported OAuth 1 signature method")
+		return errors.New(locales.UnsupportedOAuth1SignatureMethod())
 	}
 	if signature != nil {
 		oauth.Set("oauth_signature", base64.StdEncoding.EncodeToString(signature))

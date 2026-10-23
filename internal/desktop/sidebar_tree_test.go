@@ -148,7 +148,7 @@ func TestSidebarDeleteSelected(t *testing.T) {
 	}
 }
 
-func TestSidebarMoveItemsKeepsYaakSortPriorities(t *testing.T) {
+func TestSidebarMoveItemsKeepsSortPriorities(t *testing.T) {
 	a, e, ids := treeApp(t)
 	a.moveTreeItems([]string{ids["Gamma"]}, "", 1)
 	if !slices.Equal(treeNames(a, ""), []string{"Folder", "Gamma", "Alpha", "Beta"}) {

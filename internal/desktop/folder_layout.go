@@ -3,6 +3,7 @@ package desktop
 import (
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) openFolder(id string) {
@@ -35,12 +36,12 @@ func (a *App) folderLayout(c *ui.Context, p colors, folder engine.Object) {
 		ui.Row(c).Gap(8).Children(func() {
 			icon(c, "folder").FontSize(22).TextColor(p.muted)
 			ui.Text(c, requestName(folder)).FontSize(22).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
-			send := ui.ButtonBase(c).Label("Send All").Height(26).Padding(0, 10).Gap(6).Radius(4).Border(1, p.border)
+			send := ui.ButtonBase(c).Label(locales.SendAll()).Height(26).Padding(0, 10).Gap(6).Radius(4).Border(1, p.border)
 			if send.Hovered() {
 				send.Background(p.border.Alpha(.3))
 			}
 			send.Children(func() {
-				ui.Text(c, "Send All").FontSize(12)
+				ui.Text(c, locales.SendAll()).FontSize(12)
 				icon(c, "send").FontSize(12).TextColor(p.muted)
 			})
 			if send.Clicked() {
@@ -76,16 +77,16 @@ func (a *App) folderCard(c *ui.Context, p colors, child engine.Object) {
 				icon(c, "folder").FontSize(16)
 			}
 			ui.Text(c, requestName(child)).FontSize(16).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
-			if smallIconButton(c, "external", "Open "+requestName(child)).Clicked() {
+			if smallIconButton(c, "external", locales.OpenName(requestName(child))).Clicked() {
 				a.openRequest(id)
 			}
-			if smallIconButton(c, "send", "Send "+requestName(child)).Clicked() {
+			if smallIconButton(c, "send", locales.SendName(requestName(child))).Clicked() {
 				a.sendRequests([]string{id})
 			}
 		})
 		switch s(child, "model") {
 		case "folder":
-			if ui.PrimaryButton(c, "Open").AlignSelf(ui.Start).Clicked() {
+			if ui.PrimaryButton(c, locales.Open()).AlignSelf(ui.Start).Clicked() {
 				a.openFolder(id)
 			}
 		case "http_request":
@@ -101,10 +102,10 @@ func (a *App) httpRequestCard(c *ui.Context, p colors, request engine.Object) {
 	ui.Text(c, requestMethod(request)+" "+s(request, "url")).Font("monospace").FontSize(12).TextColor(p.blue).SingleLine().FillWidth().Padding(2, 10).Radius(3).Border(1, p.blue)
 	response := a.responses[id]
 	if response == nil {
-		ui.Text(c, "No Responses").FontSize(13).TextColor(p.muted)
+		ui.Text(c, locales.NoResponses()).FontSize(13).TextColor(p.muted)
 		return
 	}
-	summary := ui.ButtonBase(c).Label("Response Preview").Height(24).Padding(0, 6).Gap(8).Radius(3).Border(1, p.border).AlignSelf(ui.Start)
+	summary := ui.ButtonBase(c).Label(locales.ResponsePreviewTitle()).Height(24).Padding(0, 6).Gap(8).Radius(3).Border(1, p.border).AlignSelf(ui.Start)
 	summary.Children(func() {
 		if s(response, "state") != "closed" {
 			ui.Spinner(c).Size(12, 12).TextColor(p.subtle)
@@ -119,7 +120,7 @@ func (a *App) httpRequestCard(c *ui.Context, p colors, request engine.Object) {
 		mono(sizeText(n(response, "contentLength")), p.muted)
 	})
 	if summary.Clicked() {
-		a.prompt("response_preview", "Response Preview", "", id)
+		a.prompt("response_preview", locales.ResponsePreviewTitle(), "", id)
 	}
 }
 

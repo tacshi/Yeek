@@ -23,7 +23,7 @@ func fn(name string, args ...any) *templateValue {
 func raw(text string) templateToken      { return templateToken{raw: text} }
 func tag(v *templateValue) templateToken { return templateToken{tag: v} }
 
-func TestTemplateParserMatchesYaak(t *testing.T) {
+func TestTemplateParser(t *testing.T) {
 	for _, c := range []struct {
 		name, source string
 		want         []templateToken
@@ -57,7 +57,7 @@ func TestTemplateParserMatchesYaak(t *testing.T) {
 	}
 }
 
-func TestTemplateStringDisplayMatchesYaak(t *testing.T) {
+func TestTemplateStringDisplay(t *testing.T) {
 	for text, want := range map[string]string{
 		"Hello You": "'Hello You'", "Hello 'You'": `'Hello \'You\''`, "X-Api-Key": "'X-Api-Key'", "$.token": "'$.token'", "it's": `'it\'s'`,
 		`back\slash`: `'back\\slash'`, `{"a":1}`: `'{"a":1}'`, "héllo": "'héllo'", "a]}b": "'a]}b'",
@@ -79,7 +79,7 @@ func TestTemplateStringDisplayMatchesYaak(t *testing.T) {
 	}
 }
 
-func TestTemplateRendererMatchesYaak(t *testing.T) {
+func TestTemplateRenderer(t *testing.T) {
 	render := func(source string, vars map[string]string, run templateRunner) (string, error) {
 		return renderWith(source, vars, map[string]bool{}, 0, run)
 	}

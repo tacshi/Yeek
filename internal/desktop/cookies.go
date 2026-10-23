@@ -12,6 +12,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type cookieDraft struct {
@@ -65,7 +66,7 @@ func (a *App) selectCookieJar(id string) {
 }
 func (a *App) cookieMenu(c *ui.Context) {
 	jar := a.activeCookieJar()
-	iconButton(c, "cookie", "Cookie jars").Disabled(a.workspace == "").Tooltip("Cookie jar: " + s(jar, "name")).Menu(func(menu *ui.Menu) {
+	iconButton(c, "cookie", locales.CookieJars()).Disabled(a.workspace == "").Tooltip(locales.CookieJarName(s(jar, "name"))).Menu(func(menu *ui.Menu) {
 		jars := a.list("cookie_jar")
 		for _, candidate := range jars {
 			if menu.Item(s(candidate, "name")).Checked(s(candidate, "id") == a.cookieJar).Chosen() {
@@ -73,18 +74,18 @@ func (a *App) cookieMenu(c *ui.Context) {
 			}
 		}
 		menu.Separator()
-		if menu.Item("Manage Cookies…").Disabled(jar == nil).Chosen() {
+		if menu.Item(locales.ManageCookiesEllipsis()).Disabled(jar == nil).Chosen() {
 			a.openCookies(s(jar, "id"))
 		}
-		if menu.Item("Rename Cookie Jar…").Disabled(jar == nil).Chosen() {
-			a.prompt("rename", "Rename Cookie Jar", s(jar, "name"), s(jar, "id"))
+		if menu.Item(locales.RenameCookieJarEllipsis()).Disabled(jar == nil).Chosen() {
+			a.prompt("rename", locales.RenameCookieJar(), s(jar, "name"), s(jar, "id"))
 		}
-		if menu.Item("Delete Cookie Jar…").Disabled(len(jars) < 2).Chosen() {
-			a.prompt("delete_cookie_jar", "Delete Cookie Jar", s(jar, "name"), s(jar, "id"))
+		if menu.Item(locales.DeleteCookieJarEllipsis()).Disabled(len(jars) < 2).Chosen() {
+			a.prompt("delete_cookie_jar", locales.DeleteCookieJar(), s(jar, "name"), s(jar, "id"))
 		}
 		menu.Separator()
-		if menu.Item("New Cookie Jar…").Chosen() {
-			a.prompt("cookie_jar", "New Cookie Jar", "", "")
+		if menu.Item(locales.NewCookieJarEllipsis()).Chosen() {
+			a.prompt("cookie_jar", locales.NewCookieJar(), "", "")
 		}
 	})
 }
@@ -109,7 +110,7 @@ func (a *App) deleteCookieJar(id string) {
 }
 func (a *App) openCookies(id string) {
 	a.cookies = &cookieManager{jar: id, row: -1, pane: 245, sort: ui.SortOrder{Column: "Name"}}
-	a.prompt("cookies", s(a.models[id], "name")+" Cookies", "", id)
+	a.prompt("cookies", locales.JarCookies(s(a.models[id], "name")), "", id)
 }
 func (c *cookieDraft) object() (engine.Object, error) {
 	domain := engine.Object{"HostOnly": c.domain}
@@ -123,7 +124,7 @@ func (c *cookieDraft) object() (engine.Object, error) {
 			value, err = time.ParseInLocation("2006-01-02 15:04", strings.TrimSpace(c.expires), time.Local)
 		}
 		if err != nil {
-			return nil, errors.New("enter the expiration as an RFC 3339 date or YYYY-MM-DD HH:MM")
+			return nil, errors.New(locales.EnterTheExpirationAsAnRFC())
 		}
 		expiration = engine.Object{"AtUtc": strconv.FormatInt(value.Unix(), 10)}
 	}
@@ -156,10 +157,10 @@ func cookieDomainText(cookie engine.Object) string {
 func cookieExpiryText(cookie engine.Object) string {
 	expires, err := engine.CookieExpiry(cookie)
 	if err != nil {
-		return "Invalid expiration"
+		return locales.InvalidExpiration()
 	}
 	if expires.IsZero() {
-		return "Session"
+		return locales.Session()
 	}
 	return expires.Local().Format("2006-01-02 15:04:05")
 }
@@ -225,17 +226,17 @@ func (a *App) cookiesDialog(c *ui.Context, p colors) {
 	}
 	jar := a.models[manager.jar]
 	if jar == nil {
-		ui.Text(c, "Select a cookie jar.").Padding(20)
+		ui.Text(c, locales.SelectACookieJar()).Padding(20)
 		return
 	}
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		var addButton ui.Element
 		ui.Row(c).Padding(10, 14).Gap(8).Children(func() {
-			ui.TextInput(c, &manager.filter).Placeholder("Filter cookies").Label("Filter cookies").Grow(1).MinWidth(0)
-			if manager.filter != "" && smallIconButton(c, "close", "Clear cookie filter").Clicked() {
+			ui.TextInput(c, &manager.filter).Placeholder(locales.FilterCookies()).Label(locales.FilterCookies()).Grow(1).MinWidth(0)
+			if manager.filter != "" && smallIconButton(c, "close", locales.ClearCookieFilter()).Clicked() {
 				manager.filter = ""
 			}
-			addButton = ui.Button(c, "Add Cookie").Disabled(manager.busy)
+			addButton = ui.Button(c, locales.AddCookie()).Disabled(manager.busy)
 			if addButton.Clicked() {
 				manager.draft = newCookieDraft(nil)
 				manager.selected = ""
@@ -249,7 +250,7 @@ func (a *App) cookiesDialog(c *ui.Context, p colors) {
 					}
 				}
 			}
-			if ui.Button(c, "Clear All").Disabled(manager.busy || len(oslice(jar, "cookies")) == 0).Clicked() {
+			if ui.Button(c, locales.ClearAll()).Disabled(manager.busy || len(oslice(jar, "cookies")) == 0).Clicked() {
 				a.changeCookieManager(manager, func() (engine.Object, error) { return a.Engine.ClearCookies(a.ctx, manager.jar) }, "")
 			}
 		})
@@ -279,9 +280,9 @@ func (a *App) cookiesDialog(c *ui.Context, p colors) {
 func (a *App) cookieTable(c *ui.Context, p colors, manager *cookieManager, rows []engine.Object) {
 	if len(rows) == 0 {
 		ui.Column(c).Fill().Center().Children(func() {
-			label := "No cookies stored"
+			label := locales.NoCookiesStored()
 			if manager.filter != "" {
-				label = "No cookies match this filter"
+				label = locales.NoCookiesMatchThisFilter()
 			}
 			ui.Text(c, label).TextColor(p.muted).FontSize(12)
 		})
@@ -293,12 +294,12 @@ func (a *App) cookieTable(c *ui.Context, p colors, manager *cookieManager, rows 
 	manager.list.RoundRows = true
 	manager.list.Key = func(i int) any { return engine.CookieKey(rows[i]) }
 	manager.list.Label = func(i int) string {
-		return "Cookie " + s(rows[i], "name") + " on " + cookieDomainText(rows[i]) + " at " + s(rows[i], "path")
+		return locales.CookieNameOnDomainAtPath(s(rows[i], "name"), cookieDomainText(rows[i]), s(rows[i], "path"))
 	}
 	if manager.focusTable && manager.row >= 0 {
 		manager.list.ScrollTo(manager.row, ui.Center)
 	}
-	columns := []ui.TableColumn{{Title: "Name", Width: 130, Sortable: true}, {Title: "Value", Width: 205, Sortable: true}, {Title: "Domain", Width: 165, Sortable: true}, {Title: "Path", Width: 85, Sortable: true}, {Title: "Expires", Width: 165, Sortable: true}, {Title: "Size", Width: 60, Sortable: true}, {Title: "HTTP Only", Width: 90, Sortable: true}, {Title: "Secure", Width: 65, Sortable: true}, {Title: "Same Site", Width: 90, Sortable: true}, {Title: "", Width: 40, Fixed: true}}
+	columns := []ui.TableColumn{{Title: locales.NameTitle(), ID: "Name", Width: 130, Sortable: true}, {Title: locales.ValueTitle(), ID: "Value", Width: 205, Sortable: true}, {Title: locales.Domain(), ID: "Domain", Width: 165, Sortable: true}, {Title: locales.Path(), ID: "Path", Width: 85, Sortable: true}, {Title: locales.Expires(), ID: "Expires", Width: 165, Sortable: true}, {Title: locales.Size(), ID: "Size", Width: 60, Sortable: true}, {Title: locales.HTTPOnly(), ID: "HTTP Only", Width: 90, Sortable: true}, {Title: locales.Secure(), ID: "Secure", Width: 65, Sortable: true}, {Title: locales.SameSite(), ID: "Same Site", Width: 90, Sortable: true}, {Title: "", Width: 40, Fixed: true}}
 	action := false
 	table := ui.Table(c, &manager.list, columns, len(rows), func(row, col int) {
 		cookie := rows[row]
@@ -323,7 +324,7 @@ func (a *App) cookieTable(c *ui.Context, p colors, manager *cookieManager, rows 
 		case 8:
 			text = cmp.Or(s(cookie, "sameSite"), "—")
 		case 9:
-			if smallIconButton(c, "close", "Delete cookie "+s(cookie, "name")).Disabled(manager.busy).Clicked() {
+			if smallIconButton(c, "close", locales.DeleteCookieName(s(cookie, "name"))).Disabled(manager.busy).Clicked() {
 				action = true
 				key := engine.CookieKey(cookie)
 				a.changeCookieManager(manager, func() (engine.Object, error) { return a.Engine.DeleteCookie(a.ctx, manager.jar, key) }, "")
@@ -331,7 +332,7 @@ func (a *App) cookieTable(c *ui.Context, p colors, manager *cookieManager, rows 
 			return
 		}
 		ui.Text(c, text).Font("monospace").FontSize(11).SingleLine().Tooltip(text)
-	}).Grow(1).MinHeight(0).FontSize(11).Label("Cookies")
+	}).Grow(1).MinHeight(0).FontSize(11).Label(locales.Cookies())
 	if manager.focusTable {
 		table.Focus()
 		manager.focusTable = false
@@ -351,9 +352,9 @@ func (a *App) cookieTable(c *ui.Context, p colors, manager *cookieManager, rows 
 }
 func yesNo(value bool) string {
 	if value {
-		return "Yes"
+		return locales.Yes()
 	}
-	return "No"
+	return locales.No()
 }
 
 func (a *App) cookieDetails(c *ui.Context, p colors, manager *cookieManager, cookie engine.Object) {
@@ -365,31 +366,31 @@ func (a *App) cookieDetails(c *ui.Context, p colors, manager *cookieManager, coo
 		ui.Row(c).Padding(10, 14).Gap(8).BorderWidth(1, 0, 1, 0).BorderColor(p.border).Children(func() {
 			title := s(cookie, "name")
 			if manager.draft != nil {
-				title = "Edit Cookie"
+				title = locales.EditCookie()
 				if manager.draft.oldKey == "" {
-					title = "New Cookie"
+					title = locales.NewCookie()
 				}
 			}
 			ui.Text(c, title).FontSize(14).FontWeight(600).Grow(1)
 			if manager.draft == nil {
-				if ui.Button(c, "Copy Value").FontSize(11).Clicked() {
+				if ui.Button(c, locales.CopyValueTitle()).FontSize(11).Clicked() {
 					c.WriteClipboard(s(cookie, "value"))
 				}
-				if ui.Button(c, "Edit Cookie").FontSize(11).Clicked() {
+				if ui.Button(c, locales.EditCookie()).FontSize(11).Clicked() {
 					manager.draft = newCookieDraft(cookie)
 					manager.error = ""
 				}
 			} else {
-				if ui.Button(c, "Cancel Edit").Disabled(manager.busy).FontSize(11).Clicked() {
+				if ui.Button(c, locales.CancelEdit()).Disabled(manager.busy).FontSize(11).Clicked() {
 					manager.draft = nil
 					manager.error = ""
 					manager.focusTable = true
 				}
-				if ui.PrimaryButton(c, "Save Cookie").Disabled(manager.busy).FontSize(11).Clicked() {
+				if ui.PrimaryButton(c, locales.SaveCookie()).Disabled(manager.busy).FontSize(11).Clicked() {
 					a.saveCookie(manager)
 				}
 			}
-			if iconButton(c, "close", "Close cookie details").Disabled(manager.busy).Clicked() {
+			if iconButton(c, "close", locales.CloseCookieDetails()).Disabled(manager.busy).Clicked() {
 				manager.selected = ""
 				manager.draft = nil
 				manager.error = ""
@@ -403,39 +404,40 @@ func (a *App) cookieDetails(c *ui.Context, p colors, manager *cookieManager, coo
 				})
 			}
 			if draft := manager.draft; draft != nil {
-				row("Name", func() { ui.TextInput(c, &draft.name).Label("Cookie name").AutoFocus().FillWidth() })
-				row("Value", func() {
-					ui.TextArea(c, &draft.value).Label("Cookie value").Height(80).FillWidth().Font("monospace").FontSize(12)
+				row(locales.NameTitle(), func() { ui.TextInput(c, &draft.name).Label(locales.CookieName()).AutoFocus().FillWidth() })
+				row(locales.ValueTitle(), func() {
+					ui.TextArea(c, &draft.value).Label(locales.CookieValue()).Height(80).FillWidth().Font("monospace").FontSize(12)
 				})
-				row("Domain", func() {
-					ui.TextInput(c, &draft.domain).Label("Cookie domain").Placeholder("example.com").FillWidth()
-					ui.Checkbox(c, &draft.subdomains, "Include subdomains").FontSize(11)
+				row(locales.Domain(), func() {
+					ui.TextInput(c, &draft.domain).Label(locales.CookieDomain()).Placeholder("example.com").FillWidth()
+					ui.Checkbox(c, &draft.subdomains, locales.IncludeSubdomains()).FontSize(11)
 				})
-				row("Path", func() { ui.TextInput(c, &draft.path).Label("Cookie path").Placeholder("/").FillWidth() })
-				row("Expires", func() {
-					if ui.Checkbox(c, &draft.session, "Session cookie").Changed() && !draft.session && draft.expires == "" {
+				row(locales.Path(), func() { ui.TextInput(c, &draft.path).Label(locales.CookiePath()).Placeholder("/").FillWidth() })
+				row(locales.Expires(), func() {
+					if ui.Checkbox(c, &draft.session, locales.SessionCookie()).Changed() && !draft.session && draft.expires == "" {
 						draft.expires = time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
 					}
 					if !draft.session {
-						ui.TextInput(c, &draft.expires).Label("Cookie expiration").Placeholder("YYYY-MM-DDTHH:MM:SSZ").FillWidth()
+						ui.TextInput(c, &draft.expires).Label(locales.CookieExpiration()).Placeholder("YYYY-MM-DDTHH:MM:SSZ").FillWidth()
 					}
 				})
-				row("Size", func() { ui.Text(c, fmt.Sprintf("%d bytes", len(draft.name)+len(draft.value))).FontSize(12) })
-				row("HTTP Only", func() { ui.Checkbox(c, &draft.httpOnly, "").Label("Cookie HTTP Only") })
-				row("Secure", func() {
-					ui.Checkbox(c, &draft.secure, "").Label("Cookie Secure").Tooltip("Sent over HTTPS, or to localhost and loopback addresses.")
+				row(locales.Size(), func() { ui.Text(c, locales.CountBytes(len(draft.name)+len(draft.value))).FontSize(12) })
+				row(locales.HTTPOnly(), func() { ui.Checkbox(c, &draft.httpOnly, "").Label(locales.CookieHTTPOnly()) })
+				row(locales.Secure(), func() {
+					ui.Checkbox(c, &draft.secure, "").Label(locales.CookieSecure()).Tooltip(locales.SentOverHTTPSOrToLocalhost())
 				})
-				row("Same Site", func() {
-					selected := cmp.Or(draft.sameSite, "Unspecified")
-					if ui.Select(c, &selected, []string{"Unspecified", "Lax", "Strict", "None"}).Label("Cookie Same Site").Width(180).Changed() {
+				row(locales.SameSite(), func() {
+					unspecified := locales.Unspecified()
+					selected := cmp.Or(draft.sameSite, unspecified)
+					if ui.Select(c, &selected, []string{unspecified, "Lax", "Strict", "None"}).Label(locales.CookieSameSite()).Width(180).Changed() {
 						draft.sameSite = selected
-						if selected == "Unspecified" {
+						if selected == unspecified {
 							draft.sameSite = ""
 						}
 					}
 				})
 			} else {
-				for _, field := range []struct{ name, value string }{{"Name", s(cookie, "name")}, {"Value", s(cookie, "value")}, {"Domain", cookieDomainText(cookie)}, {"Path", s(cookie, "path")}, {"Expires", cookieExpiryText(cookie)}, {"Size", fmt.Sprintf("%d bytes", len(s(cookie, "name"))+len(s(cookie, "value")))}, {"HTTP Only", yesNo(b(cookie, "httpOnly"))}, {"Secure", yesNo(b(cookie, "secure"))}, {"Same Site", cmp.Or(s(cookie, "sameSite"), "Unspecified")}} {
+				for _, field := range []struct{ name, value string }{{locales.NameTitle(), s(cookie, "name")}, {locales.ValueTitle(), s(cookie, "value")}, {locales.Domain(), cookieDomainText(cookie)}, {locales.Path(), s(cookie, "path")}, {locales.Expires(), cookieExpiryText(cookie)}, {locales.Size(), locales.CountBytes(len(s(cookie, "name")) + len(s(cookie, "value")))}, {locales.HTTPOnly(), yesNo(b(cookie, "httpOnly"))}, {locales.Secure(), yesNo(b(cookie, "secure"))}, {locales.SameSite(), cmp.Or(s(cookie, "sameSite"), locales.Unspecified())}} {
 					row(field.name, func() { ui.Text(c, field.value).Font("monospace").FontSize(12).Selectable() })
 				}
 			}
@@ -482,11 +484,11 @@ func (a *App) responseCookies(c *ui.Context, p colors, response engine.Object) {
 		for i, section := range []struct {
 			title  string
 			values []engine.Object
-		}{{"Sent cookies", sent}, {"Received cookies", received}} {
+		}{{locales.SentCookies(), sent}, {locales.ReceivedCookies(), received}} {
 			ui.Column(c).Key(i).Gap(8).Children(func() {
 				ui.Text(c, section.title).FontSize(13).FontWeight(600)
 				if len(section.values) == 0 {
-					ui.Text(c, "None").FontSize(12).TextColor(p.muted)
+					ui.Text(c, locales.None()).FontSize(12).TextColor(p.muted)
 				}
 				for n, cookie := range section.values {
 					ui.Column(c).Key(n).Padding(9).Gap(6).Border(1, p.border).Radius(4).Children(func() {
@@ -498,15 +500,15 @@ func (a *App) responseCookies(c *ui.Context, p colors, response engine.Object) {
 						ui.Row(c).Gap(8).Children(func() {
 							ui.Text(c, s(cookie, "name")).Font("monospace").FontSize(12).FontWeight(600).Grow(1)
 							if b(cookie, "deleted") {
-								ui.Text(c, "Deleted").TextColor(p.orange).FontSize(11)
+								ui.Text(c, locales.Deleted()).TextColor(p.orange).FontSize(11)
 							}
-							if smallIconButton(c, "copy", "Copy cookie "+s(cookie, "name")).Clicked() {
+							if smallIconButton(c, "copy", locales.CopyCookieName(s(cookie, "name"))).Clicked() {
 								c.WriteClipboard(s(cookie, "value"))
 							}
 						})
 						ui.Text(c, s(cookie, "value")).Font("monospace").FontSize(12).Selectable()
 						if i == 1 {
-							for _, field := range []struct{ key, label string }{{"domain", "Domain"}, {"path", "Path"}, {"expires", "Expires"}, {"maxAge", "Max-Age"}, {"sameSite", "Same Site"}} {
+							for _, field := range []struct{ key, label string }{{"domain", locales.Domain()}, {"path", locales.Path()}, {"expires", locales.Expires()}, {"maxAge", "Max-Age"}, {"sameSite", locales.SameSite()}} {
 								if value := s(cookie, field.key); value != "" {
 									ui.Row(c).Gap(8).Children(func() {
 										ui.Text(c, field.label).Width(78).TextColor(p.muted).FontSize(11)
@@ -516,10 +518,10 @@ func (a *App) responseCookies(c *ui.Context, p colors, response engine.Object) {
 							}
 							flags := []string{}
 							if b(cookie, "secure") {
-								flags = append(flags, "Secure")
+								flags = append(flags, locales.Secure())
 							}
 							if b(cookie, "httpOnly") {
-								flags = append(flags, "HTTP Only")
+								flags = append(flags, locales.HTTPOnly())
 							}
 							if len(flags) > 0 {
 								ui.Text(c, strings.Join(flags, " · ")).FontSize(11).TextColor(p.muted)

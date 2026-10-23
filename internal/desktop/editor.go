@@ -12,6 +12,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type documentEditor struct {
@@ -84,13 +85,13 @@ func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKe
 		}
 		if doc.goTo {
 			ui.Row(c).Padding(5, 10).Gap(8).Children(func() {
-				ui.Text(c, "Go to line").FontSize(11).TextColor(p.muted)
-				input := ui.TextInput(c, &doc.lineTarget).Label("Line and column").Placeholder("line:column").Width(130).AutoFocus()
+				ui.Text(c, locales.GoToLine()).FontSize(11).TextColor(p.muted)
+				input := ui.TextInput(c, &doc.lineTarget).Label(locales.LineAndColumn()).Placeholder("line:column").Width(130).AutoFocus()
 				goTo := input.Submitted()
-				if ui.Button(c, "Go").FontSize(11).Clicked() {
+				if ui.Button(c, locales.Go()).FontSize(11).Clicked() {
 					goTo = true
 				}
-				if iconButton(c, "close", "Close line navigation").Clicked() {
+				if iconButton(c, "close", locales.CloseLineNavigation()).Clicked() {
 					doc.goTo = false
 					doc.state.Focus()
 				}
@@ -168,63 +169,63 @@ func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKe
 				editor.Marks(marks)
 			}
 			editor.ContextMenu(func(menu *ui.Menu) {
-				if menu.Item("Undo").Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyZ).Chosen() {
+				if menu.Item(locales.Undo()).Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyZ).Chosen() {
 					doc.state.Command("undo")
 				}
-				if menu.Item("Redo").Disabled(readOnly).Shortcut(ui.Cmd|ui.Shift, ui.KeyZ).Chosen() {
+				if menu.Item(locales.Redo()).Disabled(readOnly).Shortcut(ui.Cmd|ui.Shift, ui.KeyZ).Chosen() {
 					doc.state.Command("redo")
 				}
 				menu.Separator()
-				if menu.Item("Cut").Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyX).Chosen() {
+				if menu.Item(locales.Cut()).Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyX).Chosen() {
 					doc.state.Command("cut")
 				}
-				if menu.Item("Copy").Shortcut(ui.Cmd, ui.KeyC).Chosen() {
+				if menu.Item(locales.Copy()).Shortcut(ui.Cmd, ui.KeyC).Chosen() {
 					doc.state.Command("copy")
 				}
-				if menu.Item("Paste").Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyV).Chosen() {
+				if menu.Item(locales.Paste()).Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyV).Chosen() {
 					doc.state.Command("paste")
 				}
-				if menu.Item("Select All").Shortcut(ui.Cmd, ui.KeyA).Chosen() {
+				if menu.Item(locales.SelectAll()).Shortcut(ui.Cmd, ui.KeyA).Chosen() {
 					doc.state.Command("selectAll")
 				}
 				menu.Separator()
-				if menu.Item("Find…").Shortcut(ui.Cmd, ui.KeyF).Chosen() {
+				if menu.Item(locales.FindEllipsis()).Shortcut(ui.Cmd, ui.KeyF).Chosen() {
 					doc.find = true
 				}
-				if menu.Item("Replace…").Disabled(readOnly).Shortcut(ui.Cmd|ui.Alt, ui.KeyF).Chosen() {
+				if menu.Item(locales.ReplaceEllipsis()).Disabled(readOnly).Shortcut(ui.Cmd|ui.Alt, ui.KeyF).Chosen() {
 					doc.find = true
 					doc.replace = true
 				}
-				if menu.Item("Go to Line…").Shortcut(ui.Ctrl, ui.KeyG).Chosen() {
+				if menu.Item(locales.GoToLineEllipsis()).Shortcut(ui.Ctrl, ui.KeyG).Chosen() {
 					doc.goTo = true
 				}
 				if len(doc.state.Folds()) > 0 {
 					menu.Separator()
-					if menu.Item("Toggle Fold").Chosen() {
+					if menu.Item(locales.ToggleFold()).Chosen() {
 						doc.state.Command("fold-current")
 					}
-					if menu.Item("Fold All").Chosen() {
+					if menu.Item(locales.FoldAll()).Chosen() {
 						doc.state.Command("fold-all")
 					}
-					if menu.Item("Unfold All").Chosen() {
+					if menu.Item(locales.UnfoldAll()).Chosen() {
 						doc.state.Command("unfold-all")
 					}
 				}
 				if !readOnly {
 					menu.Separator()
-					if menu.Item("Indent").Chosen() {
+					if menu.Item(locales.Indent()).Chosen() {
 						doc.state.Command("indent")
 					}
-					if menu.Item("Outdent").Chosen() {
+					if menu.Item(locales.Outdent()).Chosen() {
 						doc.state.Command("outdent")
 					}
-					if menu.Item("Duplicate Line").Chosen() {
+					if menu.Item(locales.DuplicateLine()).Chosen() {
 						doc.state.Command("duplicate-line")
 					}
-					if menu.Item("Delete Line").Chosen() {
+					if menu.Item(locales.DeleteLine()).Chosen() {
 						doc.state.Command("delete-line")
 					}
-					if options.CommentPrefix != "" && menu.Item("Toggle Line Comment").Shortcut(ui.Cmd, ui.KeySlash).Chosen() {
+					if options.CommentPrefix != "" && menu.Item(locales.ToggleLineComment()).Shortcut(ui.Cmd, ui.KeySlash).Chosen() {
 						doc.state.Command("toggle-comment")
 					}
 				}
@@ -295,7 +296,7 @@ func (a *App) editorFindBar(c *ui.Context, p colors, doc *documentEditor, value 
 	doc.updateMatches(*value)
 	ui.Column(c).Background(p.sidebar).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Padding(6, 9).Gap(5).Children(func() {
 		ui.Row(c).Gap(5).Children(func() {
-			field := ui.TextInput(c, &doc.query).Label("Find in " + label).Placeholder("Find").Grow(1).MinWidth(0).AutoFocus().FontSize(12)
+			field := ui.TextInput(c, &doc.query).Label(locales.FindInEditor(label)).Placeholder(locales.Find()).Grow(1).MinWidth(0).AutoFocus().FontSize(12)
 			changed := field.Changed()
 			if changed {
 				doc.findSource = ""
@@ -306,31 +307,31 @@ func (a *App) editorFindBar(c *ui.Context, p colors, doc *documentEditor, value 
 			if field.Submitted() {
 				doc.nextMatch(1)
 			}
-			count := "No matches"
+			count := locales.NoMatches()
 			if len(doc.matches) > 0 {
 				count = fmt.Sprintf("%d / %d", max(0, doc.matchIndex+1), len(doc.matches))
 			}
 			ui.Text(c, count).FontSize(10).TextColor(p.muted)
-			if ui.Button(c, "↑").Label("Previous match").Disabled(len(doc.matches) == 0).Clicked() {
+			if ui.Button(c, "↑").Label(locales.PreviousMatch()).Disabled(len(doc.matches) == 0).Clicked() {
 				doc.nextMatch(-1)
 			}
-			if ui.Button(c, "↓").Label("Next match").Disabled(len(doc.matches) == 0).Clicked() {
+			if ui.Button(c, "↓").Label(locales.NextMatch()).Disabled(len(doc.matches) == 0).Clicked() {
 				doc.nextMatch(1)
 			}
-			iconButton(c, "more", "Find options").Menu(func(menu *ui.Menu) {
-				if menu.Item("Match Case").Checked(doc.matchCase).Chosen() {
+			iconButton(c, "more", locales.FindOptions()).Menu(func(menu *ui.Menu) {
+				if menu.Item(locales.MatchCase()).Checked(doc.matchCase).Chosen() {
 					doc.matchCase = !doc.matchCase
 					doc.findSource = ""
 				}
-				if menu.Item("Regular Expression").Checked(doc.regex).Chosen() {
+				if menu.Item(locales.RegularExpression()).Checked(doc.regex).Chosen() {
 					doc.regex = !doc.regex
 					doc.findSource = ""
 				}
-				if !readOnly && menu.Item("Replace").Checked(doc.replace).Chosen() {
+				if !readOnly && menu.Item(locales.Replace()).Checked(doc.replace).Chosen() {
 					doc.replace = !doc.replace
 				}
 			})
-			if iconButton(c, "close", "Close find").Clicked() {
+			if iconButton(c, "close", locales.CloseFind()).Clicked() {
 				doc.find = false
 				doc.state.Focus()
 			}
@@ -340,11 +341,11 @@ func (a *App) editorFindBar(c *ui.Context, p colors, doc *documentEditor, value 
 		}
 		if doc.replace && !readOnly {
 			ui.Row(c).Gap(6).Children(func() {
-				ui.TextInput(c, &doc.replacement).Label("Replace in " + label).Placeholder("Replace with").Grow(1).MinWidth(0).FontSize(12)
-				if ui.Button(c, "Replace").Disabled(len(doc.matches) == 0).FontSize(11).Clicked() {
+				ui.TextInput(c, &doc.replacement).Label(locales.ReplaceInEditor(label)).Placeholder(locales.ReplaceWith()).Grow(1).MinWidth(0).FontSize(12)
+				if ui.Button(c, locales.Replace()).Disabled(len(doc.matches) == 0).FontSize(11).Clicked() {
 					doc.replaceMatch(*value, false)
 				}
-				if ui.Button(c, "Replace All").Disabled(len(doc.matches) == 0).FontSize(11).Clicked() {
+				if ui.Button(c, locales.ReplaceAll()).Disabled(len(doc.matches) == 0).FontSize(11).Clicked() {
 					doc.replaceMatch(*value, true)
 				}
 			})

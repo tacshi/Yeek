@@ -1,12 +1,13 @@
 package desktop
 
 import (
-	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type jsonFrame struct {
@@ -374,14 +375,14 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 	object = func(m *engine.GRPCMessage, n *jsonValue) {
 		if n.kind != "object" {
 			if n.kind != "null" && n.kind != "tag" {
-				problems = append(problems, jsonProblem{n.start, n.end, "Expected object"})
+				problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedObject()})
 			}
 			return
 		}
 		for _, member := range n.members {
 			field := m.Field(member.key)
 			if field == nil {
-				problems = append(problems, jsonProblem{member.keyStart, member.keyEnd, fmt.Sprintf("Property %q is not expected", member.key)})
+				problems = append(problems, jsonProblem{member.keyStart, member.keyEnd, locales.PropertyNameIsNotExpected(strconv.Quote(member.key))})
 				continue
 			}
 			value(field, member.value, false)
@@ -393,7 +394,7 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 		}
 		if f.Repeated && !item {
 			if n.kind != "array" {
-				problems = append(problems, jsonProblem{n.start, n.end, "Expected array"})
+				problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedArray()})
 				return
 			}
 			for _, it := range n.items {
@@ -403,7 +404,7 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 		}
 		if f.Map && !item {
 			if n.kind != "object" {
-				problems = append(problems, jsonProblem{n.start, n.end, "Expected object"})
+				problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedObject()})
 				return
 			}
 			for _, member := range n.members {
@@ -422,7 +423,7 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 		case "enum":
 			ok = n.kind == "number" || n.kind == "string" && slices.Contains(f.Enum, strings.Trim(string(p.r[n.start:n.end]), `"`))
 			if !ok && n.kind == "string" {
-				problems = append(problems, jsonProblem{n.start, n.end, "Expected one of " + strings.Join(f.Enum, ", ")})
+				problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedOneOfValues(strings.Join(f.Enum, ", "))})
 				return
 			}
 		case "object":
@@ -432,7 +433,7 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 			return
 		}
 		if !ok {
-			problems = append(problems, jsonProblem{n.start, n.end, "Expected " + f.Kind})
+			problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedKind(f.Kind)})
 		}
 	}
 	object(root, n)

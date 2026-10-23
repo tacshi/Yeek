@@ -7,11 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	onepassword "github.com/1password/onepassword-sdk-go"
+
+	"yeek/locales"
 )
 
 type onePasswordCache struct {
@@ -59,16 +62,16 @@ func onePasswordClient(ctx context.Context, values map[string]string) (*onepassw
 	switch values["authMethod"] {
 	case "desktop":
 		if values["token"] == "" {
-			return nil, "", errors.New("Missing account name") //nolint:staticcheck
+			return nil, "", errors.New(locales.MissingAccountName()) //nolint:staticcheck
 		}
 		source, option = "desktop:"+values["token"], onepassword.WithDesktopAppIntegration(values["token"])
 	case "token", "":
 		if values["token"] == "" {
-			return nil, "", errors.New("Missing service token") //nolint:staticcheck
+			return nil, "", errors.New(locales.MissingServiceToken()) //nolint:staticcheck
 		}
 		source, option = "token:"+values["token"], onepassword.WithServiceAccountToken(values["token"])
 	default:
-		return nil, "", errors.New("Invalid authentication method") //nolint:staticcheck
+		return nil, "", errors.New(locales.InvalidAuthenticationMethod()) //nolint:staticcheck
 	}
 	sum := sha256.Sum256([]byte(source))
 	hash := hex.EncodeToString(sum[:])
@@ -114,12 +117,12 @@ func onePasswordOptions(ctx context.Context, field string, values map[string]str
 	case "vault":
 		vaults, err := cached(hash+":vaults", func() ([]onepassword.VaultOverview, error) { return client.Vaults().List(ctx) })
 		for _, v := range vaults {
-			options, labels = append(options, v.ID), append(labels, fmt.Sprintf("%s (%d Items)", v.Title, v.ActiveItemCount))
+			options, labels = append(options, v.ID), append(labels, locales.VaultCountItems(v.Title, int(v.ActiveItemCount)))
 		}
 		return options, labels, err
 	case "item":
 		if vault == "" {
-			return nil, nil, errors.New("no vault")
+			return nil, nil, errors.New(locales.NoVault())
 		}
 		items, err := cached(hash+":items:"+vault, func() ([]onepassword.ItemOverview, error) { return client.Items().List(ctx, vault) })
 		for _, i := range items {
@@ -128,7 +131,7 @@ func onePasswordOptions(ctx context.Context, field string, values map[string]str
 		return options, labels, err
 	case "field":
 		if vault == "" || item == "" {
-			return nil, nil, errors.New("no item")
+			return nil, nil, errors.New(locales.NoItem())
 		}
 		got, err := cached(hash+":item:"+vault+":"+item, func() (onepassword.Item, error) { return client.Items().Get(ctx, vault, item) })
 		for _, f := range got.Fields {
@@ -136,7 +139,7 @@ func onePasswordOptions(ctx context.Context, field string, values map[string]str
 		}
 		return options, labels, err
 	}
-	return nil, nil, fmt.Errorf("1password.item has no field %q", field)
+	return nil, nil, errors.New(locales.N1passwordItemHasNoFieldField(strconv.Quote(field)))
 }
 
 func onePasswordValue(ctx context.Context, values map[string]string) (string, error) {
@@ -147,11 +150,11 @@ func onePasswordValue(ctx context.Context, values map[string]string) (string, er
 	vault, item, field := values["vault"], values["item"], values["field"]
 	switch {
 	case vault == "":
-		return "", errors.New("No vault specified") //nolint:staticcheck
+		return "", errors.New(locales.NoVaultSpecified()) //nolint:staticcheck
 	case item == "":
-		return "", errors.New("No item specified") //nolint:staticcheck
+		return "", errors.New(locales.NoItemSpecified()) //nolint:staticcheck
 	case field == "":
-		return "", errors.New("No field specified") //nolint:staticcheck
+		return "", errors.New(locales.NoFieldSpecified()) //nolint:staticcheck
 	}
 	return cached(hash+":item:"+vault+":"+item+":"+field, func() (string, error) {
 		return client.Secrets().Resolve(ctx, "op://"+vault+"/"+item+"/"+field)
@@ -166,22 +169,22 @@ func onePasswordDefinition() TemplateDefinition {
 	}
 	return TemplateDefinition{
 		Name:        "1password.item",
-		Description: "Get a secret",
+		Description: locales.GetASecret(),
 		Preview:     true,
 		Fields: []TemplateField{
-			{Name: "authMethod", Label: "Authentication Method", Kind: "select", Default: "token", Options: []string{"token", "desktop"}, OptionLabels: []string{"Service Account", "Desktop App"}},
-			{Name: "token", Label: "Token", Kind: "text", Default: "${[1PASSWORD_TOKEN]}", Describe: func(v map[string]string) (string, string, bool, bool) {
+			{Name: "authMethod", Label: locales.AuthenticationMethod(), Kind: "select", Default: "token", Options: []string{"token", "desktop"}, OptionLabels: []string{locales.ServiceAccount(), locales.DesktopApp()}},
+			{Name: "token", Label: locales.Token(), Kind: "text", Default: "${[1PASSWORD_TOKEN]}", Describe: func(v map[string]string) (string, string, bool, bool) {
 				switch v["authMethod"] {
 				case "desktop":
-					return "Account Name", `Account name can be taken from the sidebar of the 1Password App. Make sure you're on the BETA version of the 1Password app and have "Integrate with other apps" enabled in Settings > Developer.`, false, true
+					return locales.AccountName(), locales.AccountNameCanBeTakenFrom(), false, true
 				case "token", "":
-					return "Token", "Token can be generated from the 1Password website by visiting Developer > Service Accounts", true, true
+					return locales.Token(), locales.TokenCanBeGeneratedFromThe(), true, true
 				}
 				return "", "", false, false
 			}},
-			{Name: "vault", Label: "Vault", Kind: "select", Dynamic: dynamic("vault")},
-			{Name: "item", Label: "Item", Kind: "select", Dynamic: dynamic("item")},
-			{Name: "field", Label: "Field", Kind: "select", Dynamic: dynamic("field")},
+			{Name: "vault", Label: locales.Vault(), Kind: "select", Dynamic: dynamic("vault")},
+			{Name: "item", Label: locales.Item(), Kind: "select", Dynamic: dynamic("item")},
+			{Name: "field", Label: locales.Field(), Kind: "select", Dynamic: dynamic("field")},
 		},
 	}
 }

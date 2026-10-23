@@ -15,6 +15,7 @@ import (
 	"github.com/egoist/mygo/yeekui"
 	"github.com/vektah/gqlparser/v2/ast"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type graphQLState struct {
@@ -136,7 +137,7 @@ func (a *App) chooseGraphQLFile(d *Draft) {
 	generation := state.generation
 	state.loading, state.attempted, state.key = true, true, key
 	a.background(func() (func(), error) {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Load GraphQL Schema", Filters: []mygo.FileFilter{{Name: "GraphQL Schema", Extensions: []string{"graphql", "graphqls", "gql", "json"}}}})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.LoadGraphQLSchema(), Filters: []mygo.FileFilter{{Name: locales.GraphQLSchema(), Extensions: []string{"graphql", "graphqls", "gql", "json"}}}})
 		if err != nil || len(paths) == 0 {
 			return func() {
 				if state.generation == generation {
@@ -200,14 +201,14 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 	if len(state.operations) > 0 {
 		name := d.OperationName
 		if name == "" {
-			name = "Not specified"
+			name = locales.NotSpecified()
 		}
 		ui.MenuButton(c, name, func(menu *ui.Menu) {
-			menu.Item("Operation Name").Disabled(true)
+			menu.Item(locales.OperationName()).Disabled(true)
 			for _, op := range append([]string{""}, state.operations...) {
 				label := op
 				if label == "" {
-					label = "Not specified"
+					label = locales.NotSpecified()
 				}
 				if menu.Item(label).Checked(op == d.OperationName).Chosen() {
 					d.OperationName = op
@@ -215,20 +216,20 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 					d.Dirty = true
 				}
 			}
-		}).Label("Select Operation").FontSize(11).Padding(2, 8)
+		}).Label(locales.SelectOperation()).FontSize(11).Padding(2, 8)
 	}
 	index := a.graphQLIndex(d)
-	label := "No Schema"
+	label := locales.NoSchema()
 	switch {
 	case state.error != "":
-		label = "Introspection Failed"
+		label = locales.IntrospectionFailed()
 	case state.loading:
-		label = "Loading Schema"
+		label = locales.LoadingSchema()
 	case index != nil:
-		label = "Schema"
+		label = locales.Schema()
 	}
 	schema := ui.MenuButton(c, label, func(menu *ui.Menu) {
-		if index != nil && menu.Item("Clear Schema").Chosen() {
+		if index != nil && menu.Item(locales.ClearSchema()).Chosen() {
 			id := d.ID
 			state.attempted = true
 			a.run(func() (func(), error) {
@@ -240,30 +241,30 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 			menu.Separator()
 			menu.Item(filepath.Base(file)).Disabled(true)
 		}
-		if state.error != "" && menu.Item("Schema introspection failed: View Error").Chosen() {
-			a.ask("Introspection Failed", state.error, "Retry Request", false, nil, func([]string) { a.fetchGraphQL(d, true) })
+		if state.error != "" && menu.Item(locales.SchemaIntrospectionFailedViewError()).Chosen() {
+			a.ask(locales.IntrospectionFailed(), state.error, locales.RetryRequest(), false, nil, func([]string) { a.fetchGraphQL(d, true) })
 		}
-		if menu.Item("Reload Schema").Disabled(state.loading).Chosen() {
+		if menu.Item(locales.ReloadSchema()).Disabled(state.loading).Chosen() {
 			a.fetchGraphQL(d, true)
 		}
-		loadLabel := "Load Schema from File…"
+		loadLabel := locales.LoadSchemaFromFileEllipsis()
 		if file != "" {
-			loadLabel = "Load a Different File…"
+			loadLabel = locales.LoadADifferentFileEllipsis()
 		}
 		if menu.Item(loadLabel).Chosen() {
 			a.chooseGraphQLFile(d)
 		}
-		if file != "" && menu.Item("Stop Using File").Chosen() {
+		if file != "" && menu.Item(locales.StopUsingFile()).Chosen() {
 			delete(body, "schemaFilePath")
 			d.Dirty = true
 			state.attempted = false
 			state.error = ""
 		}
 		menu.Separator()
-		menu.Item("Settings").Disabled(true)
-		autoLabel := "Automatic Introspection"
+		menu.Item(locales.Settings()).Disabled(true)
+		autoLabel := locales.AutomaticIntrospection()
 		if file != "" {
-			autoLabel = "Automatic Reload"
+			autoLabel = locales.AutomaticReload()
 		}
 		if menu.Item(autoLabel).Checked(auto).Chosen() {
 			if body == nil {
@@ -274,16 +275,16 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 			d.Dirty = true
 			state.attempted = false
 		}
-	}).Label("Refetch Schema").FontSize(11).Padding(2, 8)
+	}).Label(locales.RefetchSchema()).FontSize(11).Padding(2, 8)
 	if state.error != "" {
 		schema.TextColor(p.red).Border(1, p.red.Alpha(.5))
 	}
-	docs := "Show Documentation"
+	docs := locales.ShowDocumentation()
 	switch {
 	case index == nil:
-		docs = "Documentation unavailable without a schema"
+		docs = locales.DocumentationUnavailableWithoutASchema()
 	case a.graphQLDocsOpen(d):
-		docs = "Hide Documentation"
+		docs = locales.HideDocumentation()
 	}
 	if smallIconButton(c, "book", docs).Disabled(index == nil).Clicked() {
 		if a.graphQLDocsOpen(d) {
@@ -328,7 +329,7 @@ func (a *App) graphQLProblems(c *ui.Context, p colors, d *Draft) {
 		for i, issue := range state.diagnostics {
 			label := fmt.Sprintf("%d:%d  %s", issue.Line, issue.Column, issue.Message)
 			if issue.Variables {
-				label = "Variables: " + issue.Message
+				label = locales.VariablesMessage(issue.Message)
 			}
 			button := ui.ButtonBase(c).Key(i).FillWidth().Padding(2).Children(func() { ui.Text(c, label).FontSize(11).TextColor(p.red).MaxLines(2) })
 			if button.Clicked() {
@@ -343,7 +344,7 @@ func (a *App) graphQLProblems(c *ui.Context, p colors, d *Draft) {
 }
 func graphQLDeprecated(c *ui.Context, p colors, directives ast.DirectiveList) {
 	if d := directives.ForName("deprecated"); d != nil {
-		reason := "Deprecated"
+		reason := locales.Deprecated()
 		if arg := d.Arguments.ForName("reason"); arg != nil {
 			reason += " — " + arg.Value.Raw
 		}

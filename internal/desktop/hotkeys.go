@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type keyCombo struct {
@@ -18,37 +19,38 @@ type keyCombo struct {
 }
 
 type hotkey struct {
-	action, label string
-	keys          []keyCombo
+	action string
+	label  func() string
+	keys   []keyCombo
 }
 
 var hotkeys = []hotkey{
-	{"app.zoom_in", "Zoom In", []keyCombo{{ui.Cmd, ui.KeyEqual, "="}}},
-	{"app.zoom_out", "Zoom Out", []keyCombo{{ui.Cmd, ui.KeyMinus, "-"}}},
-	{"app.zoom_reset", "Zoom to Actual Size", []keyCombo{{ui.Cmd, ui.Key0, "0"}}},
-	{"command_palette.toggle", "Toggle Command Palette", []keyCombo{{ui.Cmd, ui.KeyK, "K"}}},
-	{"cookies_editor.show", "Show Cookies", []keyCombo{{ui.Cmd | ui.Shift, ui.KeyK, "K"}}},
-	{"editor.autocomplete", "Trigger Autocomplete", []keyCombo{{ui.Ctrl, ui.KeySpace, "Space"}}},
-	{"environment_editor.toggle", "Edit Environments", []keyCombo{{ui.Cmd | ui.Shift, ui.KeyE, "E"}}},
-	{"request.rename", "Rename Active Request", []keyCombo{{ui.Ctrl | ui.Shift, ui.KeyR, "R"}}},
-	{"request.send", "Send Active Request", []keyCombo{{ui.Cmd, ui.KeyEnter, "↩"}, {ui.Cmd, ui.KeyR, "R"}}},
-	{"hotkeys.showHelp", "Show Keyboard Shortcuts", []keyCombo{{ui.Cmd | ui.Shift, ui.KeySlash, "/"}}},
-	{"model.create", "New Request", []keyCombo{{ui.Cmd, ui.KeyN, "N"}}},
-	{"model.duplicate", "Duplicate Request", []keyCombo{{ui.Cmd, ui.KeyD, "D"}}},
-	{"switcher.next", "Go To Previous Request", []keyCombo{{ui.Ctrl | ui.Shift, ui.KeyTab, "Tab"}}},
-	{"switcher.prev", "Go To Next Request", []keyCombo{{ui.Ctrl, ui.KeyTab, "Tab"}}},
-	{"switcher.toggle", "Toggle Request Switcher", []keyCombo{{ui.Cmd, ui.KeyP, "P"}}},
-	{"settings.show", "Open Settings", []keyCombo{{ui.Cmd, ui.KeyComma, ","}}},
-	{"sidebar.filter", "Filter Sidebar", []keyCombo{{ui.Cmd, ui.KeyF, "F"}}},
-	{"sidebar.expand_all", "Expand All Folders", []keyCombo{{ui.Cmd | ui.Shift, ui.KeyEqual, "="}}},
-	{"sidebar.collapse_all", "Collapse All Folders", []keyCombo{{ui.Cmd | ui.Shift, ui.KeyMinus, "-"}}},
-	{"sidebar.selected.delete", "Delete Selected Sidebar Item", []keyCombo{{0, ui.KeyDelete, "Delete"}, {ui.Cmd, ui.KeyBackspace, "⌫"}}},
-	{"sidebar.selected.duplicate", "Duplicate Selected Sidebar Item", []keyCombo{{ui.Cmd, ui.KeyD, "D"}}},
-	{"sidebar.selected.move", "Move Selected to Workspace", nil},
-	{"sidebar.selected.rename", "Rename Selected Sidebar Item", []keyCombo{{0, ui.KeyEnter, "↩"}}},
-	{"sidebar.focus", "Focus or Toggle Sidebar", []keyCombo{{ui.Cmd, ui.KeyB, "B"}}},
-	{"url_bar.focus", "Focus URL", []keyCombo{{ui.Cmd, ui.KeyL, "L"}}},
-	{"workspace_settings.show", "Open Workspace Settings", []keyCombo{{ui.Cmd, ui.KeySemicolon, ";"}}},
+	{"app.zoom_in", locales.ZoomIn, []keyCombo{{ui.Cmd, ui.KeyEqual, "="}}},
+	{"app.zoom_out", locales.ZoomOut, []keyCombo{{ui.Cmd, ui.KeyMinus, "-"}}},
+	{"app.zoom_reset", locales.ZoomToActualSize, []keyCombo{{ui.Cmd, ui.Key0, "0"}}},
+	{"command_palette.toggle", locales.ToggleCommandPalette, []keyCombo{{ui.Cmd, ui.KeyK, "K"}}},
+	{"cookies_editor.show", locales.ShowCookies, []keyCombo{{ui.Cmd | ui.Shift, ui.KeyK, "K"}}},
+	{"editor.autocomplete", locales.TriggerAutocomplete, []keyCombo{{ui.Ctrl, ui.KeySpace, "Space"}}},
+	{"environment_editor.toggle", locales.EditEnvironments, []keyCombo{{ui.Cmd | ui.Shift, ui.KeyE, "E"}}},
+	{"request.rename", locales.RenameActiveRequest, []keyCombo{{ui.Ctrl | ui.Shift, ui.KeyR, "R"}}},
+	{"request.send", locales.SendActiveRequest, []keyCombo{{ui.Cmd, ui.KeyEnter, "↩"}, {ui.Cmd, ui.KeyR, "R"}}},
+	{"hotkeys.showHelp", locales.ShowKeyboardShortcuts, []keyCombo{{ui.Cmd | ui.Shift, ui.KeySlash, "/"}}},
+	{"model.create", locales.NewRequest, []keyCombo{{ui.Cmd, ui.KeyN, "N"}}},
+	{"model.duplicate", locales.DuplicateRequest, []keyCombo{{ui.Cmd, ui.KeyD, "D"}}},
+	{"switcher.next", locales.GoToPreviousRequest, []keyCombo{{ui.Ctrl | ui.Shift, ui.KeyTab, "Tab"}}},
+	{"switcher.prev", locales.GoToNextRequest, []keyCombo{{ui.Ctrl, ui.KeyTab, "Tab"}}},
+	{"switcher.toggle", locales.ToggleRequestSwitcher, []keyCombo{{ui.Cmd, ui.KeyP, "P"}}},
+	{"settings.show", locales.OpenSettings, []keyCombo{{ui.Cmd, ui.KeyComma, ","}}},
+	{"sidebar.filter", locales.FilterSidebar, []keyCombo{{ui.Cmd, ui.KeyF, "F"}}},
+	{"sidebar.expand_all", locales.ExpandAllFolders, []keyCombo{{ui.Cmd | ui.Shift, ui.KeyEqual, "="}}},
+	{"sidebar.collapse_all", locales.CollapseAllFolders, []keyCombo{{ui.Cmd | ui.Shift, ui.KeyMinus, "-"}}},
+	{"sidebar.selected.delete", locales.DeleteSelectedSidebarItem, []keyCombo{{0, ui.KeyDelete, "Delete"}, {ui.Cmd, ui.KeyBackspace, "⌫"}}},
+	{"sidebar.selected.duplicate", locales.DuplicateSelectedSidebarItem, []keyCombo{{ui.Cmd, ui.KeyD, "D"}}},
+	{"sidebar.selected.move", locales.MoveSelectedToWorkspace, nil},
+	{"sidebar.selected.rename", locales.RenameSelectedSidebarItem, []keyCombo{{0, ui.KeyEnter, "↩"}}},
+	{"sidebar.focus", locales.FocusOrToggleSidebar, []keyCombo{{ui.Cmd, ui.KeyB, "B"}}},
+	{"url_bar.focus", locales.FocusURL, []keyCombo{{ui.Cmd, ui.KeyL, "L"}}},
+	{"workspace_settings.show", locales.OpenWorkspaceSettings, []keyCombo{{ui.Cmd, ui.KeySemicolon, ";"}}},
 }
 
 func findHotkey(action string) (hotkey, bool) {
@@ -142,10 +144,10 @@ func (a *App) handleHotkeys(c *ui.Context) {
 		a.saveSetting("interfaceScale", 1.0)
 	}
 	if a.pressed(c, "settings.show") {
-		a.prompt("settings", "Settings", "", "")
+		a.prompt("settings", locales.Settings(), "", "")
 	}
 	if a.pressed(c, "hotkeys.showHelp") {
-		a.prompt("shortcuts", "Keyboard Shortcuts", "", "")
+		a.prompt("shortcuts", locales.KeyboardShortcuts(), "", "")
 	}
 	if a.workspace == "" {
 		return
@@ -188,10 +190,10 @@ func (a *App) handleHotkeys(c *ui.Context) {
 		a.openEnvironments()
 	}
 	if a.pressed(c, "workspace_settings.show") {
-		a.prompt("workspace_settings", "Workspace Settings", "", a.workspace)
+		a.prompt("workspace_settings", locales.WorkspaceSettings(), "", a.workspace)
 	}
 	if a.pressed(c, "request.rename") && a.models[a.active] != nil {
-		a.prompt("rename", "Rename Request", s(a.models[a.active], "name"), a.active)
+		a.prompt("rename", locales.RenameRequest(), s(a.models[a.active], "name"), a.active)
 	}
 	if a.pressed(c, "url_bar.focus") && a.active != "" {
 		a.focusURL = true

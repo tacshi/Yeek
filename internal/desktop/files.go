@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) importFile() { a.openImport(nil, engine.ImportDestination{WorkspaceID: a.workspace}) }
@@ -48,7 +49,7 @@ func (a *App) copyGrpcurl(id string) {
 }
 
 func (a *App) copiedToast() {
-	a.showToast("", "Command copied to clipboard", "success", 5*time.Second)
+	a.showToast("", locales.CommandCopiedToClipboard(), "success", 5*time.Second)
 }
 
 func (a *App) newGraphQL(folder string) {
@@ -58,7 +59,7 @@ func (a *App) newGraphQL(folder string) {
 func (a *App) saveResponse(response engine.Object) {
 	id := s(response, "id")
 	a.background(func() (func(), error) {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.Window, Title: "Save Response", DefaultPath: "response.json"})
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.Window, Title: locales.SaveResponse(), DefaultPath: "response.json"})
 		if err != nil || path == "" {
 			return nil, err
 		}
@@ -68,7 +69,7 @@ func (a *App) saveResponse(response engine.Object) {
 func (a *App) chooseBodyFile(d *Draft) {
 	id := d.ID
 	a.background(func() (func(), error) {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Request Body File"})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.RequestBodyFileTitle()})
 		if err != nil || len(paths) == 0 {
 			return nil, err
 		}
@@ -83,7 +84,7 @@ func (a *App) chooseBodyFile(d *Draft) {
 
 func (a *App) chooseSyncDir(workspace string) {
 	a.background(func() (func(), error) {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Workspace Directory", Directory: true})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.WorkspaceDirectory(), Directory: true})
 		if err != nil || len(paths) == 0 {
 			return nil, err
 		}
@@ -105,7 +106,7 @@ func (a *App) chooseSyncDir(workspace string) {
 
 func (a *App) pickFormFile(rows *[]KV, id string, dirty *bool) {
 	a.background(func() (func(), error) {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Choose Multipart File"})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.ChooseMultipartFile()})
 		if err != nil || len(paths) == 0 {
 			return nil, err
 		}
@@ -151,4 +152,4 @@ func (a *App) NewRequest() {
 		a.addRequest("http_request", "")
 	}
 }
-func (a *App) Settings() { a.prompt("settings", "Settings", "", "") }
+func (a *App) Settings() { a.prompt("settings", locales.Settings(), "", "") }

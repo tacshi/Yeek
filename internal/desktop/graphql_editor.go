@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type graphQLCompletionState struct {
@@ -94,7 +95,7 @@ func (a *App) graphQLCompletion(c *ui.Context, p colors, editor ui.Element, doc 
 			first := max(0, min(selected-5, len(options)-8))
 			for i := first; i < min(first+8, len(options)); i++ {
 				option := options[i]
-				row := ui.Row(c).Key(i).Height(30).Padding(4, 8).Gap(10).Radius(3).Label("Complete GraphQL "+option.Label).EditorSuggestion(editor, i, len(options), i == selected)
+				row := ui.Row(c).Key(i).Height(30).Padding(4, 8).Gap(10).Radius(3).Label(locales.CompleteGraphQLName(option.Label)).EditorSuggestion(editor, i, len(options), i == selected)
 				if i == selected || row.Hovered() {
 					row.Background(p.accent.Alpha(.16))
 				}
@@ -115,7 +116,7 @@ func (a *App) graphQLCompletion(c *ui.Context, p colors, editor ui.Element, doc 
 				ui.Text(c, option.Description).FontSize(11).TextColor(p.muted).MaxLines(4).Padding(8)
 			}
 			if option.ParentType != "" {
-				if ui.Button(c, "Show in Documentation").FontSize(10).Clicked() {
+				if ui.Button(c, locales.ShowInDocumentation()).FontSize(10).Clicked() {
 					a.openGraphQLDocs(a.active, option.ParentType)
 					v.open = false
 				}

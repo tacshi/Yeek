@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestInsomniaFixturesMatchYaak(t *testing.T) {
+func TestInsomniaFixtures(t *testing.T) {
 	inputs, _ := filepath.Glob("testdata/insomnia/*.input.*")
 	if len(inputs) == 0 {
 		t.Fatal("no fixtures")
@@ -75,7 +75,7 @@ func normalizeJSON(t *testing.T, value any) map[string]any {
 	return out
 }
 
-func TestInsomniaTemplatesMatchYaak(t *testing.T) {
+func TestInsomniaTemplates(t *testing.T) {
 	ids := map[string]bool{"GENERATE_ID::req_login": true}
 	convert := func(text string) string { return convertTemplateSyntax(text, ids).(string) }
 	enc := insomniaArgument
@@ -165,7 +165,7 @@ func TestInsomniaTemplatesMatchYaak(t *testing.T) {
 	}
 }
 
-func TestInsomniaBodiesMatchYaak(t *testing.T) {
+func TestInsomniaBodies(t *testing.T) {
 	importBody := func(r Object) Object {
 		m := Object{}
 		insomniaBodyAndHeaders(m, r)
@@ -216,7 +216,7 @@ func TestInsomniaBodiesMatchYaak(t *testing.T) {
 	}
 }
 
-func TestInsomniaMigrationMatchesYaak(t *testing.T) {
+func TestInsomniaMigration(t *testing.T) {
 	requests := []any{
 		Object{"_id": "req_query", "meta": Object{"id": "req_query"}, "_type": "request", "parentId": "wrk_test", "name": "Query", "method": "POST", "url": "{{ _['host'] }}/graphql",
 			"authentication": Object{"type": "bearer", "token": "{% response 'body', 'req_login', 'b64::JC50b2tlbg==::abc', 'when-expired', 60 %}"}, // #nosec G101 -- Insomnia template text, no credential.
@@ -268,7 +268,7 @@ func TestInsomniaMigrationMatchesYaak(t *testing.T) {
 
 func TestInsomniaKeysStayAcrossRenames(t *testing.T) {
 	collection := func(name string) []Object {
-		text := "type: collection.insomnia.rest/5.0\nname: Keys\nmeta: {id: wrk_1}\nenvironments: {meta: {id: env_1}, name: Base, data: {}}\ncollection:\n  - meta: {id: fld_1}\n    name: Folder\n    children:\n      - meta: {id: req_1}\n        name: " + name + "\n        method: GET\n        url: https://yaak.app\n"
+		text := "type: collection.insomnia.rest/5.0\nname: Keys\nmeta: {id: wrk_1}\nenvironments: {meta: {id: env_1}, name: Base, data: {}}\ncollection:\n  - meta: {id: fld_1}\n    name: Folder\n    children:\n      - meta: {id: req_1}\n        name: " + name + "\n        method: GET\n        url: https://api.example.com\n"
 		models, err := ParseImport([]byte(text))
 		if err != nil {
 			t.Fatal(err)

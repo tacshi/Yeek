@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type paletteState struct {
@@ -44,21 +45,21 @@ func (a *App) paletteGroups() []paletteGroup {
 	}
 	wid := a.workspace
 	actions := []paletteItem{
-		{key: "settings.open", label: "Open Settings", action: "settings.show", run: func() { a.prompt("settings", "Settings", "", "") }},
-		{key: "workspace_settings.open", label: "Open Workspace Settings", action: "workspace_settings.show", run: func() { a.prompt("workspace_settings", "Workspace Settings", "", wid) }},
-		{key: "app.create", label: "Create Workspace", run: func() { a.newWorkspace() }},
-		{key: "model.create", label: "Create HTTP Request", run: func() { a.addRequest("http_request", "") }},
-		{key: "grpc_request.create", label: "Create GRPC Request", run: func() { a.addRequest("grpc_request", "") }},
-		{key: "websocket_request.create", label: "Create Websocket Request", run: func() { a.addRequest("websocket_request", "") }},
-		{key: "folder.create", label: "Create Folder", run: func() { a.prompt("folder", "New Folder", "", "") }},
-		{key: "cookies.show", label: "Show Cookies", action: "cookies_editor.show", run: func() { a.openCookies(s(a.activeCookieJar(), "id")) }},
-		{key: "environment.edit", label: "Edit Environment", action: "environment_editor.toggle", run: a.openEnvironments},
-		{key: "sidebar.toggle", label: "Toggle Sidebar", action: "sidebar.focus", run: func() { a.hideSidebar = !a.hideSidebar }},
+		{key: "settings.open", label: locales.OpenSettings(), action: "settings.show", run: func() { a.prompt("settings", locales.Settings(), "", "") }},
+		{key: "workspace_settings.open", label: locales.OpenWorkspaceSettings(), action: "workspace_settings.show", run: func() { a.prompt("workspace_settings", locales.WorkspaceSettings(), "", wid) }},
+		{key: "app.create", label: locales.CreateWorkspace(), run: func() { a.newWorkspace() }},
+		{key: "model.create", label: locales.CreateHTTPRequest(), run: func() { a.addRequest("http_request", "") }},
+		{key: "grpc_request.create", label: locales.CreateGRPCRequest(), run: func() { a.addRequest("grpc_request", "") }},
+		{key: "websocket_request.create", label: locales.CreateWebsocketRequest(), run: func() { a.addRequest("websocket_request", "") }},
+		{key: "folder.create", label: locales.CreateFolder(), run: func() { a.prompt("folder", locales.NewFolder(), "", "") }},
+		{key: "cookies.show", label: locales.ShowCookies(), action: "cookies_editor.show", run: func() { a.openCookies(s(a.activeCookieJar(), "id")) }},
+		{key: "environment.edit", label: locales.EditEnvironment(), action: "environment_editor.toggle", run: a.openEnvironments},
+		{key: "sidebar.toggle", label: locales.ToggleSidebarTitle(), action: "sidebar.focus", run: func() { a.hideSidebar = !a.hideSidebar }},
 	}
 	if active := a.models[a.active]; active != nil {
 		id := a.active
 		if s(active, "model") == "http_request" {
-			actions = append(actions, paletteItem{key: "request.send", label: "Send Request", action: "request.send", run: a.send})
+			actions = append(actions, paletteItem{key: "request.send", label: locales.SendRequest(), action: "request.send", run: a.send})
 		}
 		for i, action := range a.Engine.PluginActions() {
 			name := action.Name
@@ -67,21 +68,21 @@ func (a *App) paletteGroups() []paletteGroup {
 			}})
 		}
 		actions = append(actions,
-			paletteItem{key: "http_request.rename", label: "Rename Request", run: func() { a.prompt("rename", "Rename Request", s(active, "name"), id) }},
-			paletteItem{key: "sidebar.selected.delete", label: "Delete Request", run: func() { a.prompt("delete", "Delete "+requestName(active), requestName(active), id) }},
+			paletteItem{key: "http_request.rename", label: locales.RenameRequest(), run: func() { a.prompt("rename", locales.RenameRequest(), s(active, "name"), id) }},
+			paletteItem{key: "sidebar.selected.delete", label: locales.DeleteRequest(), run: func() { a.prompt("delete", locales.DeleteName(requestName(active)), requestName(active), id) }},
 		)
 	}
 	slices.SortStableFunc(actions, func(x, y paletteItem) int { return strings.Compare(x.label, y.label) })
-	groups = append(groups, paletteGroup{"Actions", actions})
+	groups = append(groups, paletteGroup{locales.Actions(), actions})
 
-	requests := paletteGroup{label: "Switch Request"}
+	requests := paletteGroup{label: locales.SwitchRequest()}
 	for _, m := range a.recentFirst(a.allRequests()) {
 		id := s(m, "id")
 		requests.items = append(requests.items, paletteItem{key: "switch-request-" + id, label: requestName(m), search: strings.Join(a.requestPath(m), " "), request: m, run: func() { a.openRequest(id); a.revealInSidebar(id) }})
 	}
 	groups = append(groups, requests)
 
-	environments := paletteGroup{label: "Switch Environment"}
+	environments := paletteGroup{label: locales.SwitchEnvironment()}
 	for _, env := range a.list("environment") {
 		if parent := s(env, "parentModel"); parent == "workspace" || parent == "folder" || s(env, "id") == a.environment {
 			continue
@@ -91,7 +92,7 @@ func (a *App) paletteGroups() []paletteGroup {
 	}
 	groups = append(groups, environments)
 
-	workspaces := paletteGroup{label: "Switch Workspace"}
+	workspaces := paletteGroup{label: locales.SwitchWorkspace()}
 	for _, w := range a.list("workspace") {
 		id := s(w, "id")
 		workspaces.items = append(workspaces.items, paletteItem{key: "switch-workspace-" + id, label: s(w, "name"), run: func() { a.switchWorkspace(id) }})
@@ -212,7 +213,7 @@ func (a *App) paletteView(c *ui.Context, p colors) {
 			field := ui.Row(c).Grow(1).Height(36).Radius(6).Border(1, p.border).Gap(4).Padding(0, 8, 0, 4)
 			field.Children(func() {
 				ui.Box(c).Width(32).Justify(ui.Center).Children(func() { icon(c, "search").TextColor(p.muted) })
-				input := ui.TextInput(c, &a.palette.query).Label("Command").Placeholder("Search or type a command").AutoFocus().Grow(1).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(14)
+				input := ui.TextInput(c, &a.palette.query).Label(locales.Command()).Placeholder(locales.SearchOrTypeACommand()).AutoFocus().Grow(1).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(14)
 				move := func(delta int) {
 					if len(items) > 0 {
 						a.palette.selected = items[((index+delta)%len(items)+len(items))%len(items)].key
@@ -271,7 +272,7 @@ func (a *App) paletteView(c *ui.Context, p colors) {
 				})
 			}
 			if len(items) == 0 {
-				ui.Text(c, "No matches").FontSize(13).TextColor(p.muted).Padding(10)
+				ui.Text(c, locales.NoMatches()).FontSize(13).TextColor(p.muted).Padding(10)
 			}
 		})
 	})
@@ -339,7 +340,7 @@ func (a *App) switcherView(c *ui.Context, p colors) {
 			open(recent[a.switcher.index])
 		}
 		if len(recent) == 0 {
-			ui.Text(c, "No recent requests").FontSize(13).TextColor(p.subtle).Italic().Padding(6, 8)
+			ui.Text(c, locales.NoRecentRequests()).FontSize(13).TextColor(p.subtle).Italic().Padding(6, 8)
 			return
 		}
 		for i, id := range recent {

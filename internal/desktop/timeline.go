@@ -8,15 +8,16 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-func timelineTabLabel(d *Draft) string { return "Timeline" }
+func timelineTabLabel(d *Draft) string { return locales.Timeline() }
 
 func timelineMenu(m *ui.Menu, d *Draft) {
-	if m.Item("Timeline").Checked(!d.TimelineText).Chosen() {
+	if m.Item(locales.Timeline()).Checked(!d.TimelineText).Chosen() {
 		d.TimelineText = false
 	}
-	if m.Item("Timeline (Text)").Checked(d.TimelineText).Chosen() {
+	if m.Item(locales.TimelineText()).Checked(d.TimelineText).Chosen() {
 		d.TimelineText = true
 	}
 }
@@ -48,46 +49,42 @@ func timelineDisplay(e engine.Object, p colors) eventDisplay {
 		if source != "" {
 			summary += " (" + source + ")"
 		}
-		return eventDisplay{"gear", "Setting", summary, p.muted}
+		return eventDisplay{"gear", locales.Setting(), summary, p.muted}
 	case "info":
-		return eventDisplay{"info", "Info", s(e, "message"), p.muted}
+		return eventDisplay{"info", locales.Info(), s(e, "message"), p.muted}
 	case "redirect":
 		dropped := []string{}
 		if b(e, "dropped_body") {
-			dropped = append(dropped, "drop body")
+			dropped = append(dropped, locales.DropBody())
 		}
 		if headers := strs(e, "dropped_headers"); len(headers) > 0 {
-			word := "headers"
-			if len(headers) == 1 {
-				word = "header"
-			}
-			dropped = append(dropped, fmt.Sprintf("drop %d %s", len(headers), word))
+			dropped = append(dropped, locales.DropCountHeaders(len(headers)))
 		}
-		summary := fmt.Sprintf("Redirecting %.0f %s", n(e, "status"), s(e, "url"))
+		summary := locales.RedirectingStatusUrl(fmt.Sprintf("%.0f", n(e, "status")), s(e, "url"))
 		if len(dropped) > 0 {
 			summary += " (" + strings.Join(dropped, ", ") + ")"
 		}
-		return eventDisplay{"redirect", "Redirect", summary, p.green}
+		return eventDisplay{"redirect", locales.Redirect(), summary, p.green}
 	case "send_url":
-		return eventDisplay{"arrowUp", "Request", s(e, "method") + " " + eventPath(e), p.accent}
+		return eventDisplay{"arrowUp", locales.Request(), s(e, "method") + " " + eventPath(e), p.accent}
 	case "receive_url":
-		return eventDisplay{"arrowDown", "Response", s(e, "version") + " " + s(e, "status"), p.blue}
+		return eventDisplay{"arrowDown", locales.Response(), s(e, "version") + " " + s(e, "status"), p.blue}
 	case "header_up":
-		return eventDisplay{"arrowUp", "Header", s(e, "name") + ": " + s(e, "value"), p.accent}
+		return eventDisplay{"arrowUp", locales.Header(), s(e, "name") + ": " + s(e, "value"), p.accent}
 	case "header_down":
-		return eventDisplay{"arrowDown", "Header", s(e, "name") + ": " + s(e, "value"), p.blue}
+		return eventDisplay{"arrowDown", locales.Header(), s(e, "name") + ": " + s(e, "value"), p.blue}
 	case "chunk_sent":
-		return eventDisplay{"info", "Chunk", formatBytes(n(e, "bytes")) + " chunk sent", p.muted}
+		return eventDisplay{"info", locales.Chunk(), locales.SizeChunkSent(formatBytes(n(e, "bytes"))), p.muted}
 	case "chunk_received":
-		return eventDisplay{"info", "Chunk", formatBytes(n(e, "bytes")) + " chunk received", p.muted}
+		return eventDisplay{"info", locales.Chunk(), locales.SizeChunkReceived(formatBytes(n(e, "bytes"))), p.muted}
 	case "dns_resolved":
 		addresses := strings.Join(strs(e, "addresses"), ", ")
 		if b(e, "overridden") {
-			return eventDisplay{"globe", "DNS Override", s(e, "hostname") + " → " + addresses + " (overridden)", p.green}
+			return eventDisplay{"globe", locales.DNSOverride(), locales.HostAddressesOverridden(s(e, "hostname"), addresses), p.green}
 		}
 		return eventDisplay{"globe", "DNS", fmt.Sprintf("%s → %s (%.0fms)", s(e, "hostname"), addresses, n(e, "duration")), p.muted}
 	}
-	return eventDisplay{"info", "Unknown", "Unknown event", p.muted}
+	return eventDisplay{"info", locales.Unknown(), locales.UnknownEvent(), p.muted}
 }
 
 func eventPath(e engine.Object) string {
@@ -187,7 +184,7 @@ func eventTime(m engine.Object) string {
 func (a *App) timelineView(c *ui.Context, p colors, d *Draft, response engine.Object) {
 	events := a.responseEvents(response)
 	if len(events) == 0 {
-		emptyState(c, p, "No events recorded")
+		emptyState(c, p, locales.NoEventsRecorded())
 		return
 	}
 	if d.TimelineText {
@@ -240,11 +237,11 @@ func (a *App) timelineView(c *ui.Context, p colors, d *Draft, response engine.Ob
 func (a *App) timelineDetails(c *ui.Context, p colors, d *Draft, m engine.Object) {
 	e := o(m, "event")
 	display := timelineDisplay(e, p)
-	title := map[string]string{"header_up": "Header Sent", "header_down": "Header Received", "send_url": "Request", "receive_url": "Response", "redirect": "Redirect", "setting": "Apply Setting", "chunk_sent": "Data Sent", "chunk_received": "Data Received"}[s(e, "type")]
+	title := map[string]string{"header_up": locales.HeaderSent(), "header_down": locales.HeaderReceived(), "send_url": locales.Request(), "receive_url": locales.Response(), "redirect": locales.Redirect(), "setting": locales.ApplySetting(), "chunk_sent": locales.DataSent(), "chunk_received": locales.DataReceived()}[s(e, "type")]
 	if s(e, "type") == "dns_resolved" {
-		title = "DNS Resolution"
+		title = locales.DNSResolution()
 		if b(e, "overridden") {
-			title = "DNS Override"
+			title = locales.DNSOverride()
 		}
 	}
 	if title == "" {
@@ -255,14 +252,14 @@ func (a *App) timelineDetails(c *ui.Context, p colors, d *Draft, m engine.Object
 			ui.Text(c, title).FontSize(13).FontWeight(600)
 			ui.Text(c, eventTime(m)).Font("monospace").FontSize(11).TextColor(p.subtle)
 			ui.Spacer(c)
-			label := "Text"
+			label := locales.Text()
 			if d.TimelineRaw {
-				label = "Formatted"
+				label = locales.Formatted()
 			}
 			if ui.Button(c, label).FontSize(11).Clicked() {
 				d.TimelineRaw = !d.TimelineRaw
 			}
-			if smallIconButton(c, "close", "Close event details").Clicked() {
+			if smallIconButton(c, "close", locales.CloseEventDetails()).Clicked() {
 				d.TimelineIndex = -1
 			}
 		})
@@ -278,7 +275,7 @@ func timelineFields(e engine.Object, p colors) []keyValue {
 	row := func(label, value string) keyValue { return keyValue{label: label, value: value, color: p.muted} }
 	switch s(e, "type") {
 	case "header_up", "header_down":
-		return []keyValue{row("Header", s(e, "name")), row("Value", s(e, "value"))}
+		return []keyValue{row(locales.Header(), s(e, "name")), row(locales.ValueTitle(), s(e, "value"))}
 	case "send_url":
 		port := n(e, "port")
 		defaultPort := s(e, "scheme") == "http" && port == 80 || s(e, "scheme") == "https" && port == 443
@@ -290,64 +287,64 @@ func timelineFields(e engine.Object, p colors) []keyValue {
 		if !defaultPort {
 			portText = fmt.Sprintf(":%.0f", port)
 		}
-		rows := []keyValue{row("URL", s(e, "scheme")+"://"+auth+s(e, "host")+portText+eventPath(e)), row("Method", s(e, "method")), row("Scheme", s(e, "scheme"))}
+		rows := []keyValue{row("URL", s(e, "scheme")+"://"+auth+s(e, "host")+portText+eventPath(e)), row(locales.Method(), s(e, "method")), row(locales.Scheme(), s(e, "scheme"))}
 		if s(e, "username") != "" {
-			rows = append(rows, row("Username", s(e, "username")))
+			rows = append(rows, row(locales.Username(), s(e, "username")))
 		}
 		if s(e, "password") != "" {
-			rows = append(rows, row("Password", s(e, "password")))
+			rows = append(rows, row(locales.Password(), s(e, "password")))
 		}
-		rows = append(rows, row("Host", s(e, "host")))
+		rows = append(rows, row(locales.Host(), s(e, "host")))
 		if !defaultPort {
-			rows = append(rows, row("Port", fmt.Sprintf("%.0f", port)))
+			rows = append(rows, row(locales.Port(), fmt.Sprintf("%.0f", port)))
 		}
-		rows = append(rows, row("Path", s(e, "path")))
+		rows = append(rows, row(locales.Path(), s(e, "path")))
 		if s(e, "query") != "" {
-			rows = append(rows, row("Query", s(e, "query")))
+			rows = append(rows, row(locales.Query(), s(e, "query")))
 		}
 		if s(e, "fragment") != "" {
-			rows = append(rows, row("Fragment", s(e, "fragment")))
+			rows = append(rows, row(locales.Fragment(), s(e, "fragment")))
 		}
 		return rows
 	case "receive_url":
-		return []keyValue{row("HTTP Version", s(e, "version")), row("Status", s(e, "status"))}
+		return []keyValue{row(locales.HTTPVersion(), s(e, "version")), row(locales.Status(), s(e, "status"))}
 	case "redirect":
-		behavior := "Preserve method and body"
+		behavior := locales.PreserveMethodAndBody()
 		if s(e, "behavior") == "drop_body" {
-			behavior = "Drop body, change to GET"
+			behavior = locales.DropBodyChangeToGET()
 		}
-		dropped, headers := "No", "--"
+		dropped, headers := locales.No(), "--"
 		if b(e, "dropped_body") {
-			dropped = "Yes"
+			dropped = locales.Yes()
 		}
 		if h := strs(e, "dropped_headers"); len(h) > 0 {
 			headers = strings.Join(h, ", ")
 		}
-		return []keyValue{row("Status", fmt.Sprintf("%.0f", n(e, "status"))), row("Location", s(e, "url")), row("Behavior", behavior), row("Body Dropped", dropped), row("Headers Dropped", headers)}
+		return []keyValue{row(locales.Status(), fmt.Sprintf("%.0f", n(e, "status"))), row(locales.Location(), s(e, "url")), row(locales.Behavior(), behavior), row(locales.BodyDropped(), dropped), row(locales.HeadersDropped(), headers)}
 	case "setting":
-		rows := []keyValue{row("Setting", s(e, "name")), row("Value", s(e, "value"))}
+		rows := []keyValue{row(locales.Setting(), s(e, "name")), row(locales.ValueTitle(), s(e, "value"))}
 		if source := s(e, "source_model"); source != "" {
 			label := strings.ReplaceAll(source, "_", " ")
 			if source == "default" {
-				label = "Default"
+				label = locales.Default()
 			} else if name := s(e, "source_name"); name != "" {
 				label = name + " (" + label + ")"
 			}
-			rows = append(rows, row("Source", label))
+			rows = append(rows, row(locales.Source(), label))
 		}
 		return rows
 	case "chunk_sent", "chunk_received":
-		return []keyValue{row("Size", formatBytes(n(e, "bytes")))}
+		return []keyValue{row(locales.Size(), formatBytes(n(e, "bytes")))}
 	case "dns_resolved":
 		duration := fmt.Sprintf("%.0fms", n(e, "duration"))
 		if b(e, "overridden") {
 			duration = "--"
 		}
-		rows := []keyValue{row("Hostname", s(e, "hostname")), row("Addresses", strings.Join(strs(e, "addresses"), ", ")), row("Duration", duration)}
+		rows := []keyValue{row(locales.Hostname(), s(e, "hostname")), row(locales.Addresses(), strings.Join(strs(e, "addresses"), ", ")), row(locales.Duration(), duration)}
 		if b(e, "overridden") {
-			rows = append(rows, row("Source", "Workspace Override"))
+			rows = append(rows, row(locales.Source(), locales.WorkspaceOverride()))
 		}
 		return rows
 	}
-	return []keyValue{row("Event", timelineDisplay(e, p).summary)}
+	return []keyValue{row(locales.Event(), timelineDisplay(e, p).summary)}
 }

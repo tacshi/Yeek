@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"uuid"
+	"yeek/locales"
 )
 
 func bulkPreference(name string) string {
@@ -99,9 +100,9 @@ func (a *App) pairOrBulkEditor(c *ui.Context, p colors, rows *[]KV, name, value 
 		if !area.Hovered() {
 			return
 		}
-		glyph, label := "fileCode", "Enable bulk edit"
+		glyph, label := "fileCode", locales.EnableBulkEdit()
 		if bulk {
-			glyph, label = "table", "Enable form edit"
+			glyph, label = "table", locales.EnableFormEdit()
 		}
 		toggle := sizedIconButton(c, glyph, label, 28, 15).Absolute().Right(0).Bottom(0).Border(1, p.border).Background(p.background).Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, .12))
 		if toggle.Clicked() {

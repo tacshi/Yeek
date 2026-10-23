@@ -22,6 +22,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 	"yeek/third_party/pdfjs"
 )
 
@@ -206,7 +207,7 @@ func (a *App) newPreviewView() (ui.NativeWebView, func(string), func(float64), e
 	return view, load, page.SetZoomFactor, nil
 }
 
-var errNoWindow = errors.New("previews need a window")
+var errNoWindow = errors.New(locales.PreviewsNeedAWindow())
 
 func (a *App) webPreview(c *ui.Context, p colors, key string, item *previewItem, framed bool) {
 	if a.preview == nil {
@@ -220,7 +221,7 @@ func (a *App) webPreview(c *ui.Context, p colors, key string, item *previewItem,
 	}
 	pv := a.preview
 	if pv.err != nil {
-		banner(c, p, "The preview can't be shown: "+pv.err.Error(), func() {})
+		banner(c, p, locales.ThePreviewCantBeShownError(pv.err.Error()), func() {})
 		return
 	}
 	if scale := n(a.settings, "interfaceScale"); scale > 0 && scale != pv.scale && pv.zoom != nil {

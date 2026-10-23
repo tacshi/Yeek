@@ -10,8 +10,11 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+
+	"yeek/locales"
 )
 
 type ImportInput struct{ Kind, Origin, Content, SourceWorkspaceID string }
@@ -116,7 +119,7 @@ func compactImportValue(value any) any {
 func importContentHash(model Object) string { return "v1:" + importHash(importContent(model)) }
 func normalizedImport(model Object) (Object, error) {
 	if !importable(str(model, "model")) {
-		return nil, fmt.Errorf("%s cannot be imported as a collection resource", str(model, "model"))
+		return nil, errors.New(locales.ModelCannotBeImportedAsA(str(model, "model")))
 	}
 	defaults, err := defaultModel(str(model, "model"))
 	if err != nil {
@@ -161,7 +164,7 @@ func (e *Engine) PlanImport(ctx context.Context, inputs []ImportInput, destinati
 }
 func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocument, destination ImportDestination) (*ImportPlan, error) {
 	if len(documents) == 0 {
-		return nil, errors.New("choose a collection source")
+		return nil, errors.New(locales.ChooseACollectionSource())
 	}
 	if err := e.validateImportDestination(ctx, destination); err != nil {
 		return nil, err
@@ -179,7 +182,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 		plan.Warnings = append(plan.Warnings, importedElsewhere(all, destination.WorkspaceID, document)...)
 		for _, prior := range plan.Sources {
 			if document.Origin != "" && prior.Origin == document.Origin && (document.SourceWorkspaceID == "" || document.SourceWorkspaceID == prior.SourceWorkspaceID) {
-				return nil, errors.New("the same import source was selected twice")
+				return nil, errors.New(locales.TheSameImportSourceWasSelected())
 			}
 		}
 		plan.Warnings = append(plan.Warnings, document.Warnings...)
@@ -190,10 +193,10 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 				return nil, err
 			}
 			if _, err := json.Marshal(model); err != nil {
-				return nil, fmt.Errorf("collection resource is not valid JSON: %w", err)
+				return nil, fmt.Errorf("%s: %w", locales.CollectionResourceIsNotValidJSON(), err)
 			}
 			if !importable(str(model, "model")) {
-				return nil, fmt.Errorf("unsupported imported resource %q", str(model, "model"))
+				return nil, errors.New(locales.UnsupportedImportedResourceModel(strconv.Quote(str(model, "model"))))
 			}
 			if str(model, "id") == "" {
 				model = clone(model)
@@ -202,7 +205,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 			}
 			id := str(model, "id")
 			if originals[id] != nil {
-				return nil, fmt.Errorf("collection has duplicate resource ID %q", id)
+				return nil, errors.New(locales.CollectionHasDuplicateResourceIDId(strconv.Quote(id)))
 			}
 			originals[id] = model
 			if str(model, "model") == "workspace" {
@@ -241,7 +244,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 					plan.expectedSources[source.ID] = importHash(linked)
 					for _, prior := range plan.Sources {
 						if prior.ID == source.ID {
-							return nil, errors.New("More than one input matches the same linked import. Keep only one version of that source.") //nolint:staticcheck
+							return nil, errors.New(locales.MoreThanOneInputMatchesThe()) //nolint:staticcheck
 						}
 					}
 				} else if len(ambiguous) > 0 {
@@ -249,7 +252,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 					for _, candidate := range ambiguous {
 						labels = append(labels, str(candidate, "originLabel"))
 					}
-					plan.Warnings = append(plan.Warnings, ImportWarning{Title: "Imported as new", Detail: displayList(labels) + " already contain these resources", Level: "warning"})
+					plan.Warnings = append(plan.Warnings, ImportWarning{Title: locales.ImportedAsNew(), Detail: locales.SourcesAlreadyContainTheseResources(displayList(labels)), Level: "warning"})
 				}
 				for _, binding := range all {
 					if str(binding, "model") == "import_source_resource" && str(binding, "importSourceId") == source.ID {
@@ -273,7 +276,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 			}
 			source := sources[wid]
 			if source == nil {
-				return nil, fmt.Errorf("resource %q has no source workspace", str(model, "name"))
+				return nil, errors.New(locales.ResourceNameHasNoSourceWorkspace(strconv.Quote(str(model, "name"))))
 			}
 			key := importSourceKey(model)
 			binding := source.bindings[key]
@@ -305,7 +308,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 					if mapped, ok := ids[parent]; ok {
 						model[key] = mapped
 					} else {
-						return nil, fmt.Errorf("resource %q references missing parent %q", str(model, "name"), parent)
+						return nil, errors.New(locales.ResourceNameReferencesMissingParentParent(strconv.Quote(str(model, "name")), strconv.Quote(parent)))
 					}
 				}
 			}
@@ -316,7 +319,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 				model["parentModel"] = "environment"
 				model["parentId"] = nil
 				model["name"] = str(model, "name") + " (Imported)"
-				plan.Warnings = append(plan.Warnings, ImportWarning{Title: "Base environment kept separate", Detail: str(model, "name")})
+				plan.Warnings = append(plan.Warnings, ImportWarning{Title: locales.BaseEnvironmentKeptSeparate(), Detail: str(model, "name")})
 			}
 			model, err = normalizedImport(model)
 			if err != nil {
@@ -324,7 +327,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 			}
 			before := current[str(model, "id")]
 			if before != nil && ((kind != "workspace" && str(before, "workspaceId") != source.WorkspaceID) || str(before, "model") != kind) {
-				return nil, errors.New("linked import resource belongs to another workspace or type")
+				return nil, errors.New(locales.LinkedImportResourceBelongsToAnother())
 			}
 			item := &ImportItem{ID: str(model, "id"), SourceID: source.ID, SourceKey: key, Kind: kind, Name: str(model, "name"), ParentID: importItemParent(model), After: model, Before: clone(before), Selected: true, Action: "create", expected: importHash(before)}
 			if binding != nil && str(binding, "modelId") == "" {
@@ -501,18 +504,18 @@ func (p *ImportPlan) signature() string {
 func (e *Engine) validateImportDestination(ctx context.Context, d ImportDestination) error {
 	if d.WorkspaceID == "" {
 		if d.FolderID != "" {
-			return errors.New("a folder destination needs a workspace")
+			return errors.New(locales.AFolderDestinationNeedsAWorkspace())
 		}
 		return nil
 	}
 	w, err := e.Store.Get(ctx, d.WorkspaceID)
 	if err != nil || str(w, "model") != "workspace" {
-		return errors.New("destination workspace no longer exists")
+		return errors.New(locales.DestinationWorkspaceNoLongerExists())
 	}
 	if d.FolderID != "" {
 		folder, err := e.Store.Get(ctx, d.FolderID)
 		if err != nil || str(folder, "model") != "folder" || str(folder, "workspaceId") != d.WorkspaceID {
-			return errors.New("destination folder must belong to the selected workspace")
+			return errors.New(locales.DestinationFolderMustBelongToThe())
 		}
 	}
 	return nil
@@ -536,7 +539,7 @@ func validateImportModels(models map[string]Object, check []Object) error {
 	for _, model := range check {
 		workspace := str(model, "workspaceId")
 		if str(models[workspace], "model") != "workspace" {
-			return fmt.Errorf("%s has no destination workspace", str(model, "name"))
+			return errors.New(locales.NameHasNoDestinationWorkspace(str(model, "name")))
 		}
 		seen := map[string]bool{str(model, "id"): true}
 		for child := model; importParent(child) != ""; {
@@ -547,10 +550,10 @@ func validateImportModels(models map[string]Object, check []Object) error {
 				expected = str(child, "parentModel")
 			}
 			if parent == nil || str(parent, "model") != expected || (expected == "workspace" && id != workspace) || (expected != "workspace" && str(parent, "workspaceId") != workspace) {
-				return fmt.Errorf("%s has an invalid or unselected parent", str(model, "name"))
+				return errors.New(locales.NameHasAnInvalidOrUnselected(str(model, "name")))
 			}
 			if seen[id] {
-				return errors.New("collection has circular parent references")
+				return errors.New(locales.CollectionHasCircularParentReferences())
 			}
 			seen[id] = true
 			child = parent
@@ -558,7 +561,7 @@ func validateImportModels(models map[string]Object, check []Object) error {
 		if str(model, "model") == "environment" {
 			parentKind := str(model, "parentModel")
 			if !slices.Contains([]string{"workspace", "environment", "folder"}, parentKind) || (parentKind == "folder" && importParent(model) == "") {
-				return fmt.Errorf("%s has an invalid environment parent", str(model, "name"))
+				return errors.New(locales.NameHasAnInvalidEnvironmentParent(str(model, "name")))
 			}
 		}
 	}
@@ -577,12 +580,12 @@ func itemApplies(item *ImportItem) bool {
 
 func (e *Engine) CommitImport(ctx context.Context, plan *ImportPlan) ([]Object, error) {
 	if plan == nil {
-		return nil, errors.New("prepare a fresh import preview")
+		return nil, errors.New(locales.PrepareAFreshImportPreview())
 	}
 	plan.mu.Lock()
 	defer plan.mu.Unlock()
 	if plan.committed || plan.seal == "" || plan.seal != plan.signature() {
-		return nil, errors.New("prepare a fresh import preview")
+		return nil, errors.New(locales.PrepareAFreshImportPreview())
 	}
 	output := []Object{}
 	err := e.Store.Write(ctx, Object{"type": "import"}, func(tx *modelTx) error {
@@ -597,30 +600,30 @@ func (e *Engine) CommitImport(ctx context.Context, plan *ImportPlan) ([]Object, 
 		if d := plan.Destination; d.WorkspaceID != "" {
 			w := current[d.WorkspaceID]
 			if str(w, "model") != "workspace" {
-				return errors.New("destination workspace was deleted")
+				return errors.New(locales.DestinationWorkspaceWasDeleted())
 			}
 			if d.FolderID != "" {
 				f := current[d.FolderID]
 				if str(f, "model") != "folder" || str(f, "workspaceId") != d.WorkspaceID {
-					return errors.New("destination folder was deleted or moved")
+					return errors.New(locales.DestinationFolderWasDeletedOrMoved())
 				}
 			}
 		}
 		for id, expected := range plan.expectedSources {
 			if importHash(current[id]) != expected {
-				return errors.New("import source changed; refresh the preview")
+				return errors.New(locales.ImportSourceChangedRefreshThePreview())
 			}
 		}
 		for _, item := range plan.Items {
 			if importHash(current[item.ID]) != item.expected {
-				return fmt.Errorf("%s changed; refresh the import preview", item.Name)
+				return errors.New(locales.NameChangedRefreshTheImportPreview(item.Name))
 			}
 		}
 		selected := map[string]*ImportItem{}
 		for _, item := range plan.Items {
 			if itemApplies(item) {
 				if selected[item.ID] != nil {
-					return fmt.Errorf("multiple sources change %s; select one source for those settings", item.Name)
+					return errors.New(locales.MultipleSourcesChangeNameSelectOne(item.Name))
 				}
 				selected[item.ID] = item
 			}
@@ -652,7 +655,7 @@ func (e *Engine) CommitImport(ctx context.Context, plan *ImportPlan) ([]Object, 
 			}
 			for _, model := range all {
 				if str(model, "model") == "import_source" && str(model, "workspaceId") == source.WorkspaceID && str(model, "origin") == source.Origin && str(model, "importer") == source.Format && str(model, "sourceWorkspaceId") == source.SourceWorkspaceID && str(model, "id") != source.ID {
-					return errors.New("source was imported elsewhere; refresh the preview")
+					return errors.New(locales.SourceWasImportedElsewhereRefreshThe())
 				}
 			}
 		}
@@ -689,7 +692,7 @@ func (e *Engine) CommitImport(ctx context.Context, plan *ImportPlan) ([]Object, 
 				output = append(output, saved)
 			}
 			if len(remaining) == len(pending) {
-				return errors.New("collection has missing or circular parents")
+				return errors.New(locales.CollectionHasMissingOrCircularParents())
 			}
 			pending = remaining
 		}
@@ -834,7 +837,7 @@ func importedElsewhere(all []Object, destination string, document ImportDocument
 	if len(names) == 0 {
 		return nil
 	}
-	return []ImportWarning{{Title: "Already imported into " + displayList(names), Detail: "Importing here makes a second copy", Level: "warning"}}
+	return []ImportWarning{{Title: locales.AlreadyImportedIntoWorkspaces(displayList(names)), Detail: locales.ImportingHereMakesASecondCopy(), Level: "warning"}}
 }
 
 func displayList(items []string) string {

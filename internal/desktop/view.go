@@ -13,6 +13,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) View(c *ui.Context) {
@@ -50,7 +51,7 @@ func (a *App) View(c *ui.Context) {
 		if a.errorMessage != "" {
 			ui.Row(c).Background(p.red.Alpha(.12)).BorderWidth(1, 0, 0, 0).BorderColor(p.red.Alpha(.4)).Padding(7, 12).Gap(10).Children(func() {
 				ui.Text(c, a.errorMessage).TextColor(p.red).Grow(1).MaxLines(3).Selectable()
-				if iconButton(c, "close", "Dismiss error").Clicked() {
+				if iconButton(c, "close", locales.DismissError()).Clicked() {
 					a.errorMessage = ""
 				}
 			})
@@ -113,11 +114,11 @@ func (a *App) header(c *ui.Context, p colors) {
 			if a.hideSidebar {
 				glyph = "panelShut"
 			}
-			if iconButton(c, glyph, "Toggle sidebar").Clicked() {
+			if iconButton(c, glyph, locales.ToggleSidebar()).Clicked() {
 				a.hideSidebar = !a.hideSidebar
 			}
 			if a.workspace != "" {
-				iconButton(c, "plusCircle", "Add Resource").Menu(func(m *ui.Menu) { a.createMenu(m, "") })
+				iconButton(c, "plusCircle", locales.AddResource()).Menu(func(m *ui.Menu) { a.createMenu(m, "") })
 				a.cookieMenu(c)
 			}
 			name := "Yeek"
@@ -131,35 +132,35 @@ func (a *App) header(c *ui.Context, p colors) {
 					}
 				}
 				m.Separator()
-				if m.Item("Workspace Settings…").Disabled(a.workspace == "").Chosen() {
-					a.prompt("workspace_settings", "Workspace Settings", "", a.workspace)
+				if m.Item(locales.WorkspaceSettingsEllipsis()).Disabled(a.workspace == "").Chosen() {
+					a.prompt("workspace_settings", locales.WorkspaceSettings(), "", a.workspace)
 				}
-				if m.Item("Rename Workspace…").Disabled(a.workspace == "").Chosen() {
-					a.prompt("rename", "Rename Workspace", s(a.models[a.workspace], "name"), a.workspace)
+				if m.Item(locales.RenameWorkspaceEllipsis()).Disabled(a.workspace == "").Chosen() {
+					a.prompt("rename", locales.RenameWorkspace(), s(a.models[a.workspace], "name"), a.workspace)
 				}
-				if m.Item("Import…").Chosen() {
+				if m.Item(locales.ImportEllipsis()).Chosen() {
 					a.importFile()
 				}
-				if m.Item("Export…").Disabled(a.workspace == "").Chosen() {
+				if m.Item(locales.ExportEllipsis()).Disabled(a.workspace == "").Chosen() {
 					a.exportFile()
 				}
 				m.Separator()
-				m.Submenu("New Workspace", func(m *ui.Menu) {
-					if m.Item("Create Empty").Chosen() {
+				m.Submenu(locales.NewWorkspace(), func(m *ui.Menu) {
+					if m.Item(locales.CreateEmpty()).Chosen() {
 						a.newWorkspace()
 					}
-					if m.Item("Open Folder").Chosen() {
+					if m.Item(locales.OpenFolder()).Chosen() {
 						a.openWorkspaceFolder()
 					}
-					if m.Item("Clone Git Repository").Chosen() {
+					if m.Item(locales.CloneGitRepository()).Chosen() {
 						a.openCloneGit()
 					}
-					if m.Item("Import Data").Chosen() {
+					if m.Item(locales.ImportData()).Chosen() {
 						a.importFile()
 					}
 				})
-				if m.Item("Delete Workspace…").Disabled(a.workspace == "").Chosen() {
-					a.prompt("delete", "Delete Workspace", s(a.models[a.workspace], "name"), a.workspace)
+				if m.Item(locales.DeleteWorkspaceEllipsis()).Disabled(a.workspace == "").Chosen() {
+					a.prompt("delete", locales.DeleteWorkspace(), s(a.models[a.workspace], "name"), a.workspace)
 				}
 			}).TextColor(p.text).MaxWidth(230)
 			if a.workspace != "" {
@@ -183,39 +184,39 @@ func (a *App) header(c *ui.Context, p colors) {
 			}).TextColor(p.text).MinWidth(0)
 		})
 		ui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(2).Justify(ui.End).Children(func() {
-			layout, label := "columns", "Change to vertical layout"
+			layout, label := "columns", locales.ChangeToVerticalLayout()
 			if a.vertical {
-				layout, label = "rows", "Change to horizontal layout"
+				layout, label = "rows", locales.ChangeToHorizontalLayout()
 			}
 			if iconButton(c, layout, label).Clicked() {
 				a.vertical = !a.vertical
 				a.requestWidth = 400
 			}
-			if iconButton(c, "search", "Search or execute a command ("+a.hotkeyText("command_palette.toggle")+")").Clicked() {
+			if iconButton(c, "search", locales.SearchOrExecuteACommandShortcut(a.hotkeyText("command_palette.toggle"))).Clicked() {
 				a.togglePalette()
 			}
-			iconButton(c, "gear", "Settings").Menu(func(m *ui.Menu) {
-				if a.hotkeyItem(m.Item("Settings"), "settings.show").Chosen() {
-					a.prompt("settings", "Settings", "", "")
+			iconButton(c, "gear", locales.Settings()).Menu(func(m *ui.Menu) {
+				if a.hotkeyItem(m.Item(locales.Settings()), "settings.show").Chosen() {
+					a.prompt("settings", locales.Settings(), "", "")
 				}
-				if a.hotkeyItem(m.Item("Keyboard shortcuts"), "hotkeys.showHelp").Chosen() {
-					a.prompt("shortcuts", "Keyboard Shortcuts", "", "")
+				if a.hotkeyItem(m.Item(locales.KeyboardShortcutsTitle()), "hotkeys.showHelp").Chosen() {
+					a.prompt("shortcuts", locales.KeyboardShortcuts(), "", "")
 				}
-				if m.Item("Plugins").Chosen() {
-					a.prompt("settings", "Settings", "", "")
+				if m.Item(locales.Plugins()).Chosen() {
+					a.prompt("settings", locales.Settings(), "", "")
 					a.modalTab = settingsPlugins
 				}
 				m.Separator()
-				m.Item("Share Workspace(s)").Disabled(true)
-				if m.Item("Import Data").Chosen() {
+				m.Item(locales.ShareWorkspaceS()).Disabled(true)
+				if m.Item(locales.ImportData()).Chosen() {
 					a.importFile()
 				}
-				if m.Item("Export Data").Disabled(a.workspace == "").Chosen() {
+				if m.Item(locales.ExportData()).Disabled(a.workspace == "").Chosen() {
 					a.exportFile()
 				}
 				m.Separator()
 				m.Item("Yeek v" + appVersion()).Disabled(true)
-				if m.Item("Check for Updates").Chosen() {
+				if m.Item(locales.CheckForUpdatesTitle()).Chosen() {
 					a.checkForUpdates(true)
 				}
 			})
@@ -240,12 +241,12 @@ func (a *App) environmentButton(c *ui.Context, p colors) {
 		}
 	}
 	active := a.models[a.environment]
-	label := "No Environment"
+	label := locales.NoEnvironment()
 	switch {
 	case active != nil:
 		label = s(active, "name")
 	case hasBaseVars:
-		label = "Environment"
+		label = locales.Environment()
 	}
 	color, colored := envColor(s(active, "color"), p)
 	var button ui.Element
@@ -274,7 +275,7 @@ func (a *App) environmentButton(c *ui.Context, p colors) {
 				}
 			}
 			m.Separator()
-			if m.Item("Manage Environments").Chosen() {
+			if m.Item(locales.ManageEnvironments()).Chosen() {
 				a.openEnvironments()
 			}
 		})
@@ -306,8 +307,8 @@ func (a *App) createMenu(m *ui.Menu, folder string, hideFolder ...bool) {
 		return
 	}
 	m.Separator()
-	if m.Item("Folder").Chosen() {
-		a.prompt("folder", "New Folder", "Folder", folder)
+	if m.Item(locales.Folder()).Chosen() {
+		a.prompt("folder", locales.NewFolder(), "Folder", folder)
 	}
 }
 func (a *App) emptyWorkspace(c *ui.Context, p colors) {
@@ -315,13 +316,13 @@ func (a *App) emptyWorkspace(c *ui.Context, p colors) {
 		icon(c, "braces").FontSize(52).TextColor(p.accent)
 		ui.Text(c, "Yeek").FontSize(27).FontWeight(600)
 		ui.Row(c).Gap(10).Children(func() {
-			if ui.PrimaryButton(c, "Create Workspace").Padding(9, 18).Clicked() {
+			if ui.PrimaryButton(c, locales.CreateWorkspace()).Padding(9, 18).Clicked() {
 				a.newWorkspace()
 			}
-			if ui.Button(c, "Import Collection").Padding(9, 18).Clicked() {
+			if ui.Button(c, locales.ImportCollection()).Padding(9, 18).Clicked() {
 				a.importFile()
 			}
-			if ui.Button(c, "Clone repository").Padding(9, 18).Clicked() {
+			if ui.Button(c, locales.CloneRepository()).Padding(9, 18).Clicked() {
 				a.openCloneGit()
 			}
 		})
@@ -332,7 +333,7 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 		if len(a.treeItems("")) > 0 {
 			ui.Row(c).Shrink(0).Padding(12, 2, 0, 12).Gap(2).Children(func() {
 				ui.Row(c).Grow(1).MinWidth(0).Height(28).Radius(4).Border(1, p.border).Background(p.background).Padding(0, 2, 0, 0).Children(func() {
-					filter := ui.TextInput(c, &a.search).Placeholder("Search").Label("Filter requests").Grow(1).MinWidth(0).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(12)
+					filter := ui.TextInput(c, &a.search).Placeholder(locales.Search()).Label(locales.FilterRequests()).Grow(1).MinWidth(0).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(12)
 					if a.focusFilter {
 						a.focusFilter = false
 						filter.Focus()
@@ -340,20 +341,20 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 					if filter.Focused() {
 						a.sidebarFocused = true
 					}
-					if a.search != "" && smallIconButton(c, "close", "Clear filter").Clicked() {
+					if a.search != "" && smallIconButton(c, "close", locales.ClearFilter()).Clicked() {
 						a.search = ""
 					}
 				})
-				iconButton(c, "moreV", "Show sidebar actions menu").Menu(func(m *ui.Menu) {
-					if m.Item("Focus Active Request").Disabled(a.active == "").Chosen() {
+				iconButton(c, "moreV", locales.ShowSidebarActionsMenu()).Menu(func(m *ui.Menu) {
+					if m.Item(locales.FocusActiveRequest()).Disabled(a.active == "").Chosen() {
 						a.revealInSidebar(a.active)
 					}
-					if m.Item("Expand All Folders").Chosen() {
+					if m.Item(locales.ExpandAllFolders()).Chosen() {
 						for _, f := range a.list("folder") {
 							a.expanded[s(f, "id")] = true
 						}
 					}
-					if m.Item("Collapse All Folders").Chosen() {
+					if m.Item(locales.CollapseAllFolders()).Chosen() {
 						clear(a.expanded)
 					}
 				})
@@ -362,7 +363,7 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 		ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 12, 8, 8).Gap(1).Children(func() {
 			if !a.requestTree(c, p) && a.search != "" {
 				ui.Column(c).Padding(12).Center().Children(func() {
-					ui.Text(c, "No results for “"+a.search+"”").FontSize(12).TextColor(p.muted).MaxLines(2)
+					ui.Text(c, locales.NoResultsForQuery(a.search)).FontSize(12).TextColor(p.muted).MaxLines(2)
 				})
 			}
 		})
@@ -452,10 +453,10 @@ func (a *App) workbench(c *ui.Context, p colors) {
 		ui.Column(c).Fill().Children(func() {
 			a.hotkeyList(c, p, []string{"model.create", "sidebar.focus", "settings.show"}, func() {
 				ui.Row(c).Gap(6).Justify(ui.Center).Children(func() {
-					if ui.Button(c, "Import").FontSize(12).Padding(4, 10).Clicked() {
+					if ui.Button(c, locales.Import()).FontSize(12).Padding(4, 10).Clicked() {
 						a.importFile()
 					}
-					ui.MenuButton(c, "New Request", func(m *ui.Menu) { a.createMenu(m, "", true) }).FontSize(12).Padding(4, 10)
+					ui.MenuButton(c, locales.NewRequest(), func(m *ui.Menu) { a.createMenu(m, "", true) }).FontSize(12).Padding(4, 10)
 				})
 			})
 		})
@@ -514,16 +515,16 @@ func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 						}
 					}
 					m.Separator()
-					if m.Item("Custom…").Chosen() {
-						a.deferUntilInputs(func() { a.methodError = ""; a.prompt("custom_method", "Custom Method", d.Method, d.ID) })
+					if m.Item(locales.CustomEllipsis()).Chosen() {
+						a.deferUntilInputs(func() { a.methodError = ""; a.prompt("custom_method", locales.CustomMethod(), d.Method, d.ID) })
 					}
-				}).Label("HTTP method").Height(28).Padding(0, 8).Background(ui.Transparent).Border(0, ui.Transparent).TextColor(a.methodColor(method, p)).Font("monospace").FontSize(12)
+				}).Label(locales.HTTPMethod()).Height(28).Padding(0, 8).Background(ui.Transparent).Border(0, ui.Transparent).TextColor(a.methodColor(method, p)).Font("monospace").FontSize(12)
 			}
 			placeholder := map[string]string{"websocket_request": "wss://example.com", "grpc_request": "localhost:50051"}[d.Kind]
 			if placeholder == "" {
 				placeholder = "https://example.com"
 			}
-			input := a.templateInput(c, p, &d.URL, "url", "Request URL", placeholder, false).Grow(1).MinWidth(0).Height(28)
+			input := a.templateInput(c, p, &d.URL, "url", locales.RequestURL(), placeholder, false).Grow(1).MinWidth(0).Height(28)
 			if a.focusURL {
 				a.focusURL = false
 				doc := a.editorDocument("input::url")
@@ -540,21 +541,21 @@ func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 			switch d.Kind {
 			case "grpc_request":
 			case "websocket_request":
-				name, label := "arrowUpDown", "Connect"
+				name, label := "arrowUpDown", locales.Connect()
 				if a.connected(d) {
-					if smallIconButton(c, "close", "Close connection").Clicked() {
+					if smallIconButton(c, "close", locales.CloseConnection()).Clicked() {
 						id := s(a.connections[d.ID], "id")
 						a.run(func() (func(), error) { return nil, a.Engine.CloseWebSocket(id) })
 					}
-					name, label = "send", "Send Message"
+					name, label = "send", locales.SendMessage()
 				}
 				if iconButton(c, name, label).Width(32).Clicked() {
 					a.send()
 				}
 			default:
-				name, label := "send", "Send Request"
+				name, label := "send", locales.SendRequest()
 				if a.running[d.ID] {
-					name, label = "close", "Cancel Request"
+					name, label = "close", locales.CancelRequest()
 				}
 				if iconButton(c, name, label).Width(32).Clicked() {
 					a.send()
@@ -568,6 +569,7 @@ func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 }
 
 type tabItem struct {
+	ID    string
 	Label string
 	Badge *countBadge
 	Menu  func(m *ui.Menu)
@@ -661,11 +663,11 @@ func (a *App) requestPane(c *ui.Context, p colors, d *Draft) {
 		}
 		tabBar(c, p, &d.Tab, []tabItem{
 			{Label: bodyTabLabel(d.BodyType), Badge: badgeCount(countNamed(d.Form, d.BodyType == "application/x-www-form-urlencoded" || d.BodyType == "multipart/form-data")), Menu: func(m *ui.Menu) { a.bodyTypeMenu(m, d) }},
-			{Label: "Params", Badge: badgeCount(countNamed(d.Parameters, true))},
-			{Label: "Headers", Badge: badgeCount(a.headerCount(d))},
+			{Label: locales.Params(), Badge: badgeCount(countNamed(d.Parameters, true))},
+			{Label: locales.Headers(), Badge: badgeCount(a.headerCount(d))},
 			{Label: authTabLabel(a, d.AuthType), Menu: func(m *ui.Menu) { a.authTypeMenu(m, d) }},
-			{Label: "Settings", Badge: badgeCount(overriddenSettings(d))},
-			{Label: "Info", Badge: badgeDot(strings.TrimSpace(d.Description) != "")},
+			{Label: locales.Settings(), Badge: badgeCount(overriddenSettings(d))},
+			{Label: locales.Info(), Badge: badgeDot(strings.TrimSpace(d.Description) != "")},
 		})
 		switch d.Tab {
 		case 0:
@@ -740,21 +742,23 @@ func countNamed(rows []KV, enabled bool) int {
 
 type bodyTypeOption struct{ label, short, value string }
 
-var bodyTypes = []bodyTypeOption{
-	{"Url Encoded", "", "application/x-www-form-urlencoded"},
-	{"Multi-Part", "", "multipart/form-data"},
-	{},
-	{"GraphQL", "", "graphql"},
-	{"JSON", "", "application/json"},
-	{"XML", "", "application/xml"},
-	{"Other", "Text", "text/plain"},
-	{},
-	{"Binary File", "", "binary"},
-	{"No Body", "Body", ""},
+func bodyTypes() []bodyTypeOption {
+	return []bodyTypeOption{
+		{locales.UrlEncoded(), "", "application/x-www-form-urlencoded"},
+		{locales.MultiPart(), "", "multipart/form-data"},
+		{},
+		{"GraphQL", "", "graphql"},
+		{"JSON", "", "application/json"},
+		{"XML", "", "application/xml"},
+		{locales.Other(), locales.Text(), "text/plain"},
+		{},
+		{locales.BinaryFile(), "", "binary"},
+		{locales.NoBody(), locales.Body(), ""},
+	}
 }
 
 func bodyTabLabel(bodyType string) string {
-	for _, option := range bodyTypes {
+	for _, option := range bodyTypes() {
 		if option.label != "" && option.value == bodyType {
 			return cmp.Or(option.short, option.label)
 		}
@@ -765,14 +769,14 @@ func bodyTabLabel(bodyType string) string {
 	case strings.Contains(bodyType, "xml"):
 		return "XML"
 	}
-	return "Text"
+	return locales.Text()
 }
 func (a *App) bodyTypeMenu(m *ui.Menu, d *Draft) {
 	current := d.BodyType
-	if bodyTabLabel(current) == "Text" {
+	if bodyTabLabel(current) == locales.Text() {
 		current = "text/plain"
 	}
-	for _, option := range bodyTypes {
+	for _, option := range bodyTypes() {
 		if option.label == "" {
 			m.Separator()
 			continue
@@ -786,7 +790,7 @@ func (a *App) bodyTypeMenu(m *ui.Menu, d *Draft) {
 type authOption struct{ label, short, value string }
 
 func (a *App) authOptions() []authOption {
-	options := []authOption{{"Basic Auth", "Basic", "basic"}, {"Bearer Token", "Bearer", "bearer"}, {"API Key", "API Key", "apikey"}, {"OAuth 2.0", "OAuth 2", "oauth2"}, {"OAuth 1.0", "OAuth 1", "oauth1"}, {"Digest", "Digest", "digest"}, {"NTLM", "NTLM", "windows"}, {"JWT Bearer", "JWT", "jwt"}, {"AWS Signature", "AWS", "awsv4"}}
+	options := []authOption{{locales.BasicAuth(), locales.Basic(), "basic"}, {locales.BearerToken(), "Bearer", "bearer"}, {locales.APIKey(), locales.APIKey(), "apikey"}, {"OAuth 2.0", "OAuth 2", "oauth2"}, {"OAuth 1.0", "OAuth 1", "oauth1"}, {locales.Digest(), locales.Digest(), "digest"}, {"NTLM", "NTLM", "windows"}, {"JWT Bearer", "JWT", "jwt"}, {locales.AWSSignature(), "AWS", "awsv4"}}
 	for _, auth := range a.Engine.PluginAuthentication() {
 		options = append(options, authOption{auth.Label, auth.Label, auth.Name})
 	}
@@ -795,16 +799,16 @@ func (a *App) authOptions() []authOption {
 func authTabLabel(a *App, authType string) string {
 	switch authType {
 	case "":
-		return "Auth"
+		return locales.Auth()
 	case "none":
-		return "No Auth"
+		return locales.NoAuth()
 	}
 	for _, option := range a.authOptions() {
 		if option.value == authType {
 			return option.short
 		}
 	}
-	return "Auth"
+	return locales.Auth()
 }
 func (a *App) authTypeMenu(m *ui.Menu, d *Draft) {
 	choose := func(value string) { a.deferUntilInputs(func() { d.AuthType = value; d.Dirty = true }) }
@@ -815,15 +819,15 @@ func (a *App) authTypeMenu(m *ui.Menu, d *Draft) {
 	}
 	m.Separator()
 	if d.Kind == "workspace" {
-		if m.Item("No Auth").Checked(d.AuthType == "" || d.AuthType == "none").Chosen() {
+		if m.Item(locales.NoAuth()).Checked(d.AuthType == "" || d.AuthType == "none").Chosen() {
 			choose("")
 		}
 		return
 	}
-	if m.Item("Inherit from Parent").Checked(d.AuthType == "").Chosen() {
+	if m.Item(locales.InheritFromParent()).Checked(d.AuthType == "").Chosen() {
 		choose("")
 	}
-	if m.Item("No Auth").Checked(d.AuthType == "none").Chosen() {
+	if m.Item(locales.NoAuth()).Checked(d.AuthType == "none").Chosen() {
 		choose("none")
 	}
 }
@@ -867,16 +871,16 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 			open := !d.InheritedClosed
 			box := ui.Column(c).Shrink(0).Radius(6).Border(1, p.border).Background(p.border.Alpha(.18)).Padding(2, 0, 2, 2)
 			box.Children(func() {
-				summary := ui.ButtonBase(c).Label("Inherited headers").Height(28).Gap(6).Justify(ui.Start)
+				summary := ui.ButtonBase(c).Label(locales.InheritedHeaders()).Height(28).Gap(6).Justify(ui.Start)
 				summary.Children(func() {
 					glyph := "chevron"
 					if open {
 						glyph = "down"
 					}
 					icon(c, glyph).FontSize(11).TextColor(p.subtle)
-					label := "Inherited"
+					label := locales.Inherited()
 					if d.Kind == "workspace" {
-						label = "Defaults"
+						label = locales.Defaults()
 					}
 					ui.Text(c, label).FontSize(12).TextColor(p.muted)
 					ui.Text(c, fmt.Sprint(len(inherited))).FontSize(10).TextColor(p.muted).Padding(0, 5).Radius(8).Border(1, p.border)
@@ -891,7 +895,7 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 					for i, h := range inherited {
 						ui.Row(c).Key(i).Height(28).Gap(6).Opacity(.6).Children(func() {
 							on := true
-							ui.Checkbox(c, &on, "").Label("Inherited " + h.Name).Width(22).Disabled(true)
+							ui.Checkbox(c, &on, "").Label(locales.InheritedHeader(h.Name)).Width(22).Disabled(true)
 							for _, text := range []string{h.Name, h.Value} {
 								ui.Row(c).Grow(1).Basis(0).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, p.border).Background(p.background).Children(func() {
 									ui.Text(c, text).Font("monospace").FontSize(12).SingleLine().MinWidth(0).Selectable()
@@ -915,7 +919,7 @@ func (a *App) kvEditor(c *ui.Context, p colors, rows *[]KV, name, value string, 
 	a.pairOrBulkEditor(c, p, rows, name, value, dirty)
 }
 func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string, dirty *bool, files ...bool) {
-	namePlaceholder := "name"
+	namePlaceholder := locales.Name()
 	if name == "Header" {
 		namePlaceholder = "Header-Name"
 	}
@@ -953,11 +957,11 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 			}
 			hovered := line.Hovered()
 			line.Children(func() {
-				if ui.Checkbox(c, &row.Enabled, "").Label(fmt.Sprintf("Enable %s %d", name, i+1)).Width(22).Opacity(map[bool]float32{true: .3, false: 1}[empty]).Changed() {
+				if ui.Checkbox(c, &row.Enabled, "").Label(locales.EnableFieldIndex(pairNoun(name), i+1)).Width(22).Opacity(map[bool]float32{true: .3, false: 1}[empty]).Changed() {
 					*dirty = true
 				}
 				if i < len(*rows)-1 {
-					grip := ui.Box(c).Key("grip").Label(fmt.Sprintf("Drag %s %d", name, i+1)).Size(16, 28).Shrink(0).Center().Opacity(0)
+					grip := ui.Box(c).Key("grip").Label(locales.DragFieldIndex(pairNoun(name), i+1)).Size(16, 28).Shrink(0).Center().Opacity(0)
 					if hovered || grip.Dragging() {
 						grip.Opacity(.7)
 					}
@@ -969,7 +973,7 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				var nameInput ui.Element
 				nameBorder := border
 				if name == "Variable" {
-					nameInput = ui.TextInput(c, &row.Name).Label(fmt.Sprintf("%s %d", name, i+1)).Placeholder("VAR_NAME").Font("monospace").FontSize(12)
+					nameInput = ui.TextInput(c, &row.Name).Label(locales.FieldIndex(pairNoun(name), i+1)).Placeholder("VAR_NAME").Font("monospace").FontSize(12)
 					if row.Name != "" && !variableNameRaw.MatchString(row.Name) {
 						nameBorder = p.red
 					}
@@ -983,7 +987,7 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 							nameBorder = p.red
 						}
 					}
-					nameInput = a.templateInput(c, p, &row.Name, row.ID+":name", fmt.Sprintf("%s %d", name, i+1), namePlaceholder, false)
+					nameInput = a.templateInput(c, p, &row.Name, row.ID+":name", locales.FieldIndex(pairNoun(name), i+1), namePlaceholder, false)
 				}
 				if nameInput.Grow(1).MinWidth(0).Height(28).Background(p.background).Border(1, nameBorder).Radius(4).Changed() {
 					*dirty = true
@@ -991,7 +995,7 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				if len(files) > 0 && files[0] {
 					a.multipartValue(c, p, rows, i, dirty)
 				} else if mask && !empty && !a.revealed[row.ID] && !a.templateDoc(row.ID+":value").state.Focused {
-					masked := ui.ButtonBase(c).Label(fmt.Sprintf("%s value %d", name, i+1)).Grow(1).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, border).Background(p.background).Justify(ui.Start)
+					masked := ui.ButtonBase(c).Label(locales.FieldValueIndex(pairNoun(name), i+1)).Grow(1).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, border).Background(p.background).Justify(ui.Start)
 					masked.Children(func() {
 						ui.Text(c, strings.Repeat("•", min(utf8.RuneCountInString(row.Value), 24))).Font("monospace").FontSize(12).TextColor(p.muted).SingleLine()
 					})
@@ -999,36 +1003,36 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 						a.revealRow(row.ID, true)
 						a.templateDoc(row.ID + ":value").state.Focus()
 					}
-				} else if a.templateInput(c, p, &row.Value, row.ID+":value", fmt.Sprintf("%s value %d", name, i+1), "value", false).Grow(1).MinWidth(0).Height(28).Background(p.background).Border(1, border).Radius(4).Changed() {
+				} else if a.templateInput(c, p, &row.Value, row.ID+":value", locales.FieldValueIndex(pairNoun(name), i+1), locales.Value(), false).Grow(1).MinWidth(0).Height(28).Background(p.background).Border(1, border).Radius(4).Changed() {
 					*dirty = true
 				}
 				if mask && !empty {
-					glyph, label := "eye", "Show "+name+" value"
+					glyph, label := "eye", locales.ShowFieldValue(pairNoun(name))
 					if a.revealed[row.ID] {
-						glyph, label = "eyeOff", "Obscure "+name+" value"
+						glyph, label = "eyeOff", locales.ObscureFieldValue(pairNoun(name))
 					}
 					if smallIconButton(c, glyph, label).Clicked() {
 						a.revealRow(row.ID, !a.revealed[row.ID])
 					}
 				}
-				smallIconButton(c, "more", fmt.Sprintf("Actions for %s %d", name, i+1)).Menu(func(m *ui.Menu) {
-					if m.Item("Delete").Chosen() {
+				smallIconButton(c, "more", locales.ActionsForFieldIndex(pairNoun(name), i+1)).Menu(func(m *ui.Menu) {
+					if m.Item(locales.Delete()).Chosen() {
 						deleted = i
 					}
-					if m.Item("Duplicate").Chosen() {
+					if m.Item(locales.Duplicate()).Chosen() {
 						copy := *row
 						copy.ID = uuid.NewV4().String()
 						*rows = append(*rows, copy)
 						*dirty = true
 					}
 					if len(files) > 0 && files[0] {
-						if m.Item("Field Options…").Chosen() {
+						if m.Item(locales.FieldOptionsEllipsis()).Chosen() {
 							a.openMultipartPart(row.ID)
 						}
-						if m.Item("Choose file…").Chosen() {
+						if m.Item(locales.ChooseFileEllipsis()).Chosen() {
 							a.pickFormFile(rows, row.ID, dirty)
 						}
-						if row.FileMode && m.Item("Use text value").Chosen() {
+						if row.FileMode && m.Item(locales.UseTextValue()).Chosen() {
 							a.changeFormKind(rows, row.ID, false, dirty)
 						}
 					}
@@ -1036,7 +1040,7 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 					if row.FileMode {
 						fieldValue = row.File
 					}
-					if m.Item("Encrypt value").Disabled(fieldValue == "").Chosen() {
+					if m.Item(locales.EncryptValue()).Disabled(fieldValue == "").Chosen() {
 						id, value, workspace, file := row.ID, fieldValue, a.workspace, row.FileMode
 						a.withEncryptionEnabled(workspace, func() {
 							a.run(func() (func(), error) {
@@ -1056,7 +1060,7 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 							})
 						})
 					}
-					if m.Item("Copy value").Chosen() {
+					if m.Item(locales.CopyValue()).Chosen() {
 						c.WriteClipboard(fieldValue)
 					}
 				})
@@ -1098,16 +1102,16 @@ func (a *App) bodyTools(c *ui.Context, p colors, d *Draft) {
 	ui.Row(c).Height(32).Padding(0, 4).Gap(6).Children(func() {
 		ui.Spacer(c)
 		if d.BodyType == "application/json" {
-			iconButton(c, "gear", "JSON body settings").Menu(func(menu *ui.Menu) {
+			iconButton(c, "gear", locales.JSONBodySettings()).Menu(func(menu *ui.Menu) {
 				body := o(d.Model, "body")
-				if menu.Item("Strip Comments and Trailing Commas").Checked(!b(body, "sendJsonComments")).Chosen() {
+				if menu.Item(locales.StripCommentsAndTrailingCommas()).Checked(!b(body, "sendJsonComments")).Chosen() {
 					body["sendJsonComments"] = !b(body, "sendJsonComments")
 					d.Model["body"] = body
 					d.Dirty = true
 				}
 			})
 		}
-		if ui.Button(c, "Format").FontSize(11).Clicked() {
+		if ui.Button(c, locales.Format()).FontSize(11).Clicked() {
 			a.formatRequestBody(d)
 		}
 	})
@@ -1118,7 +1122,7 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 		return
 	}
 	if d.BodyType == "" {
-		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, "No Body").FontSize(13).TextColor(p.subtle) })
+		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, locales.NoBody()).FontSize(13).TextColor(p.subtle) })
 		return
 	}
 	if d.BodyType == "graphql" {
@@ -1127,7 +1131,7 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 			a.codeInput(c, &d.Query, "GraphQL query", &d.Dirty)
 			ui.Row(c).Absolute().Top(4).Right(16).Gap(4).Children(func() {
 				a.graphQLTools(c, p, d)
-				if ui.Button(c, "Format").FontSize(11).Padding(2, 8).Clicked() {
+				if ui.Button(c, locales.Format()).FontSize(11).Padding(2, 8).Clicked() {
 					a.formatRequestBody(d)
 				}
 			})
@@ -1141,7 +1145,7 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 				})
 			}
 			dashed()
-			ui.Text(c, "Variables").FontSize(12).TextColor(p.muted)
+			ui.Text(c, locales.Variables()).FontSize(12).TextColor(p.muted)
 			dashed()
 		})
 		ui.Box(c).Height(120).Shrink(0).Children(func() { a.codeInput(c, &d.Variables, "GraphQL variables", &d.Dirty) })
@@ -1157,7 +1161,7 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 
 func (a *App) descriptionEditor(c *ui.Context, p colors, d *Draft, label string) {
 	ui.Column(c).Grow(1).MinHeight(0).Gap(4).Padding(4, 0, 0, 0).Children(func() {
-		name := ui.TextInput(c, &d.Name).Label("Name").Placeholder(requestName(d.Model)).FillWidth().Height(36).Padding(0, 4).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(19)
+		name := ui.TextInput(c, &d.Name).Label(locales.NameTitle()).Placeholder(requestName(d.Model)).FillWidth().Height(36).Padding(0, 4).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(19)
 		if name.Changed() {
 			d.Dirty = true
 		}
@@ -1179,7 +1183,7 @@ func (a *App) markdownEditor(c *ui.Context, p colors, d *Draft, label string) {
 		} else {
 			ui.Scroll(c).Fill().Padding(6, 44, 12, 4).Children(func() {
 				if strings.TrimSpace(d.Description) == "" {
-					ui.Text(c, "No description").FontSize(13).TextColor(p.subtle)
+					ui.Text(c, locales.NoDescription()).FontSize(13).TextColor(p.subtle)
 					return
 				}
 				a.markdownView(c, p, d.Description)
@@ -1189,7 +1193,7 @@ func (a *App) markdownEditor(c *ui.Context, p colors, d *Draft, label string) {
 			return
 		}
 		ui.Row(c).Absolute().Top(4).Right(4).Gap(2).Padding(2).Radius(6).Background(p.border.Alpha(.45)).Children(func() {
-			for _, mode := range []struct{ value, glyph, label string }{{"preview", "eye", "Preview mode"}, {"edit", "pencil", "Edit mode"}} {
+			for _, mode := range []struct{ value, glyph, label string }{{"preview", "eye", locales.PreviewMode()}, {"edit", "pencil", locales.EditMode()}} {
 				button := sizedIconButton(c, mode.glyph, mode.label, 26, 15)
 				if d.DescriptionMode == mode.value {
 					button.Background(p.background).Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, .12))
@@ -1234,14 +1238,14 @@ func (a *App) codeInput(c *ui.Context, value *string, label string, dirty *bool)
 func (a *App) authEditor(c *ui.Context, p colors, d *Draft) {
 	switch d.AuthType {
 	case "":
-		message := "Authentication is inherited from the folder or workspace"
+		message := locales.AuthenticationIsInheritedFromTheFolder()
 		if d.Kind == "workspace" {
-			message = "No authentication"
+			message = locales.NoAuthentication()
 		}
 		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, message).FontSize(13).TextColor(p.subtle) })
 		return
 	case "none":
-		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, "No authentication").FontSize(13).TextColor(p.subtle) })
+		ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, locales.NoAuthentication()).FontSize(13).TextColor(p.subtle) })
 		return
 	}
 	ui.Scroll(c).Grow(1).Padding(8, 12, 8, 4).Gap(16).Children(func() {
@@ -1321,7 +1325,7 @@ func (a *App) authFields(c *ui.Context, p colors, d *Draft) {
 		})
 	}
 	if d.AuthType == "" {
-		ui.Text(c, "Authentication is inherited from the parent folder or workspace.").FontSize(12).TextColor(p.muted)
+		ui.Text(c, locales.AuthenticationIsInheritedFromTheParent()).FontSize(12).TextColor(p.muted)
 	}
 }
 func (a *App) requestSettings(c *ui.Context, p colors, d *Draft) {
@@ -1358,9 +1362,9 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 		ui.Box(c).Padding(0, 8).Children(func() {
 			tabBar(c, p, &d.ResponseTab, []tabItem{
 				{Label: responseTabLabel(d.ResponseMode), Menu: func(m *ui.Menu) { a.responseViewMenu(c, m, d, response) }},
-				{Label: "Request", Badge: badgeDot(n(response, "requestContentLength") > 0)},
-				{Label: "Headers", Badge: badgePair(len(oslice(response, "requestHeaders")), len(oslice(response, "headers")))},
-				{Label: "Cookies", Badge: cookieBadge(response)},
+				{Label: locales.Request(), Badge: badgeDot(n(response, "requestContentLength") > 0)},
+				{Label: locales.Headers(), Badge: badgePair(len(oslice(response, "requestHeaders")), len(oslice(response, "headers")))},
+				{Label: locales.Cookies(), Badge: cookieBadge(response)},
 				{Label: timelineTabLabel(d), Badge: badgeCount(a.responseEventCount(response)), Menu: func(m *ui.Menu) { timelineMenu(m, d) }},
 			})
 		})
@@ -1370,7 +1374,7 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 				break
 			}
 			if n(response, "contentLength") > 2<<20 {
-				ui.Text(c, "Showing the first 2 MB. Save the response to inspect the complete body.").FontSize(11).TextColor(p.muted).Padding(8, 12)
+				ui.Text(c, locales.ShowingTheFirst2MBSave()).FontSize(11).TextColor(p.muted).Padding(8, 12)
 			}
 			a.responseBody(c, p, d, response)
 		case 1:
@@ -1389,7 +1393,7 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 				})
 			}
 			if requestBody := a.bodies[rid]; requestBody == "" {
-				emptyState(c, p, "No request body")
+				emptyState(c, p, locales.NoRequestBody())
 			} else {
 				a.codeView(c, p, requestBody, "json", "Sent request body")
 			}
@@ -1529,15 +1533,15 @@ func (a *App) responseBreadcrumbs(c *ui.Context, p colors, d *Draft, body, langu
 				ui.Text(c, applied).Font("monospace").FontSize(12).TextColor(tint).SingleLine().MinWidth(0).Padding(0, 6)
 				return
 			}
-			crumb("$", "Clear filter", filtered, len(appliedPath) > 0, 0)
+			crumb("$", locales.ClearFilter(), filtered, len(appliedPath) > 0, 0)
 			key := jsonPathString(path, len(path))
 			ui.ScrollHorizontal(c).MinWidth(0).Shrink(1).Children(func() {
 				ui.Row(c).Children(func() {
 					for i, seg := range path {
 						count := i + 1
-						label, tooltip := seg.key, "Filter to "+seg.key
+						label, tooltip := seg.key, locales.FilterToKey(seg.key)
 						if seg.isIndex {
-							label, tooltip = "["+strconv.Itoa(seg.index)+"]", "Filter to element "+strconv.Itoa(seg.index)
+							label, tooltip = "["+strconv.Itoa(seg.index)+"]", locales.FilterToElementIndex(strconv.Itoa(seg.index))
 						}
 						ui.Row(c).Key(i).Shrink(0).Children(func() {
 							icon(c, "chevron").FontSize(10).TextColor(p.subtle)
@@ -1571,14 +1575,14 @@ func (a *App) responseBodyActions(c *ui.Context, p colors, d *Draft, response en
 			return button
 		}
 		if !d.FilterOpen {
-			if action("save", "Save response to file").Clicked() {
+			if action("save", locales.SaveResponseToFile()).Clicked() {
 				a.saveResponse(response)
 			}
-			if action("copy", "Copy response body").Clicked() {
+			if action("copy", locales.CopyResponseBody()).Clicked() {
 				c.WriteClipboard(a.bodies[s(response, "id")])
 			}
 			if filterable {
-				filter := action("filter", "Filter response")
+				filter := action("filter", locales.FilterResponse())
 				if d.ResponseFilter != "" {
 					filter.Border(1, p.accent)
 				}
@@ -1596,7 +1600,7 @@ func (a *App) responseBodyActions(c *ui.Context, p colors, d *Draft, response en
 			if names := a.Engine.PluginFilterNames(); len(names) > 0 {
 				names = append([]string{"JSONPath / XPath"}, names...)
 				provider := cmp.Or(d.FilterProvider, names[0])
-				if ui.Select(c, &provider, names).Label("Filter provider").Width(140).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).Changed() {
+				if ui.Select(c, &provider, names).Label(locales.FilterProvider()).Width(140).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).Changed() {
 					d.FilterProvider = provider
 					if provider == names[0] {
 						d.FilterProvider = ""
@@ -1604,18 +1608,18 @@ func (a *App) responseBodyActions(c *ui.Context, p colors, d *Draft, response en
 					d.FilterSource = ""
 				}
 			}
-			placeholder := "JSONPath expression"
+			placeholder := locales.JSONPathExpression()
 			if kind := responseMIME(response); strings.Contains(kind, "xml") || strings.Contains(kind, "html") {
-				placeholder = "XPath expression"
+				placeholder = locales.XPathExpression()
 			}
-			input := ui.TextInput(c, &d.ResponseFilter).Placeholder(placeholder).Label("Filter expression").AutoFocus().Grow(1).MinWidth(0).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).Font("monospace").FontSize(12)
+			input := ui.TextInput(c, &d.ResponseFilter).Placeholder(placeholder).Label(locales.FilterExpression()).AutoFocus().Grow(1).MinWidth(0).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).Font("monospace").FontSize(12)
 			if input.Changed() || input.Submitted() {
 				d.FilterSource = ""
 			}
 			if input.Shortcut(0, ui.KeyEscape) {
 				d.FilterOpen = false
 			}
-			if smallIconButton(c, "close", "Close filter").Clicked() {
+			if smallIconButton(c, "close", locales.CloseFilter()).Clicked() {
 				d.FilterOpen = false
 			}
 		})
@@ -1625,33 +1629,36 @@ func (a *App) responseBodyActions(c *ui.Context, p colors, d *Draft, response en
 	}
 }
 
-var responseModes = []struct{ mode, label, short string }{
-	{"Pretty", "Response", "Response"},
-	{"Raw", "Response (Raw)", "Raw"},
+var responseModes = []struct {
+	mode         string
+	label, short func() string
+}{
+	{"Pretty", locales.Response, locales.Response},
+	{"Raw", locales.ResponseRaw, locales.Raw},
 }
 
 func responseTabLabel(mode string) string {
 	for _, m := range responseModes {
 		if m.mode == mode {
-			return m.short
+			return m.short()
 		}
 	}
-	return "Response"
+	return locales.Response()
 }
 func (a *App) responseViewMenu(c *ui.Context, m *ui.Menu, d *Draft, response engine.Object) {
 	for _, option := range responseModes {
 		if option.mode == "Raw" && strings.HasPrefix(responseMIME(response), "image/") {
 			continue
 		}
-		if m.Item(option.label).Checked(d.ResponseMode == option.mode).Chosen() {
+		if m.Item(option.label()).Checked(d.ResponseMode == option.mode).Chosen() {
 			d.ResponseMode = option.mode
 		}
 	}
 	m.Separator()
-	if m.Item("Save to File").Chosen() {
+	if m.Item(locales.SaveToFile()).Chosen() {
 		a.saveResponse(response)
 	}
-	if m.Item("Copy Body").Chosen() {
+	if m.Item(locales.CopyBody()).Chosen() {
 		c.WriteClipboard(a.bodies[s(response, "id")])
 	}
 }
@@ -1672,7 +1679,7 @@ func (a *App) hotkeyList(c *ui.Context, p colors, actions []string, bottom ...fu
 		ui.Column(c).Gap(8).Children(func() {
 			for _, h := range hotkeyTable(actions...) {
 				ui.Row(c).Key(h.action).Gap(32).Children(func() {
-					ui.Text(c, h.label).FontSize(13).TextColor(p.muted).Grow(1)
+					ui.Text(c, h.label()).FontSize(13).TextColor(p.muted).Grow(1)
 					ui.Text(c, a.hotkeyText(h.action)).FontSize(12).Font("monospace").TextColor(p.subtle)
 				})
 			}
@@ -1685,18 +1692,66 @@ func (a *App) hotkeyList(c *ui.Context, p colors, actions []string, bottom ...fu
 func fieldLabel(field string) string {
 	switch field {
 	case "clientId":
-		return "Client ID"
+		return locales.ClientID()
 	case "clientSecret":
-		return "Client secret"
+		return locales.ClientSecret()
 	case "accessToken":
-		return "Access token"
+		return locales.AccessToken()
 	case "tokenUrl":
-		return "Token URL"
+		return locales.TokenURL()
 	case "in":
-		return "Location (header or query)"
+		return locales.LocationHeaderOrQuery()
+	case "username":
+		return locales.Username()
+	case "password":
+		return locales.Password()
+	case "token":
+		return locales.Token()
+	case "prefix":
+		return locales.Prefix()
+	case "location":
+		return locales.Location()
+	case "key":
+		return locales.Key()
+	case "value":
+		return locales.ValueTitle()
+	case "realm":
+		return locales.Realm()
+	case "domain":
+		return locales.Domain()
+	case "workstation":
+		return locales.Workstation()
+	case "algorithm":
+		return locales.Algorithm()
+	case "secret":
+		return locales.Secret()
+	case "payload":
+		return locales.Payload()
+	case "headers":
+		return locales.Headers()
+	case "name":
+		return locales.NameTitle()
+	case "region":
+		return locales.Region()
+	case "service":
+		return locales.Service()
 	}
 	if field == "" {
 		return ""
 	}
 	return strings.ToUpper(field[:1]) + field[1:]
+}
+
+func pairNoun(name string) string {
+	switch name {
+	case "Header":
+		return locales.Header()
+	case "Parameter":
+		return locales.Parameter()
+	case "Variable":
+		return locales.Variable()
+	case "Name":
+		return locales.NameTitle()
+	}
+	return name
 }

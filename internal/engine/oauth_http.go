@@ -11,8 +11,11 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
+
+	"yeek/locales"
 )
 
 type OAuthEndpointError struct {
@@ -21,7 +24,7 @@ type OAuthEndpointError struct {
 }
 
 func (e *OAuthEndpointError) Error() string {
-	message := fmt.Sprintf("token endpoint returned HTTP %d", e.Status)
+	message := locales.TokenEndpointReturnedHTTPStatus(strconv.Itoa(e.Status))
 	if e.Code != "" {
 		message += ": " + e.Code
 	}
@@ -50,12 +53,12 @@ func (e *Engine) fetchOAuthToken(ctx context.Context, auth Object, options OAuth
 		form = append(form, oauthPair{"username", str(auth, "username")}, oauthPair{"password", str(auth, "password")})
 	case "refresh_token":
 		if str(auth, "refreshToken") == "" {
-			return OAuthToken{}, errors.New("enter a refresh token")
+			return OAuthToken{}, errors.New(locales.EnterARefreshToken())
 		}
 		form = append(form, oauthPair{"refresh_token", str(auth, "refreshToken")})
 	case "client_credentials":
 	default:
-		return OAuthToken{}, fmt.Errorf("unsupported OAuth grant %q", grant)
+		return OAuthToken{}, errors.New(locales.UnsupportedOAuthGrantGrant(strconv.Quote(grant)))
 	}
 	endpoint := cmp.Or(str(auth, "accessTokenUrl"), str(auth, "tokenUrl"))
 	u, err := oauthHTTPURL(endpoint, "token URL")
@@ -87,25 +90,25 @@ func (e *Engine) fetchOAuthToken(ctx context.Context, auth Object, options OAuth
 		case "none":
 			form = append(form, oauthPair{"client_id", str(auth, "clientId")})
 		default:
-			return OAuthToken{}, errors.New("choose body, basic, or none for OAuth client credentials")
+			return OAuthToken{}, errors.New(locales.ChooseBodyBasicOrNoneFor())
 		}
 	}
 	customHeaders, err := parseOAuthPairs(auth["tokenHeaders"])
 	if err != nil {
-		return OAuthToken{}, fmt.Errorf("token headers: %w", err)
+		return OAuthToken{}, fmt.Errorf("%s: %w", locales.TokenHeadersLower(), err)
 	}
 	customBody, err := parseOAuthPairs(auth["tokenBodyParams"])
 	if err != nil {
-		return OAuthToken{}, fmt.Errorf("token parameters: %w", err)
+		return OAuthToken{}, fmt.Errorf("%s: %w", locales.TokenParameters(), err)
 	}
 	if grant == "refresh_token" {
 		refreshHeaders, err := parseOAuthPairs(auth["refreshHeaders"])
 		if err != nil {
-			return OAuthToken{}, fmt.Errorf("refresh headers: %w", err)
+			return OAuthToken{}, fmt.Errorf("%s: %w", locales.RefreshHeadersLower(), err)
 		}
 		refreshBody, err := parseOAuthPairs(auth["refreshBodyParams"])
 		if err != nil {
-			return OAuthToken{}, fmt.Errorf("refresh parameters: %w", err)
+			return OAuthToken{}, fmt.Errorf("%s: %w", locales.RefreshParameters(), err)
 		}
 		customHeaders = mergeOAuthPairs(customHeaders, refreshHeaders, true)
 		customBody = mergeOAuthPairs(customBody, refreshBody, false)
@@ -123,7 +126,7 @@ func (e *Engine) fetchOAuthToken(ctx context.Context, auth Object, options OAuth
 	}
 	for _, pair := range headers {
 		if strings.ContainsAny(pair.Name+pair.Value, "\r\n\x00") {
-			return OAuthToken{}, errors.New("OAuth headers cannot contain line breaks or NUL")
+			return OAuthToken{}, errors.New(locales.OAuthHeadersCannotContainLineBreaks())
 		}
 		if strings.EqualFold(pair.Name, "Host") {
 			request.Host = pair.Value
@@ -147,19 +150,19 @@ func (e *Engine) fetchOAuthToken(ctx context.Context, auth Object, options OAuth
 	defer transport.CloseIdleConnections()
 	client := http.Client{Transport: transport, CheckRedirect: func(next *http.Request, via []*http.Request) error {
 		if len(via) >= 5 {
-			return errors.New("too many token endpoint redirects")
+			return errors.New(locales.TooManyTokenEndpointRedirects())
 		}
 		if !strings.EqualFold(next.URL.Scheme, u.Scheme) || !strings.EqualFold(next.URL.Host, u.Host) {
-			return errors.New("token endpoint redirected to another origin; configure its final URL")
+			return errors.New(locales.TokenEndpointRedirectedToAnotherOrigin())
 		}
 		if next.Method != http.MethodPost {
-			return errors.New("token endpoint redirected to a GET request; configure its final URL")
+			return errors.New(locales.TokenEndpointRedirectedToAGET())
 		}
 		return nil
 	}}
 	response, err := client.Do(request)
 	if err != nil {
-		return OAuthToken{}, fmt.Errorf("fetch token: %w", err)
+		return OAuthToken{}, fmt.Errorf("%s: %w", locales.FetchTokenLower(), err)
 	}
 	defer func() { _ = response.Body.Close() }()
 	var reader io.Reader = response.Body
@@ -176,13 +179,13 @@ func (e *Engine) fetchOAuthToken(ctx context.Context, auth Object, options OAuth
 		return OAuthToken{}, err
 	}
 	if len(data) > 2<<20 {
-		return OAuthToken{}, errors.New("token endpoint response exceeds 2 MiB")
+		return OAuthToken{}, errors.New(locales.TokenEndpointResponseExceeds2MiB())
 	}
 	result := Object{}
 	if json.Unmarshal(data, &result) != nil {
 		fields, err := url.ParseQuery(string(data))
 		if err != nil || (fields.Get("access_token") == "" && fields.Get("id_token") == "" && fields.Get("error") == "") {
-			return OAuthToken{}, fmt.Errorf("token endpoint returned HTTP %d with an unrecognized response", response.StatusCode)
+			return OAuthToken{}, errors.New(locales.TokenEndpointReturnedHTTPStatusCodeWith(fmt.Sprint(response.StatusCode)))
 		}
 		for key, values := range fields {
 			if len(values) > 0 {
@@ -198,7 +201,7 @@ func (e *Engine) fetchOAuthToken(ctx context.Context, auth Object, options OAuth
 func oauthHTTPURL(raw, name string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Hostname() == "" || u.User != nil || u.Fragment != "" || u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("%s must be an HTTP or HTTPS URL without credentials or a fragment", name)
+		return nil, errors.New(locales.NameMustBeAnHTTPOr(name))
 	}
 	return u, nil
 }

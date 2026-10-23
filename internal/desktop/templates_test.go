@@ -45,7 +45,7 @@ func TestTemplateCompletionRanges(t *testing.T) {
 	}
 }
 
-func TestTemplateTagsMatchYaak(t *testing.T) {
+func TestTemplateTags(t *testing.T) {
 	type tag struct {
 		start, end int
 		inner      string
@@ -300,7 +300,7 @@ func TestTemplateChipsOpenTheirDialog(t *testing.T) {
 	}
 }
 
-func TestTemplateTagKindsMatchYaak(t *testing.T) {
+func TestTemplateTagKinds(t *testing.T) {
 	a, _ := templateTestApp()
 	tags := a.templateTagKinds("${[ missing ]} ${[ base64.encode(value='x') ]} ${[ ctx.workspace() ]}")
 	var got []string

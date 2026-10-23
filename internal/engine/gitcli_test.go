@@ -156,7 +156,7 @@ func TestGitStatusAndCommitStayInSyncDir(t *testing.T) {
 	if err := e.GitInit(repo); err != nil {
 		t.Fatal(err)
 	}
-	sync := filepath.Join(repo, "yaak")
+	sync := filepath.Join(repo, "sync")
 	if err := os.Mkdir(sync, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -166,13 +166,13 @@ func TestGitStatusAndCommitStayInSyncDir(t *testing.T) {
 		}
 	}
 	status, err := e.GitStatus(t.Context(), sync)
-	if err != nil || len(status.Files) != 1 || status.Files[0].Path != "yaak/a.yaml" {
+	if err != nil || len(status.Files) != 1 || status.Files[0].Path != "sync/a.yaml" {
 		t.Fatal(status.Files, err)
 	}
-	if err := e.GitStage(sync, []string{"yaak/a.yaml"}, true); err != nil {
+	if err := e.GitStage(sync, []string{"sync/a.yaml"}, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.GitStage(repo, []string{"outside.txt", "yaak/a.yaml"}, true); err != nil {
+	if err := e.GitStage(repo, []string{"outside.txt", "sync/a.yaml"}, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.GitCommitStaged(t.Context(), sync, "sync only"); err != nil {
@@ -215,11 +215,11 @@ func TestGitFileVersionsAndRestore(t *testing.T) {
 	if err := e.GitInit(repo); err != nil {
 		t.Fatal(err)
 	}
-	sync := filepath.Join(repo, "yaak")
+	sync := filepath.Join(repo, "sync")
 	if err := os.Mkdir(sync, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	commitFile(t, e, repo, "yaak/yeek.rq_1.yaml", "model: http_request\nid: rq_1\nname: Before\nurl: https://example.com\n", "add")
+	commitFile(t, e, repo, "sync/yeek.rq_1.yaml", "model: http_request\nid: rq_1\nname: Before\nurl: https://example.com\n", "add")
 	if err := os.WriteFile(filepath.Join(sync, "yeek.rq_1.yaml"), []byte("model: http_request\nid: rq_1\nname: After\nurl: https://example.com\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -230,25 +230,25 @@ func TestGitFileVersionsAndRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prev, next, err := e.GitFileVersions(sync, "yaak/yeek.rq_1.yaml")
+	prev, next, err := e.GitFileVersions(sync, "sync/yeek.rq_1.yaml")
 	if err != nil || prev != "model: http_request\nid: rq_1\nname: Before\nurl: https://example.com\n" || next != "model: http_request\nid: rq_1\nname: After\nurl: https://example.com\n" {
 		t.Fatalf("modified: %q %q %v", prev, next, err)
 	}
-	prev, next, err = e.GitFileVersions(sync, "yaak/yeek.fl_1.json")
+	prev, next, err = e.GitFileVersions(sync, "sync/yeek.fl_1.json")
 	if err != nil || prev != "" || next != "model: folder\nid: fl_1\nname: New\nheaders:\n  - name: A\n" {
 		t.Fatalf("new json: %q %q %v", prev, next, err)
 	}
-	if prev, next, err = e.GitFileVersions(sync, "yaak/README.md"); err != nil || prev != "" || next != "" {
+	if prev, next, err = e.GitFileVersions(sync, "sync/README.md"); err != nil || prev != "" || next != "" {
 		t.Fatalf("not a model: %q %q %v", prev, next, err)
 	}
 	if _, _, err = e.GitFileVersions(sync, "../outside.yaml"); err == nil {
 		t.Fatal("a path outside the repository was read")
 	}
 
-	if err := e.GitStage(repo, []string{"yaak/yeek.rq_1.yaml", "yaak/yeek.fl_1.json"}, true); err != nil {
+	if err := e.GitStage(repo, []string{"sync/yeek.rq_1.yaml", "sync/yeek.fl_1.json"}, true); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"yaak/yeek.rq_1.yaml", "yaak/yeek.fl_1.json"} {
+	for _, path := range []string{"sync/yeek.rq_1.yaml", "sync/yeek.fl_1.json"} {
 		if err := e.GitRestore(t.Context(), sync, path); err != nil {
 			t.Fatal(path, err)
 		}
@@ -260,7 +260,7 @@ func TestGitFileVersionsAndRestore(t *testing.T) {
 		t.Fatal("new file not removed", err)
 	}
 	status, err := e.GitStatus(t.Context(), sync)
-	if err != nil || len(status.Files) != 1 || status.Files[0].Path != "yaak/README.md" {
+	if err != nil || len(status.Files) != 1 || status.Files[0].Path != "sync/README.md" {
 		t.Fatal(status.Files, err)
 	}
 }
@@ -272,12 +272,12 @@ func TestGitFileHistory(t *testing.T) {
 	if err := e.GitInit(repo); err != nil {
 		t.Fatal(err)
 	}
-	sync := filepath.Join(repo, "yaak")
+	sync := filepath.Join(repo, "sync")
 	if err := os.Mkdir(sync, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	path, err := e.GitRepoPath(sync, "yeek.rq_1.yaml")
-	if err != nil || path != "yaak/yeek.rq_1.yaml" {
+	if err != nil || path != "sync/yeek.rq_1.yaml" {
 		t.Fatal(path, err)
 	}
 	if commits, err := e.GitFileLog(t.Context(), sync, path); err != nil || len(commits) != 0 {
@@ -306,8 +306,8 @@ func TestGitFileHistory(t *testing.T) {
 	if err := os.Remove(filepath.Join(sync, "yeek.rq_1.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	commitFile(t, e, repo, "yaak/yeek.rq_2.yaml", "name: Three\n", "third")
-	if err := e.GitRestoreFromCommit(t.Context(), sync, strings.TrimSpace(unrelated), "yaak/yeek.rq_2.yaml"); err != nil {
+	commitFile(t, e, repo, "sync/yeek.rq_2.yaml", "name: Three\n", "third")
+	if err := e.GitRestoreFromCommit(t.Context(), sync, strings.TrimSpace(unrelated), "sync/yeek.rq_2.yaml"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(sync, "yeek.rq_2.yaml")); !errors.Is(err, os.ErrNotExist) {

@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/Azure/go-ntlmssp"
+
+	"yeek/locales"
 )
 
 type SendOptions struct{ EnvironmentID, CookieJarID string }
@@ -40,7 +42,7 @@ func (e *Engine) resolve(ctx context.Context, request Object, environment string
 	seen := map[string]bool{}
 	for id := str(request, "folderId"); id != ""; {
 		if seen[id] {
-			return resolvedRequest{}, errors.New("folder inheritance contains a cycle")
+			return resolvedRequest{}, errors.New(locales.FolderInheritanceContainsACycle())
 		}
 		seen[id] = true
 		m, err := e.Store.Get(ctx, id)
@@ -208,7 +210,7 @@ func ensureProto(raw string) string {
 func buildURL(m Object) (*url.URL, error) {
 	raw := strings.TrimSpace(str(m, "url"))
 	if raw == "" {
-		return nil, errors.New("enter a request URL")
+		return nil, errors.New(locales.EnterARequestURL())
 	}
 	if !strings.Contains(raw, "://") {
 		raw = ensureProto(raw)
@@ -218,7 +220,7 @@ func buildURL(m Object) (*url.URL, error) {
 		return nil, err
 	}
 	if u.Hostname() == "" {
-		return nil, errors.New("URL is missing a hostname")
+		return nil, errors.New(locales.URLIsMissingAHostname())
 	}
 	var params [][2]string
 	for _, p := range objects(array(m, "urlParameters")) {
@@ -391,7 +393,7 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 		return nil, err
 	}
 	if str(request, "model") != "http_request" {
-		return nil, errors.New("select an HTTP request")
+		return nil, errors.New(locales.SelectAnHTTPRequest())
 	}
 	response, err = e.Save(ctx, Object{"model": "http_response", "workspaceId": str(request, "workspaceId"), "requestId": id, "url": str(request, "url")})
 	if err != nil {
@@ -435,7 +437,7 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 		return response, err
 	}
 	if target.Scheme != "http" && target.Scheme != "https" {
-		return response, errors.New("HTTP requests require an http:// or https:// URL")
+		return response, errors.New(locales.HTTPRequestsRequireAnHttpOr())
 	}
 	if err = ValidateHTTPMethod(str(resolved.Model, "method")); err != nil {
 		return response, err
@@ -552,7 +554,7 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 			return http.ErrUseLastResponse
 		}
 		if len(via) >= 20 {
-			return errors.New("stopped after 20 redirects")
+			return errors.New(locales.StoppedAfter20Redirects())
 		}
 		return nil
 	}

@@ -2,7 +2,7 @@ package engine
 
 import "testing"
 
-func TestStripJSONCommentsMatchesYaak(t *testing.T) {
+func TestStripJSONComments(t *testing.T) {
 	for _, c := range []struct{ name, input, want string }{
 		{"test_no_comments", `{
   "foo": "bar",

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"yeek/locales"
 )
 
 type OAuthAuthorization struct {
@@ -115,7 +117,7 @@ func (e *Engine) PrepareOAuth(ctx context.Context, ownerID, environment string, 
 	seen := map[string]bool{}
 	for id := str(owner, "folderId"); id != ""; {
 		if seen[id] {
-			return nil, OAuthOptions{}, errors.New("folder settings contain a cycle")
+			return nil, OAuthOptions{}, errors.New(locales.FolderSettingsContainACycle())
 		}
 		seen[id] = true
 		parent, err := e.Store.Get(ctx, id)
@@ -148,7 +150,7 @@ func parseOAuthPairs(value any) ([]oauthPair, error) {
 	var rows []Object
 	if text, ok := value.(string); ok {
 		if err := json.Unmarshal([]byte(text), &rows); err != nil {
-			return nil, errors.New("custom parameters must be a JSON array of name/value rows")
+			return nil, errors.New(locales.CustomParametersMustBeAJSON())
 		}
 	} else {
 		data, err := json.Marshal(value)
@@ -156,7 +158,7 @@ func parseOAuthPairs(value any) ([]oauthPair, error) {
 			return nil, err
 		}
 		if err = json.Unmarshal(data, &rows); err != nil {
-			return nil, errors.New("custom parameters must contain name/value rows")
+			return nil, errors.New(locales.CustomParametersMustContainNameValue())
 		}
 	}
 	result := []oauthPair{}
@@ -260,7 +262,7 @@ func (e *Engine) AcquireOAuthToken(ctx context.Context, auth Object, options OAu
 	e.mu.Lock()
 	if e.closing {
 		e.mu.Unlock()
-		return OAuthToken{}, errors.New("application is closing")
+		return OAuthToken{}, errors.New(locales.ApplicationIsClosing())
 	}
 	e.workers.Add(1)
 	e.mu.Unlock()
@@ -333,7 +335,7 @@ func (e *Engine) acquireOAuthToken(ctx context.Context, key string, auth Object,
 			}
 		}
 	} else if options.RefreshOnly {
-		return OAuthToken{}, errors.New("the current token has no refresh token")
+		return OAuthToken{}, errors.New(locales.TheCurrentTokenHasNoRefresh())
 	}
 	if token.Value() == "" {
 		token, err = e.fetchOAuthToken(ctx, auth, options)

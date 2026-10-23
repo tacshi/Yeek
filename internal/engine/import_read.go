@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
 const maxImportBytes = 64 << 20
@@ -32,21 +34,21 @@ func readImportFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("import source must be a regular file")
+		return nil, errors.New(locales.ImportSourceMustBeARegular())
 	}
 	data, err := io.ReadAll(io.LimitReader(file, maxImportBytes+1))
 	if err != nil {
 		return nil, err
 	}
 	if len(data) > maxImportBytes {
-		return nil, errors.New("import source exceeds 64 MiB")
+		return nil, errors.New(locales.ImportSourceExceeds64MiB())
 	}
 	return data, nil
 }
 func (e *Engine) downloadImport(ctx context.Context, raw, workspace string) ([]byte, string, error) {
 	u, err := url.Parse(raw)
 	if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" {
-		return nil, "", errors.New("collection URL must use HTTP or HTTPS")
+		return nil, "", errors.New(locales.CollectionURLMustUseHTTPOr())
 	}
 	w := Object{"settingValidateCertificates": true, "settingHttpVersion": "auto"}
 	if workspace != "" {
@@ -73,13 +75,13 @@ func (e *Engine) downloadImport(ctx context.Context, raw, workspace string) ([]b
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, "", fmt.Errorf("collection download returned %s", response.Status)
+		return nil, "", errors.New(locales.CollectionDownloadReturnedStatus(response.Status))
 	}
 	var reader io.Reader = response.Body
 	if strings.EqualFold(response.Header.Get("Content-Encoding"), "gzip") {
 		decoded, err := gzip.NewReader(response.Body)
 		if err != nil {
-			return nil, "", fmt.Errorf("collection compression: %w", err)
+			return nil, "", fmt.Errorf("%s: %w", locales.CollectionCompression(), err)
 		}
 		defer func() { _ = decoded.Close() }()
 		reader = decoded
@@ -89,7 +91,7 @@ func (e *Engine) downloadImport(ctx context.Context, raw, workspace string) ([]b
 		return nil, "", err
 	}
 	if len(data) > maxImportBytes {
-		return nil, "", errors.New("import source exceeds 64 MiB")
+		return nil, "", errors.New(locales.ImportSourceExceeds64MiB())
 	}
 	return data, response.Request.URL.String(), nil
 }
@@ -162,13 +164,13 @@ func (e *Engine) ReadImport(ctx context.Context, input ImportInput, workspace st
 		referenceOrigin = origin
 		data, err = readImportFile(origin)
 	default:
-		return ImportDocument{}, errors.New("choose a file, folder, URL, or text source")
+		return ImportDocument{}, errors.New(locales.ChooseAFileFolderURLOr())
 	}
 	if err != nil {
 		return ImportDocument{}, err
 	}
 	if len(data) > maxImportBytes {
-		return ImportDocument{}, errors.New("import source exceeds 64 MiB")
+		return ImportDocument{}, errors.New(locales.ImportSourceExceeds64MiB())
 	}
 	format := importFormat(data)
 	if format == "OpenAPI" || format == "Swagger" {
@@ -195,11 +197,11 @@ func (e *Engine) ReadImport(ctx context.Context, input ImportInput, workspace st
 		}
 	}
 	if len(models) == 0 {
-		return ImportDocument{}, errors.New("collection contains no supported resources")
+		return ImportDocument{}, errors.New(locales.CollectionContainsNoSupportedResources())
 	}
 	if sourceID := input.SourceWorkspaceID; sourceID != "" {
 		if !slices.ContainsFunc(models, func(m Object) bool { return str(m, "model") == "workspace" && str(m, "id") == sourceID }) {
-			return ImportDocument{}, errors.New("the source no longer contains its linked workspace")
+			return ImportDocument{}, errors.New(locales.TheSourceNoLongerContainsIts())
 		}
 		models = slices.DeleteFunc(models, func(m Object) bool { return str(m, "id") != sourceID && str(m, "workspaceId") != sourceID })
 	}
@@ -207,11 +209,11 @@ func (e *Engine) ReadImport(ctx context.Context, input ImportInput, workspace st
 	for _, model := range models {
 		if notes, ok := model["importWarnings"].([]string); ok {
 			for _, note := range notes {
-				warnings = append(warnings, ImportWarning{Title: "Import settings", Detail: note})
+				warnings = append(warnings, ImportWarning{Title: locales.ImportSettings(), Detail: note})
 			}
 		}
 		if len(array(model, "importScripts")) > 0 {
-			warnings = append(warnings, ImportWarning{Title: "Scripts retained as source metadata", Detail: "Imported JavaScript scripts are not executed by the Go request engine."})
+			warnings = append(warnings, ImportWarning{Title: locales.ScriptsRetainedAsSourceMetadata(), Detail: locales.ImportedJavaScriptScriptsAreNotExecuted()})
 			break
 		}
 	}
@@ -249,7 +251,7 @@ func readBrunoDirectory(ctx context.Context, root string) ([]Object, []ImportWar
 		}
 		total += info.Size()
 		if total > maxImportBytes || len(files) >= 10000 {
-			return errors.New("collection exceeds the Bruno import limit")
+			return errors.New(locales.CollectionExceedsTheBrunoImportLimit())
 		}
 		files = append(files, path)
 		return nil
@@ -258,7 +260,7 @@ func readBrunoDirectory(ctx context.Context, root string) ([]Object, []ImportWar
 		return nil, nil, err
 	}
 	if len(files) == 0 {
-		return nil, nil, errors.New("folder contains no Bruno .bru files")
+		return nil, nil, errors.New(locales.FolderContainsNoBrunoBruFiles())
 	}
 	slices.Sort(files)
 	wid := "bruno_workspace"
@@ -350,7 +352,7 @@ func readBrunoDirectory(ctx context.Context, root string) ([]Object, []ImportWar
 			models = append(models, m)
 		}
 		if blocks["script:pre-request"] != "" || blocks["script:post-response"] != "" {
-			warnings = append(warnings, ImportWarning{Title: "Bruno scripts were not executed", Detail: rel})
+			warnings = append(warnings, ImportWarning{Title: locales.BrunoScriptsWereNotExecuted(), Detail: rel})
 		}
 	}
 	return models, warnings, nil
@@ -365,7 +367,7 @@ func (e *Engine) DetectImportSource(ctx context.Context, input ImportInput) (str
 	document, err := e.ReadImport(ctx, input, "")
 	var unsupported unsupportedImport
 	if errors.As(err, &unsupported) {
-		return "", errors.New("Not a supported format") //nolint:staticcheck
+		return "", errors.New(locales.NotASupportedFormat()) //nolint:staticcheck
 	}
 	if err != nil {
 		return "", err

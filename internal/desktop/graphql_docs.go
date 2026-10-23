@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"github.com/vektah/gqlparser/v2/ast"
+	"yeek/locales"
 )
 
 func (a *App) graphQLDocsOpen(d *Draft) bool {
@@ -49,15 +50,15 @@ func (a *App) graphQLDocsPane(c *ui.Context, p colors, d *Draft) {
 							ui.Text(c, name).FontSize(13).TextColor(p.muted).SingleLine()
 							continue
 						}
-						link := ui.ButtonBase(c).Key(i).Label("Go to " + name)
+						link := ui.ButtonBase(c).Key(i).Label(locales.GoToName(name))
 						link.Children(func() { ui.Text(c, name).FontSize(13).TextColor(p.notice).SingleLine() })
 						if link.Clicked() {
 							a.docsTrail[d.ID] = slices.Clone(trail[:i+1])
 						}
 					}
 				})
-				ui.TextInput(c, &a.docsSearch).Label("Search GraphQL schema").Placeholder("Search").Grow(1).MinWidth(60).Height(26).FontSize(12)
-				if smallIconButton(c, "close", "Close documentation explorer").Clicked() {
+				ui.TextInput(c, &a.docsSearch).Label(locales.SearchGraphQLSchema()).Placeholder(locales.Search()).Grow(1).MinWidth(60).Height(26).FontSize(12)
+				if smallIconButton(c, "close", locales.CloseDocumentationExplorer()).Clicked() {
 					a.closeGraphQLDocs(d.ID)
 				}
 			})
@@ -91,7 +92,7 @@ func docsHeading(c *ui.Context, text string) {
 
 func (a *App) graphQLDocsHome(c *ui.Context, p colors, d *Draft, visit func(string)) {
 	schema := a.graphQLIndex(d).Schema
-	docsHeading(c, "Root Types")
+	docsHeading(c, locales.RootTypes())
 	for _, root := range []struct {
 		label string
 		name  string
@@ -112,7 +113,7 @@ func (a *App) graphQLDocsHome(c *ui.Context, p colors, d *Draft, visit func(stri
 	}
 	slices.Sort(names)
 	ui.Row(c).Gap(6).Margin(10, 0, 0, 0).Children(func() {
-		ui.Text(c, "All Schema Types").FontSize(14).FontWeight(600)
+		ui.Text(c, locales.AllSchemaTypes()).FontSize(14).FontWeight(600)
 		(&countBadge{count: len(names)}).view(c, p)
 	})
 	if schema.Description != "" {
@@ -133,7 +134,7 @@ func typeName(t *ast.Definition) string {
 }
 
 func docsLink(c *ui.Context, p colors, name string, visit func(string)) {
-	link := ui.ButtonBase(c).Label("Go to " + name)
+	link := ui.ButtonBase(c).Label(locales.GoToName(name))
 	link.Children(func() { ui.Text(c, name).Font("monospace").FontSize(12).TextColor(p.notice) })
 	if link.Clicked() {
 		visit(name)
@@ -148,11 +149,11 @@ func (a *App) graphQLDocsType(c *ui.Context, p colors, d *Draft, name string, vi
 	docsHeading(c, typ.Name)
 	description := typ.Description
 	if description == "" {
-		description = "No description"
+		description = locales.NoDescription()
 	}
 	ui.Text(c, description).FontSize(12).TextColor(p.muted).Selectable()
 	if links := append(slices.Clone(typ.Interfaces), typ.Types...); len(links) > 0 {
-		ui.Text(c, map[bool]string{true: "Possible Types", false: "Interfaces"}[len(typ.Types) > 0]).FontSize(14).FontWeight(600).Margin(8, 0, 0, 0)
+		ui.Text(c, map[bool]string{true: locales.PossibleTypes(), false: locales.Interfaces()}[len(typ.Types) > 0]).FontSize(14).FontWeight(600).Margin(8, 0, 0, 0)
 		for _, link := range links {
 			ui.Box(c).Key("link-" + link).Children(func() { docsLink(c, p, link, visit) })
 		}
@@ -162,7 +163,7 @@ func (a *App) graphQLDocsType(c *ui.Context, p colors, d *Draft, name string, vi
 	})
 	if len(fields) > 0 {
 		ui.Row(c).Gap(6).Margin(8, 0, 0, 0).Children(func() {
-			ui.Text(c, "Fields").FontSize(14).FontWeight(600)
+			ui.Text(c, locales.Fields()).FontSize(14).FontWeight(600)
 			(&countBadge{count: len(fields)}).view(c, p)
 		})
 	}
@@ -190,7 +191,7 @@ func (a *App) graphQLDocsType(c *ui.Context, p colors, d *Draft, name string, vi
 		})
 	}
 	if len(typ.EnumValues) > 0 {
-		ui.Text(c, "Enum Values").FontSize(14).FontWeight(600).Margin(8, 0, 0, 0)
+		ui.Text(c, locales.EnumValues()).FontSize(14).FontWeight(600).Margin(8, 0, 0, 0)
 	}
 	for _, value := range typ.EnumValues {
 		ui.Column(c).Key("enum-" + value.Name).Gap(3).Children(func() {
@@ -223,7 +224,7 @@ func (a *App) graphQLDocsSearch(c *ui.Context, p colors, d *Draft, query string,
 			}
 			ui.Row(c).Key(name + "." + field.Name).Gap(4).Children(func() {
 				ui.Text(c, name+".").Font("monospace").FontSize(12).TextColor(p.subtle)
-				link := ui.ButtonBase(c).Label("Go to " + name + "." + field.Name)
+				link := ui.ButtonBase(c).Label(locales.GoToName(name + "." + field.Name))
 				link.Children(func() { ui.Text(c, field.Name).Font("monospace").FontSize(12).TextColor(p.accent) })
 				if link.Clicked() {
 					visit(name)
@@ -233,6 +234,6 @@ func (a *App) graphQLDocsSearch(c *ui.Context, p colors, d *Draft, query string,
 		}
 	}
 	if shown == 0 {
-		ui.Text(c, "No results for "+strconv.Quote(query)).Italic().FontSize(12).TextColor(p.subtle)
+		ui.Text(c, locales.NoResultsForQueryTitle(strconv.Quote(query))).Italic().FontSize(12).TextColor(p.subtle)
 	}
 }

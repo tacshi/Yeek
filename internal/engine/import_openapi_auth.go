@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+
+	"yeek/locales"
 )
 
 func (s *openAPIImport) authentication(value any) openAPIAuth {
@@ -29,7 +31,7 @@ func (s *openAPIImport) authentication(value any) openAPIAuth {
 		}
 		s.variables, s.authVariables = variables, authVariables
 	}
-	warning := "A security requirement could not be mapped. Configure authentication for those operations before sending."
+	warning := locales.ASecurityRequirementCouldNotBe()
 	if !slices.Contains(s.warnings, warning) {
 		s.warnings = append(s.warnings, warning)
 	}
@@ -67,7 +69,7 @@ func (s *openAPIImport) securityRequirement(requirement Object) (openAPIAuth, bo
 			continue
 		}
 		if kind == "mutualTLS" {
-			warning := "Configure a client certificate for security scheme “" + name + "”."
+			warning := locales.ConfigureAClientCertificateForSecurity(name)
 			if !slices.Contains(s.warnings, warning) {
 				s.warnings = append(s.warnings, warning)
 			}

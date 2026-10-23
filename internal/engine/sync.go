@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
 const SyncNewest = "newest"
@@ -76,11 +78,11 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 	for _, entry := range entries {
 		previous := tracked[entry.Name()]
 		invalid := func(reason string) error {
-			return fmt.Errorf("Invalid sync file: %s: %s", filepath.Join(dir, entry.Name()), reason) //nolint:staticcheck
+			return errors.New(locales.InvalidSyncFileJoinReason(filepath.Join(dir, entry.Name()), reason)) //nolint:staticcheck
 		}
 		if !entry.Type().IsRegular() {
 			if previous != nil {
-				return nil, invalid("expected a regular sync file")
+				return nil, invalid(locales.ExpectedARegularSyncFile())
 			}
 			continue
 		}
@@ -104,18 +106,18 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		}
 		if !syncKind(str(m, "model")) || str(m, "id") == "" {
 			if previous != nil {
-				return nil, invalid("file does not contain a Yaak model")
+				return nil, invalid(locales.FileDoesNotContainAWorkspace())
 			}
 			continue
 		}
 		if previous != nil {
 			switch {
 			case str(m, "id") != str(previous, "id"):
-				return nil, invalid(fmt.Sprintf("expected model ID %s, found %s", str(previous, "id"), str(m, "id")))
+				return nil, invalid(locales.ExpectedModelIDExpectedFoundFound(str(previous, "id"), str(m, "id")))
 			case modelWorkspace(m) != workspace:
-				return nil, invalid(fmt.Sprintf("expected workspace ID %s, found %s", workspace, modelWorkspace(m)))
+				return nil, invalid(locales.ExpectedWorkspaceIDExpectedFoundFound(workspace, modelWorkspace(m)))
 			case str(m, "model") != str(previous, "model"):
-				return nil, invalid("model type does not match the tracked model")
+				return nil, invalid(locales.ModelTypeDoesNotMatchThe())
 			}
 		}
 		if modelWorkspace(m) != workspace {
@@ -131,7 +133,7 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		m = defaults
 		id := str(m, "id")
 		if remote[id] != nil {
-			return nil, fmt.Errorf("multiple files contain model %s", id)
+			return nil, errors.New(locales.MultipleFilesContainModelId(id))
 		}
 		remote[id] = m
 		paths[id] = entry.Name()
@@ -207,7 +209,7 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 	return result, nil
 }
 
-var ErrSyncStale = errors.New("Files changed while syncing. Review the changes again.") //nolint:staticcheck
+var ErrSyncStale error = &localizedError{locales.FilesChangedWhileSyncingReviewThe}
 
 func syncedLocal(m Object, workspace string) bool {
 	if !syncKind(str(m, "model")) || str(m, "id") != workspace && str(m, "workspaceId") != workspace {
@@ -249,10 +251,10 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 	}
 	for _, c := range plan {
 		if c.Conflict && resolve != "push" && resolve != "pull" && resolve != SyncNewest {
-			return fmt.Errorf("%s changed both locally and on disk; choose which copy to keep", c.Path)
+			return errors.New(locales.PathChangedBothLocallyAndOn(c.Path))
 		}
 		if filepath.Base(c.Path) != c.Path {
-			return errors.New("sync filename must stay in its directory")
+			return errors.New(locales.SyncFilenameMustStayInIts())
 		}
 	}
 	dir, err = filepath.Abs(dir)
@@ -349,7 +351,7 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 				progress = true
 			}
 			if !progress {
-				return errors.New("sync files contain missing or circular folders")
+				return errors.New(locales.SyncFilesContainMissingOrCircular())
 			}
 			pending = next
 		}
@@ -453,7 +455,7 @@ func SyncTempFile(name string) bool {
 
 func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, changed func(), onError func(error)) (func(), error) {
 	if e.WatchDir == nil {
-		return nil, errors.New("no file watcher")
+		return nil, errors.New(locales.NoFileWatcher())
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	files := make(chan struct{}, 1)
@@ -541,5 +543,5 @@ func (e *Engine) SyncDirWorkspace(dir string) (string, error) {
 			return str(m, "id"), nil
 		}
 	}
-	return "", errors.New("No workspace found in directory") //nolint:staticcheck
+	return "", errors.New(locales.NoWorkspaceFoundInDirectory()) //nolint:staticcheck
 }

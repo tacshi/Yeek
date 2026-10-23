@@ -1,5 +1,3 @@
-// Package pdfjs embeds PDF.js, which previews PDF responses as Yaak's
-// PdfViewer does. See UPSTREAM.md.
 package pdfjs
 
 import "embed"

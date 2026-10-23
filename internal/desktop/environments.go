@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 var environmentColors = []string{"danger", "warning", "notice", "success", "primary", "info", "secondary"}
@@ -78,7 +79,7 @@ func (a *App) openEnvironments() {
 }
 
 func (a *App) openEnvironmentsAt(id string) {
-	a.prompt("environments", "Environments", "", id)
+	a.prompt("environments", locales.Environments(), "", id)
 	a.envDraft = kvRows(a.models[id], "variables")
 }
 
@@ -106,7 +107,7 @@ func (a *App) environmentDialog(c *ui.Context, p colors) {
 			}
 		})
 		sidebar.ContextMenu(func(m *ui.Menu) {
-			if !multiple && base != nil && m.Item("Create Sub Environment").Chosen() {
+			if !multiple && base != nil && m.Item(locales.CreateSubEnvironment()).Chosen() {
 				a.newEnvironment()
 			}
 		})
@@ -114,7 +115,7 @@ func (a *App) environmentDialog(c *ui.Context, p colors) {
 			if multiple {
 				ui.Box(c).Padding(12).Children(func() {
 					ui.Row(c).Padding(8, 10).Radius(6).Border(1, p.notice.Alpha(.5)).Background(p.notice.Alpha(.1)).Children(func() {
-						ui.Text(c, "There are multiple base environments for this workspace. Please delete the environments you no longer need.").FontSize(12).Grow(1).MinWidth(0)
+						ui.Text(c, locales.ThereAreMultipleBaseEnvironmentsFor()).FontSize(12).Grow(1).MinWidth(0)
 					})
 				})
 			}
@@ -159,10 +160,10 @@ func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth i
 			colorDot(c, color, 8)
 		}
 		if b(env, "public") && !isBase {
-			icon(c, "eye").FontSize(13).TextColor(p.subtle).Tooltip("Sharable environments are included in Directory Sync and data export.")
+			icon(c, "eye").FontSize(13).TextColor(p.subtle).Tooltip(locales.SharableEnvironmentsAreIncludedInDirectory())
 		}
 		ui.Text(c, s(env, "name")).FontSize(13).SingleLine().Grow(1).MinWidth(0)
-		if isBase && !multiple && smallIconButton(c, "plusCircle", "Add Sub-Environment").Opacity(.6).Clicked() {
+		if isBase && !multiple && smallIconButton(c, "plusCircle", locales.AddSubEnvironment()).Opacity(.6).Clicked() {
 			a.newEnvironment()
 		}
 	})
@@ -171,11 +172,11 @@ func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth i
 	}
 	row.ContextMenu(func(m *ui.Menu) {
 		if !isBase {
-			if m.Item("Rename").Chosen() {
+			if m.Item(locales.Rename()).Chosen() {
 				a.saveEnvironment()
-				a.prompt("rename", "Rename Environment", s(env, "name"), id)
+				a.prompt("rename", locales.RenameEnvironment(), s(env, "name"), id)
 			}
-			if m.Item("Duplicate").Chosen() {
+			if m.Item(locales.Duplicate()).Chosen() {
 				a.saveEnvironment()
 				a.run(func() (func(), error) {
 					created, err := a.Engine.Duplicate(a.ctx, id)
@@ -186,30 +187,30 @@ func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth i
 					return func() { a.applyModel(m); a.selectEnvironment(created) }, err
 				})
 			}
-			label := "Assign Color"
+			label := locales.AssignColor()
 			if s(env, "color") != "" {
-				label = "Change Color"
+				label = locales.ChangeColor()
 			}
 			if m.Item(label).Chosen() {
 				a.saveEnvironment()
 				a.environmentColor = s(env, "color")
-				a.prompt("environment_color", "Environment Color", "", id)
+				a.prompt("environment_color", locales.EnvironmentColor(), "", id)
 			}
 		}
-		label := "Make Sharable"
+		label := locales.MakeSharable()
 		if b(env, "public") {
-			label = "Make Private"
+			label = locales.MakePrivate()
 		}
 		if m.Item(label).Chosen() {
 			a.setEnvironmentField(id, "public", !b(env, "public"))
 		}
-		if (!isBase || multiple) && m.Item("Delete").Chosen() {
+		if (!isBase || multiple) && m.Item(locales.Delete()).Chosen() {
 			a.saveEnvironment()
-			a.prompt("delete", "Delete "+s(env, "name"), s(env, "name"), id)
+			a.prompt("delete", locales.DeleteName(s(env, "name")), s(env, "name"), id)
 		}
 		if isBase && !multiple {
 			m.Separator()
-			if m.Item("Create Sub Environment").Chosen() {
+			if m.Item(locales.CreateSubEnvironment()).Chosen() {
 				a.newEnvironment()
 			}
 		}
@@ -238,11 +239,11 @@ func (a *App) environmentEditorFor(c *ui.Context, p colors, env engine.Object, r
 	ui.Column(c).Grow(1).MinWidth(0).Padding(12, 16, 12, 16).Gap(10).Children(func() {
 		ui.Row(c).Gap(8).Children(func() {
 			if color, ok := envColor(s(env, "color"), p); ok {
-				dot := ui.ButtonBase(c).Label("Change Color").Size(14, 14).Children(func() { colorDot(c, color, 12) })
+				dot := ui.ButtonBase(c).Label(locales.ChangeColor()).Size(14, 14).Children(func() { colorDot(c, color, 12) })
 				if dot.Clicked() {
 					a.saveEnvironment()
 					a.environmentColor = s(env, "color")
-					a.prompt("environment_color", "Environment Color", "", id)
+					a.prompt("environment_color", locales.EnvironmentColor(), "", id)
 				}
 			}
 			if !hideName {
@@ -257,35 +258,35 @@ func (a *App) environmentEditorFor(c *ui.Context, p colors, env engine.Object, r
 				return button
 			}
 			if encrypted {
-				if pill("Encryption Settings").Clicked() {
-					a.prompt("workspace_settings", "Workspace Settings", "", s(env, "workspaceId"))
+				if pill(locales.EncryptionSettings()).Clicked() {
+					a.prompt("workspace_settings", locales.WorkspaceSettings(), "", s(env, "workspaceId"))
 				}
 			} else {
-				label := "Show Values"
+				label := locales.ShowValues()
 				if a.showEnvValues {
-					label = "Hide Values"
+					label = locales.HideValues()
 				}
 				if pill(label).Clicked() {
 					a.showEnvValues = !a.showEnvValues
 				}
 			}
 			if !isBase {
-				label := "Private"
+				label := locales.Private()
 				if b(env, "public") {
-					label = "Sharable"
+					label = locales.Sharable()
 				}
-				if pill(label).Tooltip("Sharable environments are included in Directory Sync and data export.").Clicked() {
+				if pill(label).Tooltip(locales.SharableEnvironmentsAreIncludedInDirectory()).Clicked() {
 					a.setEnvironmentField(id, "public", !b(env, "public"))
 				}
 			}
 		})
 		if b(env, "public") && !isBase && !a.dismissed["warn-unencrypted-"+id] && !allSecure(*rows) {
 			ui.Row(c).Padding(8, 10).Gap(10).Radius(6).Border(1, p.notice.Alpha(.5)).Background(p.notice.Alpha(.1)).Children(func() {
-				ui.Text(c, "This sharable environment contains plain-text secrets").FontSize(12).Grow(1)
-				if ui.Button(c, "Encrypt Variables").FontSize(12).Clicked() {
+				ui.Text(c, locales.ThisSharableEnvironmentContainsPlainText()).FontSize(12).Grow(1)
+				if ui.Button(c, locales.EncryptVariables()).FontSize(12).Clicked() {
 					a.encryptEnvironment(id)
 				}
-				if smallIconButton(c, "close", "Dismiss").Clicked() {
+				if smallIconButton(c, "close", locales.Dismiss()).Clicked() {
 					if a.dismissed == nil {
 						a.dismissed = map[string]bool{}
 					}
@@ -359,7 +360,7 @@ func (a *App) saveEnvironmentRows(id string, rows []KV) {
 func (a *App) newEnvironment() {
 	a.saveEnvironment()
 	a.newEnv = newEnvironmentForm{}
-	a.prompt("new_environment", "New Environment", "", "")
+	a.prompt("new_environment", locales.NewEnvironment(), "", "")
 }
 
 type newEnvironmentForm struct {
@@ -371,25 +372,25 @@ type newEnvironmentForm struct {
 func (a *App) newEnvironmentDialog(c *ui.Context, p colors) {
 	f := &a.newEnv
 	ui.Column(c).Padding(16, 20).Gap(14).Children(func() {
-		ui.Text(c, "Create multiple environments with different sets of variables").FontSize(12).TextColor(p.muted)
-		labeled(c, p, "Name", func() {
-			ui.TextInput(c, &f.name).Label("Name").Placeholder("Production").AutoFocus().FillWidth()
+		ui.Text(c, locales.CreateMultipleEnvironmentsWithDifferentSets()).FontSize(12).TextColor(p.muted)
+		labeled(c, p, locales.NameTitle(), func() {
+			ui.TextInput(c, &f.name).Label(locales.NameTitle()).Placeholder(locales.Production()).AutoFocus().FillWidth()
 		})
 		ui.Column(c).Gap(4).Children(func() {
-			ui.Checkbox(c, &f.sharable, "Share this environment")
-			ui.Text(c, "Sharable environments are included in data export and directory sync.").FontSize(12).TextColor(p.muted).Padding(0, 0, 0, 24)
+			ui.Checkbox(c, &f.sharable, locales.ShareThisEnvironment())
+			ui.Text(c, locales.SharableEnvironmentsAreIncludedInData()).FontSize(12).TextColor(p.muted).Padding(0, 0, 0, 24)
 		})
-		labeled(c, p, "Color", func() {
-			ui.Text(c, "Select a color to be displayed when this environment is active, to help identify it.").FontSize(12).TextColor(p.muted)
+		labeled(c, p, locales.Color(), func() {
+			ui.Text(c, locales.SelectAColorToBeDisplayed()).FontSize(12).TextColor(p.muted)
 			environmentColorPicker(c, p, &f.color)
 		})
 		ui.Row(c).Justify(ui.End).Children(func() {
-			create := ui.ButtonBase(c).Label("Create Environment").Height(30).Padding(0, 14).Gap(6).Radius(5).Border(1, p.border).Disabled(strings.TrimSpace(f.name) == "")
+			create := ui.ButtonBase(c).Label(locales.CreateEnvironment()).Height(30).Padding(0, 14).Gap(6).Radius(5).Border(1, p.border).Disabled(strings.TrimSpace(f.name) == "")
 			create.Children(func() {
 				if color, ok := envColor(f.color, p); ok {
 					colorDot(c, color, 10)
 				}
-				ui.Text(c, "Create Environment").FontSize(13)
+				ui.Text(c, locales.CreateEnvironment()).FontSize(13)
 			})
 			if create.Clicked() {
 				workspace, form := a.workspace, *f
@@ -418,8 +419,8 @@ func environmentColorPicker(c *ui.Context, p colors, color *string) {
 	ui.Column(c).Gap(12).Children(func() {
 		ui.Row(c).Gap(10).Children(func() {
 			for _, option := range append(append([]string{""}, environmentColors...), "custom") {
-				label := cmpOr(option, "No color")
-				swatch := ui.ButtonBase(c).Key(label).Label(label).Tooltip(label).Size(28, 28).Radius(14).Opacity(.6)
+				label := environmentColorLabel(option)
+				swatch := ui.ButtonBase(c).Key(cmpOr(option, "none")).Label(label).Tooltip(label).Size(28, 28).Radius(14).Opacity(.6)
 				if option == selected {
 					swatch.Opacity(1).Border(2, p.text)
 				}
@@ -449,7 +450,7 @@ func environmentColorPicker(c *ui.Context, p colors, color *string) {
 			if !ok {
 				value = ui.Hex("#ffffff")
 			}
-			if ui.ColorPicker(c, &value).Label("Custom color").Changed() {
+			if ui.ColorPicker(c, &value).Label(locales.CustomColor()).Changed() {
 				*color = hexString(value)
 			}
 		}
@@ -475,13 +476,37 @@ func hexString(color ui.Color) string {
 func (a *App) environmentColorDialog(c *ui.Context, p colors) {
 	id := a.dialogID
 	ui.Column(c).Padding(16, 20).Gap(16).Children(func() {
-		ui.Text(c, "This color will be used to color the interface when this environment is active").FontSize(12).Padding(8, 10).Radius(6).Background(p.border.Alpha(.3))
+		ui.Text(c, locales.ThisColorWillBeUsedTo()).FontSize(12).Padding(8, 10).Radius(6).Background(p.border.Alpha(.3))
 		environmentColorPicker(c, p, &a.environmentColor)
 		ui.Row(c).Justify(ui.End).Children(func() {
-			if ui.Button(c, "Save").Clicked() {
+			if ui.Button(c, locales.Save()).Clicked() {
 				a.setEnvironmentField(id, "color", nilIfEmpty(a.environmentColor))
 				a.openEnvironmentsAt(id)
 			}
 		})
 	})
+}
+
+func environmentColorLabel(option string) string {
+	switch option {
+	case "":
+		return locales.NoColor()
+	case "danger":
+		return locales.Danger()
+	case "warning":
+		return locales.Warning()
+	case "notice":
+		return locales.Notice()
+	case "success":
+		return locales.Success()
+	case "primary":
+		return locales.Primary()
+	case "info":
+		return locales.InfoLower()
+	case "secondary":
+		return locales.Secondary()
+	case "custom":
+		return locales.CustomLower()
+	}
+	return option
 }

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 	"uuid"
+
+	"yeek/locales"
 )
 
 const gregorianOffset = 0x01B21DD213814000
@@ -37,7 +39,7 @@ func timeUUID(version int, t time.Time) string {
 func nameUUID(version int, name, namespace string) (string, error) {
 	ns, err := uuid.Parse(strings.TrimSpace(namespace))
 	if err != nil {
-		return "", fmt.Errorf("namespace must be a valid UUID: %w", err)
+		return "", fmt.Errorf("%s: %w", locales.NamespaceMustBeAValidUUID(), err)
 	}
 	var h hash.Hash
 	if version == 3 {

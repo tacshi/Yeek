@@ -132,7 +132,7 @@ environments:
         isPrivate: false
         sortKey: 1736781358515
       data:
-        BASE_URL: https://api.yaak.app
+        BASE_URL: https://api.example.app
       color: "#f22c2c"
     - name: Staging
       meta:
@@ -142,5 +142,5 @@ environments:
         isPrivate: false
         sortKey: 1736781358565
       data:
-        BASE_URL: https://api.staging.yaak.app
+        BASE_URL: https://api.staging.example.app
       color: "#206fac"

@@ -17,6 +17,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func responseMIME(response engine.Object) string {
@@ -62,14 +63,14 @@ func (a *App) responseBody(c *ui.Context, p colors, d *Draft, response engine.Ob
 		ui.Column(c).Grow(1).Center().Gap(12).Children(func() {
 			ui.Row(c).Gap(10).Children(func() {
 				ui.Spinner(c).Size(14, 14).TextColor(p.subtle)
-				ui.Text(c, "Sending Request").FontSize(13).TextColor(p.muted)
+				ui.Text(c, locales.SendingRequest()).FontSize(13).TextColor(p.muted)
 			})
-			if ui.Button(c, "Cancel").FontSize(12).Clicked() {
+			if ui.Button(c, locales.Cancel()).FontSize(12).Clicked() {
 				a.Engine.Cancel(d.ID)
 			}
 		})
 	case s(response, "state") == "closed" && n(response, "contentLength") == 0 && raw == "":
-		emptyState(c, p, "Empty")
+		emptyState(c, p, locales.Empty())
 	case strings.HasPrefix(kind, "text/event-stream") && pretty:
 		a.eventStreamView(c, p, d, raw)
 	case strings.HasPrefix(kind, "image/"):
@@ -112,7 +113,7 @@ func (a *App) imageView(c *ui.Context, p colors, key, kind string, data []byte) 
 		a.images[key] = source
 	}
 	ui.Box(c).Grow(1).MinHeight(0).Padding(0, 0, 8, 0).Children(func() {
-		ui.Image(c, source).Label("Response preview").Fill().Fit(ui.Contain)
+		ui.Image(c, source).Label(locales.ResponsePreview()).Fill().Fit(ui.Contain)
 	})
 }
 
@@ -130,7 +131,7 @@ func csvView(c *ui.Context, p colors, text string, tabs bool) {
 	}
 	rows = slicesDeleteEmpty(rows)
 	if len(rows) == 0 {
-		emptyState(c, p, "Empty")
+		emptyState(c, p, locales.Empty())
 		return
 	}
 	width := 0
@@ -167,8 +168,8 @@ func (a *App) binaryView(c *ui.Context, p colors, response engine.Object, kind s
 	if kind == "" {
 		kind = "unknown"
 	}
-	banner(c, p, "Content type "+kind+" cannot be previewed", func() {
-		if ui.Button(c, "Save to File").FontSize(12).Clicked() {
+	banner(c, p, locales.ContentTypeContentTypeCannotBePreviewed(kind), func() {
+		if ui.Button(c, locales.SaveToFile()).FontSize(12).Clicked() {
 			a.saveResponse(response)
 		}
 	})
@@ -241,11 +242,11 @@ func parseMultipart(body []byte, boundary string) ([]multipartPart, error) {
 func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body []byte, boundary string) {
 	parts, err := parseMultipart(body, boundary)
 	if err != nil && len(parts) == 0 {
-		banner(c, p, "Failed to parse multipart data: "+err.Error(), func() {})
+		banner(c, p, locales.FailedToParseMultipartDataError(err.Error()), func() {})
 		return
 	}
 	if len(parts) == 0 {
-		banner(c, p, "No multipart parts found", func() {})
+		banner(c, p, locales.NoMultipartPartsFound(), func() {})
 		return
 	}
 	d.PartIndex = max(0, min(d.PartIndex, len(parts)-1))
@@ -254,7 +255,7 @@ func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body [
 			for i, part := range parts {
 				label := part.name
 				if label == "" {
-					label = "Part " + string(rune('1'+i))
+					label = locales.PartIndex(string(rune('1' + i)))
 				}
 				if navItem(c, p, label, i == d.PartIndex).Key(i).Clicked() {
 					d.PartIndex = i
@@ -275,7 +276,7 @@ func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body [
 			case strings.Contains(part.kind, "html"):
 				a.webPreview(c, p, partKey, &previewItem{kind: "html", mimeType: cmp.Or(part.header.Get("Content-Type"), "text/html"), open: bytesPreview(part.data)}, true)
 			case !utf8.Valid(part.data):
-				banner(c, p, "Content type "+part.kind+" cannot be previewed", func() {})
+				banner(c, p, locales.ContentTypeContentTypeCannotBePreviewed(part.kind), func() {})
 			default:
 				language := ""
 				if strings.Contains(part.kind, "json") || jsontext.Value(part.data).IsValid() {
@@ -295,14 +296,14 @@ func slicesClone(b []byte) []byte { return append([]byte(nil), b...) }
 func (a *App) eventStreamView(c *ui.Context, p colors, d *Draft, raw string) {
 	events := engine.ParseSSE(raw)
 	if len(events) == 0 {
-		emptyState(c, p, "No events")
+		emptyState(c, p, locales.NoEvents())
 		return
 	}
 	d.EventIndex = max(0, min(d.EventIndex, len(events)-1))
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		ui.Scroll(c).Height(220).Shrink(0).Padding(4, 12, 4, 0).Gap(1).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 			for i, event := range events {
-				row := ui.ButtonBase(c).Key(i).Label("Event "+event.ID).FillWidth().Height(28).Padding(0, 8).Gap(8).Radius(4).Justify(ui.Start)
+				row := ui.ButtonBase(c).Key(i).Label(locales.EventId(event.ID)).FillWidth().Height(28).Padding(0, 8).Gap(8).Radius(4).Justify(ui.Start)
 				if i == d.EventIndex {
 					row.Background(p.border.Alpha(.55))
 				} else if row.Hovered() {

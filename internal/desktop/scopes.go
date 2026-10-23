@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 const (
@@ -52,7 +53,7 @@ func (a *App) scopeDialog(c *ui.Context, p colors) {
 				}
 			}
 			ui.Spacer(c)
-			if iconButton(c, "close", "Close dialog").Clicked() {
+			if iconButton(c, "close", locales.CloseDialog()).Clicked() {
 				a.dialogOpen = false
 			}
 		})
@@ -60,11 +61,11 @@ func (a *App) scopeDialog(c *ui.Context, p colors) {
 			env := a.folderEnvironment(d.ID)
 			ui.Column(c).Width(150).Shrink(0).Gap(2).Children(func() {
 				for i, item := range []tabItem{
-					{Label: "General"},
-					{Label: "Settings", Badge: badgeCount(overriddenSettings(d))},
-					{Label: "Headers", Badge: badgeCount(a.headerCount(d))},
+					{Label: locales.General()},
+					{Label: locales.Settings(), Badge: badgeCount(overriddenSettings(d))},
+					{Label: locales.Headers(), Badge: badgeCount(a.headerCount(d))},
 					{Label: authTabLabel(a, d.AuthType), Menu: func(m *ui.Menu) { a.authTypeMenu(m, d) }},
-					{Label: "Variables", Badge: badgeCount(len(oslice(env, "variables")))},
+					{Label: locales.Variables(), Badge: badgeCount(len(oslice(env, "variables")))},
 				} {
 					tab := navItem(c, p, item.Label, d.Tab == i).Key(i)
 					if d.Tab == i && item.Menu != nil {
@@ -122,8 +123,8 @@ func (a *App) saveFolderDraft(d *Draft) {
 
 func (a *App) folderGeneral(c *ui.Context, p colors, d *Draft) {
 	ui.Column(c).Grow(1).MinHeight(0).Gap(12).Children(func() {
-		labeled(c, p, "Folder Name", func() {
-			if ui.TextInput(c, &d.Name).Label("Folder Name").FillWidth().Changed() {
+		labeled(c, p, locales.FolderName(), func() {
+			if ui.TextInput(c, &d.Name).Label(locales.FolderName()).FillWidth().Changed() {
 				d.Dirty = true
 			}
 		})
@@ -131,13 +132,13 @@ func (a *App) folderGeneral(c *ui.Context, p colors, d *Draft) {
 			a.markdownEditor(c, p, d, "Folder description")
 		})
 		ui.Row(c).Gap(8).Children(func() {
-			if ui.Button(c, "Delete Folder").FontSize(12).TextColor(p.red).Border(1, p.red.Alpha(.5)).Clicked() {
-				a.prompt("delete", "Delete "+s(d.Model, "name"), s(d.Model, "name"), d.ID)
+			if ui.Button(c, locales.DeleteFolder()).FontSize(12).TextColor(p.red).Border(1, p.red.Alpha(.5)).Clicked() {
+				a.prompt("delete", locales.DeleteName(s(d.Model, "name")), s(d.Model, "name"), d.ID)
 			}
 			ui.Spacer(c)
 			ui.Row(c).Gap(2).Padding(2, 4, 2, 8).Radius(4).Background(p.border.Alpha(.35)).Children(func() {
 				ui.Text(c, d.ID).Font("monospace").FontSize(12).TextColor(p.accent).Selectable()
-				if smallIconButton(c, "copy", "Copy folder ID").Clicked() {
+				if smallIconButton(c, "copy", locales.CopyFolderID()).Clicked() {
 					c.WriteClipboard(d.ID)
 				}
 			})
@@ -148,8 +149,8 @@ func (a *App) folderGeneral(c *ui.Context, p colors, d *Draft) {
 func (a *App) folderVariables(c *ui.Context, p colors, d *Draft, env engine.Object) {
 	if env == nil {
 		ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
-			ui.Text(c, "Override Variables for requests within this folder.").FontSize(13).TextColor(p.muted)
-			if ui.Button(c, "Create Folder Environment").FontSize(12).Clicked() {
+			ui.Text(c, locales.OverrideVariablesForRequestsWithinThis()).FontSize(13).TextColor(p.muted)
+			if ui.Button(c, locales.CreateFolderEnvironment()).FontSize(12).Clicked() {
 				folder, workspace := d.ID, s(d.Model, "workspaceId")
 				a.run(func() (func(), error) {
 					saved, err := a.Engine.Save(a.ctx, engine.Object{"model": "environment", "workspaceId": workspace, "parentModel": "folder", "parentId": folder, "name": "Folder Environment"})

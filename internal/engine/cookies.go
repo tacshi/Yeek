@@ -18,6 +18,8 @@ import (
 
 	"golang.org/x/net/idna"
 	"golang.org/x/net/publicsuffix"
+
+	"yeek/locales"
 )
 
 func CookieDomain(cookie Object) (string, bool) {
@@ -34,22 +36,22 @@ func CookieExpiry(cookie Object) (time.Time, error) {
 	}
 	raw := str(obj(cookie, "expires"), "AtUtc")
 	if raw == "" {
-		return time.Time{}, errors.New("cookie expiration is invalid")
+		return time.Time{}, errors.New(locales.CookieExpirationIsInvalid())
 	}
 	if seconds, err := strconv.ParseInt(raw, 10, 64); err == nil {
 		value := time.Unix(seconds, 0).UTC()
 		if value.Year() < 1601 || value.Year() > 9999 {
-			return time.Time{}, errors.New("cookie expiration is outside the supported date range")
+			return time.Time{}, errors.New(locales.CookieExpirationIsOutsideTheSupported())
 		}
 		return value, nil
 	}
 	if value, err := time.Parse(time.RFC3339Nano, raw); err == nil {
 		if value.Year() < 1601 {
-			return time.Time{}, errors.New("cookie expiration is outside the supported date range")
+			return time.Time{}, errors.New(locales.CookieExpirationIsOutsideTheSupported())
 		}
 		return value, nil
 	}
-	return time.Time{}, errors.New("cookie expiration must be Unix seconds or an RFC 3339 date")
+	return time.Time{}, errors.New(locales.CookieExpirationMustBeUnixSeconds())
 }
 
 func cookieHost(host string) (string, error) {
@@ -61,11 +63,11 @@ func cookieHost(host string) (string, error) {
 		return ip.String(), nil
 	}
 	if host == "" || strings.ContainsAny(host, "/:?#@\\ \t\r\n") {
-		return "", errors.New("enter a hostname without a scheme, port, or path")
+		return "", errors.New(locales.EnterAHostnameWithoutAScheme())
 	}
 	ascii, err := idna.Lookup.ToASCII(host)
 	if err != nil {
-		return "", errors.New("cookie domain is not a valid hostname")
+		return "", errors.New(locales.CookieDomainIsNotAValid())
 	}
 	return strings.ToLower(ascii), nil
 }
@@ -97,7 +99,7 @@ func NormalizeCookie(cookie Object) (Object, error) {
 	next := clone(cookie)
 	name := strings.TrimSpace(str(cookie, "name"))
 	if name == "" {
-		return nil, errors.New("enter a cookie name")
+		return nil, errors.New(locales.EnterACookieName())
 	}
 	value := str(cookie, "value")
 	host, subdomains := CookieDomain(cookie)
@@ -117,19 +119,19 @@ func NormalizeCookie(cookie Object) (Object, error) {
 		path = "/"
 	}
 	if !strings.HasPrefix(path, "/") {
-		return nil, errors.New("cookie path must start with /")
+		return nil, errors.New(locales.CookiePathMustStartWith())
 	}
 	check := &http.Cookie{Name: name, Value: value, Path: path} // #nosec G124 -- validates syntax only; this cookie is never sent or issued.
 	if err := check.Valid(); err != nil {
-		return nil, fmt.Errorf("invalid cookie: %w", err)
+		return nil, fmt.Errorf("%s: %w", locales.InvalidCookie(), err)
 	}
 	if subdomains {
 		check.Domain = host
 		if err := check.Valid(); err != nil {
-			return nil, fmt.Errorf("invalid cookie domain: %w", err)
+			return nil, fmt.Errorf("%s: %w", locales.InvalidCookieDomain(), err)
 		}
 		if suffix, icann := publicsuffix.PublicSuffix(host); icann && suffix == host {
-			return nil, errors.New("cookie domain cannot be a public suffix")
+			return nil, errors.New(locales.CookieDomainCannotBeAPublic())
 		}
 	}
 	expires, err := CookieExpiry(cookie)
@@ -149,7 +151,7 @@ func NormalizeCookie(cookie Object) (Object, error) {
 	next["secure"], next["httpOnly"] = boolean(cookie, "secure"), boolean(cookie, "httpOnly")
 	sameSite := str(cookie, "sameSite")
 	if !slices.Contains([]string{"", "Lax", "Strict", "None"}, sameSite) {
-		return nil, errors.New("same-site must be Lax, Strict, None, or unspecified")
+		return nil, errors.New(locales.SameSiteMustBeLaxStrict())
 	}
 	next["sameSite"] = nil
 	if sameSite != "" {
@@ -185,7 +187,7 @@ func (e *Engine) changeCookies(ctx context.Context, jarID string, apply func([]a
 			return err
 		}
 		if str(jar, "model") != "cookie_jar" {
-			return errors.New("select a cookie jar")
+			return errors.New(locales.SelectACookieJarLower())
 		}
 		jar["cookies"] = apply(slices.Clone(array(jar, "cookies")))
 		result, err = tx.upsert(ctx, jar)
@@ -200,7 +202,7 @@ func (e *Engine) DeleteCookieJar(ctx context.Context, id string) error {
 			return err
 		}
 		if str(jar, "model") != "cookie_jar" {
-			return errors.New("select a cookie jar")
+			return errors.New(locales.SelectACookieJarLower())
 		}
 		all, err := tx.all(ctx)
 		if err != nil {
@@ -213,7 +215,7 @@ func (e *Engine) DeleteCookieJar(ctx context.Context, id string) error {
 			}
 		}
 		if count < 2 {
-			return errors.New("create another cookie jar before deleting the last one")
+			return errors.New(locales.CreateAnotherCookieJarBeforeDeleting())
 		}
 		return tx.delete(ctx, id)
 	})
@@ -235,7 +237,7 @@ func (e *Engine) selectedCookieJar(ctx context.Context, workspace, id string) (O
 		return nil, err
 	}
 	if str(jar, "model") != "cookie_jar" || str(jar, "workspaceId") != workspace {
-		return nil, errors.New("select a cookie jar in this workspace")
+		return nil, errors.New(locales.SelectACookieJarInThis())
 	}
 	return jar, nil
 }

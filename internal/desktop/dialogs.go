@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) dialogs(c *ui.Context, p colors) {
@@ -22,7 +23,7 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 		if a.dialogTitle != "" {
 			ui.Row(c).Padding(16, 20).Gap(8).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 				ui.Text(c, a.dialogTitle).FontSize(16).FontWeight(600).Grow(1)
-				if !locked && iconButton(c, "close", "Close dialog").Clicked() {
+				if !locked && iconButton(c, "close", locales.CloseDialog()).Clicked() {
 					a.dialogOpen = false
 				}
 			})
@@ -34,25 +35,25 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			a.multipartPartDialog(c, p)
 		case "workspace", "folder", "rename", "cookie_jar":
 			ui.Column(c).Padding(20).Gap(16).Children(func() {
-				entry := ui.TextInput(c, &a.dialogValue).Label("Name").Placeholder("Name").AutoFocus().FillWidth()
+				entry := ui.TextInput(c, &a.dialogValue).Label(locales.NameTitle()).Placeholder(locales.NameTitle()).AutoFocus().FillWidth()
 				submit := entry.Submitted()
 				ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.dialogOpen = false
 					}
-					if ui.PrimaryButton(c, "Save").Disabled(strings.TrimSpace(a.dialogValue) == "").Clicked() || submit {
+					if ui.PrimaryButton(c, locales.Save()).Disabled(strings.TrimSpace(a.dialogValue) == "").Clicked() || submit {
 						a.confirmName()
 					}
 				})
 			})
 		case "delete":
 			ui.Column(c).Padding(20).Gap(18).Children(func() {
-				ui.Text(c, "Delete “"+a.dialogValue+"” and its contents?")
+				ui.Text(c, locales.DeleteNameAndItsContents(a.dialogValue))
 				ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.dialogOpen = false
 					}
-					if ui.PrimaryButton(c, "Delete").Background(p.red).Clicked() {
+					if ui.PrimaryButton(c, locales.Delete()).Background(p.red).Clicked() {
 						deletedEnvironment := s(a.models[a.dialogID], "model") == "environment"
 						if a.dialogID == a.environment {
 							a.environment = ""
@@ -75,12 +76,12 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			ui.Column(c).Padding(20).Gap(14).Children(func() {
 				ui.TextArea(c, &a.dialogValue).Label(a.dialogTitle).Height(280).Font("monospace").FontSize(12).AutoFocus()
 				ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.dialogOpen = false
 					}
-					label := "Save"
+					label := locales.Save()
 					if a.dialog == "curl" {
-						label = "Import"
+						label = locales.Import()
 					}
 					if ui.PrimaryButton(c, label).Clicked() {
 						if a.dialog == "curl" {
@@ -122,12 +123,12 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			a.cookiesDialog(c, p)
 		case "delete_cookie_jar":
 			ui.Column(c).Padding(20).Gap(16).Children(func() {
-				ui.Text(c, "Delete “"+a.dialogValue+"” and its cookies?")
+				ui.Text(c, locales.DeleteNameAndItsCookies(a.dialogValue))
 				ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.dialogOpen = false
 					}
-					if ui.PrimaryButton(c, "Delete Jar").Background(p.red).Clicked() {
+					if ui.PrimaryButton(c, locales.DeleteJar()).Background(p.red).Clicked() {
 						a.deleteCookieJar(a.dialogID)
 						a.dialogOpen = false
 					}
@@ -164,7 +165,7 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			ui.Scroll(c).MaxHeight(520).Padding(14, 22).Gap(10).Children(func() {
 				for _, h := range hotkeys {
 					ui.Row(c).Key(h.action).Gap(60).Children(func() {
-						ui.Text(c, h.label).Grow(1)
+						ui.Text(c, h.label()).Grow(1)
 						ui.Text(c, a.hotkeyText(h.action)).Font("monospace").TextColor(p.muted)
 					})
 				}
@@ -190,14 +191,14 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 		case "encryption_key":
 			ui.Column(c).Padding(22).Gap(15).Children(func() {
 				ui.Text(c, a.dialogValue).Font("monospace").FontSize(13).Selectable()
-				if ui.Button(c, "Copy Key").Clicked() {
+				if ui.Button(c, locales.CopyKey()).Clicked() {
 					c.WriteClipboard(a.dialogValue)
 				}
 			})
 		case "set_encryption_key":
 			ui.Column(c).Padding(22).Gap(15).Children(func() {
-				ui.TextInput(c, &a.dialogValue).Label("Workspace encryption key").Placeholder("YK…").Password().FillWidth()
-				if ui.PrimaryButton(c, "Set Key").Clicked() {
+				ui.TextInput(c, &a.dialogValue).Label(locales.WorkspaceEncryptionKey()).Placeholder("YK…").Password().FillWidth()
+				if ui.PrimaryButton(c, locales.SetKey()).Clicked() {
 					id, value := a.dialogID, a.dialogValue
 					a.run(func() (func(), error) {
 						return func() {
@@ -298,25 +299,25 @@ func (a *App) deleteItemsDialog(c *ui.Context, p colors) {
 		switch {
 		case len(names) == 1:
 			ui.Row(c).Gap(4).Children(func() {
-				ui.Text(c, "Permanently delete")
+				ui.Text(c, locales.PermanentlyDeleteBefore())
 				ui.Text(c, names[0]).Font("monospace").FontSize(12).Padding(1, 4).Radius(3).Background(p.border.Alpha(.4)).SingleLine().Shrink(1).MinWidth(0)
-				ui.Text(c, "?")
+				ui.Text(c, locales.PermanentlyDeleteAfter())
 			})
 		case len(names) < 10:
-			ui.Text(c, "Permanently delete the following?")
+			ui.Text(c, locales.PermanentlyDeleteTheFollowing())
 			ui.Column(c).Gap(4).Children(func() {
 				for i, name := range names {
 					ui.Text(c, name).Key(i).Font("monospace").FontSize(12).Padding(1, 4).Radius(3).Background(p.border.Alpha(.4)).SingleLine()
 				}
 			})
 		default:
-			ui.Text(c, "Permanently delete all "+strings.ToLower(pluralizeCount("Item", len(names)))+"?")
+			ui.Text(c, locales.PermanentlyDeleteAllCountItems(len(names)))
 		}
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
+			if ui.Button(c, locales.Cancel()).Clicked() {
 				a.dialogOpen = false
 			}
-			if ui.PrimaryButton(c, "Delete").Background(p.red).Clicked() {
+			if ui.PrimaryButton(c, locales.Delete()).Background(p.red).Clicked() {
 				for _, id := range a.deleteIDs {
 					if !slices.ContainsFunc(a.deleteIDs, func(other string) bool { return other != id && a.hasAncestor(id, other) }) {
 						a.deleteModel(id)

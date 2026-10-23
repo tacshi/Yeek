@@ -6,8 +6,10 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"slices"
+	"strconv"
+
+	"yeek/locales"
 )
 
 type ExportOptions struct {
@@ -21,7 +23,7 @@ func (e *Engine) Export(ctx context.Context, workspace string, private bool) ([]
 
 func (e *Engine) ExportWorkspaces(ctx context.Context, options ExportOptions) ([]byte, error) {
 	if len(options.WorkspaceIDs) == 0 {
-		return nil, errors.New("select a workspace to export")
+		return nil, errors.New(locales.SelectAWorkspaceToExportLower())
 	}
 	all, err := e.Store.List(ctx, "", "")
 	if err != nil {
@@ -34,7 +36,7 @@ func (e *Engine) ExportWorkspaces(ctx context.Context, options ExportOptions) ([
 	workspaces := map[string]bool{}
 	for _, id := range options.WorkspaceIDs {
 		if str(models[id], "model") != "workspace" {
-			return nil, fmt.Errorf("workspace %q no longer exists", id)
+			return nil, errors.New(locales.WorkspaceIdNoLongerExists(strconv.Quote(id)))
 		}
 		workspaces[id] = true
 	}
@@ -54,7 +56,7 @@ func (e *Engine) ExportWorkspaces(ctx context.Context, options ExportOptions) ([
 				for parentID := str(copy, "parentId"); str(copy, "parentModel") == "environment" && parentID != ""; parentID = str(copy, "parentId") {
 					parent := models[parentID]
 					if seen[parentID] || parent == nil {
-						return nil, fmt.Errorf("%s has an invalid environment parent", str(model, "name"))
+						return nil, errors.New(locales.NameHasAnInvalidEnvironmentParent(str(model, "name")))
 					}
 					seen[parentID] = true
 					if boolean(parent, "public") {

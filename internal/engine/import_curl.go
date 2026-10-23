@@ -5,7 +5,6 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"maps"
 	"math"
 	"net/url"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"yeek/locales"
 )
 
 var (
@@ -117,7 +118,7 @@ func splitCurlCommands(raw string) []string {
 
 func ConvertCurl(raw string) ([]Object, error) {
 	if !curlCommandRE.MatchString(raw) {
-		return nil, errors.New("paste a command beginning with curl")
+		return nil, errors.New(locales.PasteACommandBeginningWithCurl())
 	}
 	var requests []Object
 	for _, command := range splitCurlCommands(raw) {
@@ -147,7 +148,7 @@ func ParseCurl(command string) (Object, error) {
 		return nil, err
 	}
 	if len(requests) == 0 {
-		return nil, errors.New("paste a command beginning with curl")
+		return nil, errors.New(locales.PasteACommandBeginningWithCurl())
 	}
 	return requests[0], nil
 }
@@ -620,7 +621,7 @@ func parseGraphQLJSONBody(mimeType, text, rawURL string) Object {
 func parseCurlForm(input string, literal bool) (Object, error) {
 	name, text, found := strings.Cut(input, "=")
 	if !found {
-		return nil, errors.New("cURL form fields need name=value")
+		return nil, errors.New(locales.CURLFormFieldsNeedNameValue())
 	}
 	field := Object{"name": name, "enabled": true}
 	if literal {
@@ -632,7 +633,7 @@ func parseCurlForm(input string, literal bool) (Object, error) {
 		text = strings.TrimPrefix(text, "@")
 	}
 	if strings.HasPrefix(text, "<") {
-		return nil, errors.New("file-backed text fields need an fs.readFile template")
+		return nil, errors.New(locales.FileBackedTextFieldsNeedAn())
 	}
 	value, rest, err := curlFormWord(text)
 	if err != nil {
@@ -647,7 +648,7 @@ func parseCurlForm(input string, literal bool) (Object, error) {
 		rest = strings.TrimPrefix(rest, ";")
 		key, after, exists := strings.Cut(rest, "=")
 		if !exists {
-			return nil, errors.New("invalid cURL form attribute")
+			return nil, errors.New(locales.InvalidCURLFormAttribute())
 		}
 		key = strings.TrimSpace(key)
 		value, tail, err := curlFormWord(after)
@@ -660,12 +661,12 @@ func parseCurlForm(input string, literal bool) (Object, error) {
 		case "type":
 			field["contentType"] = value
 		case "headers", "encoder":
-			return nil, fmt.Errorf("cURL multipart attribute %s is not supported", key)
+			return nil, errors.New(locales.CURLMultipartAttributeKeyIsNot(key))
 		default:
 			if str(field, "contentType") != "" {
 				field["contentType"] = str(field, "contentType") + "; " + key + "=" + value
 			} else {
-				return nil, fmt.Errorf("unknown cURL form attribute %s", key)
+				return nil, errors.New(locales.UnknownCURLFormAttributeKey(key))
 			}
 		}
 		rest = tail
@@ -687,13 +688,13 @@ func curlFormWord(text string) (string, string, error) {
 		if text[i] == '"' {
 			rest := strings.TrimSpace(text[i+1:])
 			if rest != "" && !strings.HasPrefix(rest, ";") {
-				return "", "", errors.New("unexpected text after quoted cURL form value")
+				return "", "", errors.New(locales.UnexpectedTextAfterQuotedCURLForm())
 			}
 			return value.String(), rest, nil
 		}
 		value.WriteByte(text[i])
 	}
-	return "", "", errors.New("cURL form value has an unfinished quote")
+	return "", "", errors.New(locales.CURLFormValueHasAnUnfinished())
 }
 
 func splitShell(s string) ([]string, error) {
@@ -705,7 +706,7 @@ func splitShell(s string) ([]string, error) {
 		switch {
 		case c == '\\':
 			if i+1 >= len(s) {
-				return nil, errors.New("cURL has an unfinished quote or escape")
+				return nil, errors.New(locales.CURLHasAnUnfinishedQuoteOr())
 			}
 			i++
 			if s[i] != '\n' {
@@ -715,7 +716,7 @@ func splitShell(s string) ([]string, error) {
 		case c == '\'':
 			end := strings.IndexByte(s[i+1:], '\'')
 			if end < 0 {
-				return nil, errors.New("cURL has an unfinished quote or escape")
+				return nil, errors.New(locales.CURLHasAnUnfinishedQuoteOr())
 			}
 			b.WriteString(s[i+1 : i+1+end])
 			i += end + 1
@@ -747,7 +748,7 @@ func splitShell(s string) ([]string, error) {
 				b.WriteByte(s[i])
 			}
 			if !closed {
-				return nil, errors.New("cURL has an unfinished quote or escape")
+				return nil, errors.New(locales.CURLHasAnUnfinishedQuoteOr())
 			}
 			started = true
 		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
@@ -832,5 +833,5 @@ func readANSIQuoted(s string, b *strings.Builder) (int, error) {
 		b.WriteByte('\\')
 		b.WriteByte(e)
 	}
-	return 0, errors.New("cURL has an unfinished quote or escape")
+	return 0, errors.New(locales.CURLHasAnUnfinishedQuoteOr())
 }

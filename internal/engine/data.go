@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
 var resourceKinds = map[string]string{"workspaces": "workspace", "environments": "environment", "folders": "folder", "httpRequests": "http_request", "grpcRequests": "grpc_request", "websocketRequests": "websocket_request"}
@@ -42,7 +44,7 @@ func ParseImport(data []byte) ([]Object, error) {
 	var root Object
 	if err := json.Unmarshal(data, &root); err != nil {
 		if err = yaml.Unmarshal(data, &root); err != nil {
-			return nil, unsupportedImport{fmt.Errorf("read collection: %w", err)}
+			return nil, unsupportedImport{fmt.Errorf("%s: %w", locales.ReadCollection(), err)}
 		}
 	}
 	if resources := obj(root, "resources"); len(resources) > 0 {
@@ -86,7 +88,7 @@ func ParseImport(data []byte) ([]Object, error) {
 	if str(root, "model") != "" {
 		return []Object{root}, nil
 	}
-	return nil, unsupportedImport{errors.New("choose a Yeek, Yaak, Postman, Insomnia, or OpenAPI collection, or paste a cURL command")}
+	return nil, unsupportedImport{errors.New(locales.ChooseAYeekPostmanInsomniaOr())}
 }
 func migrateNativeImport(resources Object) {
 	if requests, exists := resources["requests"]; exists && resources["httpRequests"] == nil {

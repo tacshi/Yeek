@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
 func (e *Engine) resolveImportReferences(ctx context.Context, data []byte, origin, workspace string) ([]byte, error) {
@@ -31,7 +33,7 @@ func (e *Engine) resolveImportReferences(ctx context.Context, data []byte, origi
 	var rewrite func(any, string, string, int) error
 	rewrite = func(value any, base, prefix string, depth int) error {
 		if depth > 128 {
-			return errors.New("OpenAPI reference nesting exceeds 128 levels")
+			return errors.New(locales.OpenAPIReferenceNestingExceeds128Levels())
 		}
 		switch v := value.(type) {
 		case map[string]any:
@@ -43,7 +45,7 @@ func (e *Engine) resolveImportReferences(ctx context.Context, data []byte, origi
 					}
 				} else {
 					if origin == "" {
-						return errors.New("external OpenAPI references need a file or URL source")
+						return errors.New(locales.ExternalOpenAPIReferencesNeedAFile())
 					}
 					location := ""
 					remote := strings.HasPrefix(base, "https://") || strings.HasPrefix(base, "http://")
@@ -58,7 +60,7 @@ func (e *Engine) resolveImportReferences(ctx context.Context, data []byte, origi
 						}
 						target := u.ResolveReference(ref)
 						if target.Scheme != "http" && target.Scheme != "https" {
-							return errors.New("remote OpenAPI references must use HTTP or HTTPS")
+							return errors.New(locales.RemoteOpenAPIReferencesMustUseHTTP())
 						}
 						location = target.String()
 					} else {
@@ -78,7 +80,7 @@ func (e *Engine) resolveImportReferences(ctx context.Context, data []byte, origi
 							}
 							rel, err := filepath.Rel(baseDir, resolved)
 							if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-								return errors.New("OpenAPI reference leaves the source directory")
+								return errors.New(locales.OpenAPIReferenceLeavesTheSourceDirectory())
 							}
 							location = resolved
 						}
@@ -86,7 +88,7 @@ func (e *Engine) resolveImportReferences(ctx context.Context, data []byte, origi
 					key, exists := loaded[location]
 					if !exists {
 						if len(loaded) >= 64 {
-							return errors.New("OpenAPI contains more than 64 external documents")
+							return errors.New(locales.OpenAPIContainsMoreThan64External())
 						}
 						key = importHash(location)[:24]
 						loaded[location] = key
@@ -99,11 +101,11 @@ func (e *Engine) resolveImportReferences(ctx context.Context, data []byte, origi
 							raw, err = readImportFile(location)
 						}
 						if err != nil {
-							return fmt.Errorf("OpenAPI reference: %w", err)
+							return fmt.Errorf("%s: %w", locales.OpenAPIReference(), err)
 						}
 						total += len(raw)
 						if total > maxImportBytes {
-							return errors.New("OpenAPI and its references exceed 64 MiB")
+							return errors.New(locales.OpenAPIAndItsReferencesExceed64())
 						}
 						var document Object
 						if json.Unmarshal(raw, &document) != nil {
@@ -172,7 +174,7 @@ func importPointer(root Object, ref string) (Object, error) {
 		return root, nil
 	}
 	if !strings.HasPrefix(ref, "#/") {
-		return nil, fmt.Errorf("OpenAPI reference %q must use a JSON Pointer", ref)
+		return nil, errors.New(locales.OpenAPIReferenceRefMustUseA(strconv.Quote(ref)))
 	}
 	fragment, err := url.PathUnescape(strings.TrimPrefix(ref, "#/"))
 	if err != nil {
@@ -187,16 +189,16 @@ func importPointer(root Object, ref string) (Object, error) {
 		case []any:
 			i, err := strconv.Atoi(key)
 			if err != nil || i < 0 || i >= len(value) || strconv.Itoa(i) != key {
-				return nil, fmt.Errorf("OpenAPI reference %q has an invalid array index", ref)
+				return nil, errors.New(locales.OpenAPIReferenceRefHasAnInvalid(strconv.Quote(ref)))
 			}
 			current = value[i]
 		default:
-			return nil, fmt.Errorf("OpenAPI reference %q does not resolve to an object", ref)
+			return nil, errors.New(locales.OpenAPIReferenceRefDoesNotResolve(strconv.Quote(ref)))
 		}
 	}
 	model, ok := current.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("OpenAPI reference %q was not found", ref)
+		return nil, errors.New(locales.OpenAPIReferenceRefWasNotFound(strconv.Quote(ref)))
 	}
 	return model, nil
 }
