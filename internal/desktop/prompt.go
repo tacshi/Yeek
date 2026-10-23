@@ -7,9 +7,9 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// valuePrompt is a pending prompt.text question from a request being sent.
 type valuePrompt struct {
 	engine.TemplatePrompt
 	value string
@@ -21,7 +21,6 @@ type valuePromptResult struct {
 	err   error
 }
 
-// templatePrompter shows a prompt.text dialog and blocks the sending goroutine until it is answered.
 func (a *App) templatePrompter(ctx context.Context, prompt engine.TemplatePrompt) (string, error) {
 	if a.Window == nil || a.Window.IsDestroyed() {
 		return "", errors.New("prompt.text needs an open Yeek window")
@@ -66,10 +65,10 @@ func (a *App) valuePromptDialog(c *ui.Context, p colors) {
 			}
 			submit := entry.Submitted()
 			ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					request.open = false
 				}
-				if ui.PrimaryButton(c, "Send").Clicked() || submit {
+				if ui.PrimaryButton(c, locales.Send()).Clicked() || submit {
 					a.finishValuePrompt(request, request.value, nil)
 				}
 			})

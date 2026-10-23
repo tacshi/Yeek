@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"unicode"
+
+	"yeek/locales"
 )
 
 func parseBruno(text string) ([]Object, error) {
@@ -57,7 +59,7 @@ func parseBruno(text string) ([]Object, error) {
 	if len(result) > 1 {
 		return result, nil
 	}
-	return nil, errors.New("bruno file contains no supported request or environment")
+	return nil, errors.New(locales.BrunoFileContainsNoSupportedRequest())
 }
 func brunoFields(text string) Object {
 	m := Object{}
@@ -92,11 +94,11 @@ func brunoBlocks(text string) (map[string]string, error) {
 		}
 		open := strings.IndexByte(text, '{')
 		if open < 0 {
-			return nil, errors.New("bruno block is missing an opening brace")
+			return nil, errors.New(locales.BrunoBlockIsMissingAnOpening())
 		}
 		name := strings.TrimSpace(text[:open])
 		if strings.IndexFunc(name, unicode.IsSpace) >= 0 {
-			return nil, errors.New("invalid Bruno block name")
+			return nil, errors.New(locales.InvalidBrunoBlockName())
 		}
 		depth := 1
 		quote := byte(0)
@@ -133,7 +135,7 @@ func brunoBlocks(text string) (map[string]string, error) {
 			}
 		}
 		if end < 0 {
-			return nil, errors.New("bruno block is missing a closing brace")
+			return nil, errors.New(locales.BrunoBlockIsMissingAClosing())
 		}
 		result[name] = strings.TrimSpace(text[open+1 : end])
 		text = text[end+1:]

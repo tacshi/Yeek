@@ -1,6 +1,5 @@
 package desktop
 
-// Palettes adapted from Yaak’s MIT-licensed theme collection.
 var builtinThemes = []themeSpec{
 	{ID: "andromeda", Name: "Andromeda", Dark: true, Colors: map[string]string{"background": "#201d30", "text": "#d5d7dd", "muted": "#9196a1", "subtle": "#6c707a", "accent": "#dc70eb", "green": "#98d147", "orange": "#fa8938", "blue": "#5cd6d6", "red": "#eb474d", "sidebar": "#1c1a29", "header": "#181523", "response": "#1c1a29"}},
 	{ID: "atom-one-dark", Name: "Atom One Dark", Dark: true, Colors: map[string]string{"background": "#282c34", "text": "#abb2bf", "muted": "#828997", "subtle": "#6a707c", "accent": "#c678dd", "green": "#98c379", "orange": "#d19a66", "blue": "#61afef", "red": "#e06c75", "sidebar": "#23272e", "header": "#1b1d23", "response": "#23272e"}},

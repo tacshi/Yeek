@@ -1,117 +1,260 @@
-<p align="center"><img src="resources/icon.png" width="128" alt="Yeek logo"></p>
+<p align="center">
+  <img src="resources/icon.png" width="128" alt="Yeek logo">
+</p>
 
-# Yeek
+<h1 align="center">Yeek</h1>
 
-Yeek is an experiment: can [MyGo](https://github.com/egoist/mygo) carry a full-featured desktop app? It rebuilds the [Yaak](https://github.com/mountain-loop/yaak) API client in Go, aiming to match Yaak's interface and behaviour, with MyGo's native UI toolkit in place of a web view.
+<p align="center">
+  A native, cross-platform API client for HTTP, GraphQL, gRPC and WebSocket, written entirely in Go.
+</p>
+
+<p align="center">
+  <a href="https://github.com/tacshi/Yeek/releases/latest"><img src="https://img.shields.io/github/v/release/tacshi/Yeek?label=release" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/tacshi/Yeek" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/Go-1.27.1%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.27.1 or newer">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey" alt="macOS and Windows">
+</p>
+
+---
+
+Yeek is a desktop API client built with [MyGo](https://github.com/egoist/mygo). Every screen is drawn by MyGo's native Go UI toolkit, including the code editor, the sidebar tree, dialogs and menus. There is no bundled browser engine, and no JavaScript runtime drives the interface. The system web view is used only to preview HTML, PDF and media responses and for OAuth sign-in, each in a sandbox. The protocol clients, template engine, importers, filesystem sync and Git integration are all plain Go.
 
 > [!NOTE]
-> Yeek is a personal experiment, not a product. It is not affiliated with or endorsed by Yaak, and it may change or break without notice.
+> Yeek is under active development. Expect frequent releases. Storage formats are kept backward compatible, but the UI and the plugin API may still change.
 
-## The experiment
+## Contents
 
-Yaak is a mature API client built with Tauri and React. Rebuilding it puts MyGo under the load of a real app rather than a demo:
-
-- **Native UI only.** Every screen is drawn by MyGo's Go UI toolkit. That includes the code editor with syntax colors, folding and find/replace, the sidebar tree, dialogs, menus, and the Markdown preview. Web views show what isn't Yeek's: OAuth sign-in shows the identity provider's login page, and the Response tab previews HTML, PDF, audio and video bodies as Yaak does, each in a sandboxed frame that can't reach Yeek. The one page of Yeek's own is the PDF viewer, a port of Yaak's that renders with PDF.js.
-- **Pure Go.** The HTTP, GraphQL, gRPC and WebSocket clients, template engine, importers, filesystem sync and Git all run in Go, so `go run .` is the whole development loop.
-- **Toolkit extensions.** Where the stock toolkit fell short, Yeek extends a vendored copy in `third_party/mygo-ui`. Its `UPSTREAM.md` records the base version and each change.
-- **Headless UI tests.** The interface is driven by MyGo's headless tester: clicking, typing and rendering screenshots without opening a window.
-- **Packaging.** `mygo build` produces the macOS app bundle; `scripts/mac-debug.sh` produces a debug build that runs beside it, `scripts/mac-release.sh` signed, notarized disk images, and `scripts/win-release.sh` (or `scripts/win-release.ps1` on Windows) Windows installers.
-
-Yaak is the reference. Workspaces, Yaak-format filesystem sync and imports are meant to stay compatible with it.
-
-## Getting started
-
-Requires Go 1.27.1 or newer.
-
-```sh
-go run .
-go tool mygo dev
-go tool mygo build -skip-dmg
-```
-
-The macOS bundle is written to `build/darwin-arm64/Yeek.app`. MyGo's build command also accepts `-platform` for other targets.
-
-`scripts/mac-debug.sh` builds `build/debug/Yeek Debug.app` on macOS: a debug build with MyGo's development features, its own bundle identifier and data directory, and the debug icon, so it runs beside a release Yeek. Pass `--open` to launch it after building.
+- [Features](#features)
+- [Installation](#installation)
+- [Building from source](#building-from-source)
+- [Usage](#usage)
+- [Plugins](#plugins)
+- [Development](#development)
+- [Releasing](#releasing)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
-Use `go run . --data-dir /path/to/data` to select a separate data directory. Workspaces, settings, and request history are stored in SQLite. Response bodies are stored beside the database. Workspace encryption keys are protected by the operating system keychain.
+### Requests
 
-The native interface includes HTTP and GraphQL requests, WebSocket sessions, unary and streaming gRPC, environments, inherited authentication and headers, cookie jars, request history, response filtering, and theme selection. Collections can be imported from Yaak, Postman, Insomnia, OpenAPI, Bruno, and cURL. Filesystem sync uses Yaak-compatible YAML files, and Git operations use a Go implementation.
+- **HTTP:** custom methods, query parameters, headers, and URL-encoded, multipart, JSON, XML, text and binary-file bodies. Multipart fields can carry files, custom filenames and their own Content-Type.
+- **GraphQL:** schema introspection, or a schema loaded from an SDL or introspection JSON file. The editor completes fields, arguments, variables and fragments, checks queries and variables as you type, and includes a documentation explorer.
+- **gRPC:** unary, client-streaming, server-streaming and bidirectional calls, with server reflection or your own `.proto` files.
+- **WebSocket:** persistent connections with a message log and a hex dump view for binary frames.
+- **Responses:** pretty and raw views, JSONPath and XPath filtering, response history with pinning, a timeline of each exchange, and previews for HTML, PDF, images, audio, video, CSV and server-sent events.
 
-Import Data takes files, folders (Bruno), and URLs, several at once, detects each one's format, and previews the changes before applying them to a new or existing workspace. Opening it again lists the workspace's linked sources, so they reimport into it with per-resource selection and conflict choices; deletions require selection. OpenAPI references resolve relative to their file or URL, with local references restricted to the selected source directory. Postman request scripts are retained as metadata and are not executed.
+### Workspaces
 
-OpenAPI 3.x and Swagger 2 imports map server environments, authentication overrides, tags, parameter styles, and JSON/XML/form examples. Export Data selects one or more workspaces; private environments are included only when selected. Exports omit request history, cookie jars, and local source links.
+- **Environments:** base and sub-environments, folder-level variables, colors, and sharable or private environments.
+- **Inheritance:** headers, authentication and request settings flow from the workspace to its folders to each request.
+- **Templates:** variables and functions such as `${[ uuid.v4() ]}`, `${[ response.body.path(...) ]}` and `${[ prompt.text(...) ]}`. Tags render as chips and open a form with a live preview.
+- **Cookies:** jars per workspace, and an editor for every cookie attribute.
+- **Encryption:** secrets are encrypted per workspace with a key kept in the operating system's keychain, and stored with the `secure()` template function.
 
-The native code editor supports syntax colors, line numbers, block folding, indentation, bracket pairing, Unicode input, find/replace, and line navigation. Use Cmd/Ctrl+F to find, Cmd/Ctrl+Alt+F to replace, and Ctrl+G to go to a line and column. Its MyGo UI extensions are kept in `third_party/mygo-ui`, with the upstream version and license recorded there.
+### Authentication
 
-Headers, parameters, form fields and variables reorder by dragging a row's handle, as in Yaak. Multipart fields support text, files, custom filenames, and per-part Content-Type through Field Options. Uploads are prepared as disk snapshots for stable retries and request history. Binary files have an optional Content-Type suggestion. The method selector supports custom methods. JSON bodies strip comments and trailing commas by default; JSON body settings can preserve them. GraphQL GET requests put their query, variables, and operation name in the URL.
+Basic, Bearer, API key, Digest, NTLM, JWT, AWS Signature V4, OAuth 1.0, and OAuth 2.0. OAuth 2.0 covers the authorization code (with PKCE), implicit, client credentials, password and refresh-token grants. Sign-in runs in a dedicated window or in the system browser.
 
-Type a variable or function name, or press Ctrl+Space, for template suggestions in request fields and bodies. As in Yaak, template tags show as chips that the caret steps over and Backspace deletes whole. Clicking a function's chip opens its form, whose arguments take tags too, with a live Rendered Preview. Clicking a variable's chip opens the environment that has it, or adds the variable to the active environment if none does. Previews evaluate functions as Yaak's do: a prompt previews as empty, and a response function sends its request in a preview only when its send setting calls for it (`always` acts as `smart` there).
+### Networking
 
-`prompt.text` asks for a value when the request is sent; cancelling the dialog cancels the request. Answers can be remembered for the session or for a number of seconds. Remembered answers are kept in memory only and can be cleared from Settings → Forget Prompted Values.
+Client certificates (PEM, encrypted PKCS#8, PFX/PKCS#12) scoped by host and port, extra certificate authorities, DNS overrides, and HTTP, HTTPS and SOCKS5 proxies with authentication and bypass rules.
 
-A folder's context menu has Send All, which sends its HTTP requests and those of its subfolders one at a time in sidebar order.
+### Import, export and sync
 
-GraphQL editors complete schema fields, arguments, input types, variables, and fragments, and show query and variable errors. Use the Schema menu to control automatic introspection or load an SDL or introspection JSON file. Saved schemas remain available after restarting the app. The operation selector controls which named operation is sent.
+- **Import:** Postman, Insomnia, OpenAPI 3.x, Swagger 2.0, Bruno, cURL commands, and Yeek exports. Imports are previewed before they apply, and a linked source can be imported again with per-resource selection and conflict resolution.
+- **Export:** one or more workspaces as JSON.
+- **Filesystem sync:** keeps a workspace in a directory as one YAML file per resource, ready to commit.
+- **Git:** commit, push, pull, branch, merge, view history, and restore files, without leaving the app.
 
-The cookie menu selects a jar for the current workspace and opens its editor. Cookies can be filtered, created, edited, or deleted with their domain, path, expiry, and security attributes. Response cookie views include redirect exchanges. Cookie updates from requests preserve unrelated edits made while those requests are running.
+### Also
 
-Settings → Certificates supports PEM keys, encrypted PKCS#8 keys, and PFX/PKCS#12 files, scoped to a host and optional port. Workspace settings provide DNS overrides and additional PEM/DER certificate authorities. Custom HTTP, HTTPS, and SOCKS5 proxies support authentication and bypass rules; gRPC uses the same proxy and DNS configuration. Automatic proxy mode reads the environment proxy variables.
+- **Command palette:** quick switching between requests, environments and workspaces.
+- **Keyboard shortcuts:** every shortcut can be remapped.
+- **Themes:** built-in light and dark themes, themes from plugins, and your own font choices.
+- **Languages:** English, Simplified Chinese (简体中文), Japanese (日本語) and Korean (한국어).
+- **AI agents:** a built-in [Model Context Protocol](https://modelcontextprotocol.io) server lets coding agents such as Claude Code, Codex and Cursor read, edit and send your requests.
+- **Updates:** automatic updates, signed and delivered from GitHub Releases.
 
-OAuth supports authorization code, implicit, client credentials, password, and refresh-token grants. The native auth editor configures PKCE, client assertions, token selection, and custom authorization/token/refresh parameters. Sign-in can use a MyGo-managed provider window or the system browser with a loopback callback. Token requests use the workspace network configuration. Cached tokens refresh when expired and are encrypted separately from collection data; explicit tokens and credentials entered in request configuration remain part of exports. Request history can contain sent authentication headers.
+## Installation
 
-## Go plugins
+Download the latest release from the [Releases page](https://github.com/tacshi/Yeek/releases/latest).
 
-A plugin is a Go source file exporting a `Plugin` variable of type `plugin.Definition`. Load it from Settings → Plugins. The API is in [plugin/plugin.go](plugin/plugin.go); plugins can contribute template functions, authentication, request hooks, actions, importers, response filters, and themes.
+| Platform | File |
+| --- | --- |
+| macOS (Apple silicon) | `Yeek.<version>.arm64.dmg` |
+| macOS (Intel) | `Yeek.<version>.amd64.dmg` |
+| macOS (universal) | `Yeek.<version>.dmg` |
+| Windows (x64) | `Yeek.Setup.<version>.amd64.exe` |
+| Windows (ARM64) | `Yeek.Setup.<version>.arm64.exe` |
+
+macOS builds are signed and notarized. The Windows installers install for the current user. They are not code-signed yet, so SmartScreen may ask you to confirm before running them. On both platforms Yeek updates itself.
+
+## Building from source
+
+Requirements:
+
+- Go 1.27.1 or newer
+- Git, for Git sync features at runtime
+
+```sh
+git clone https://github.com/tacshi/Yeek.git
+cd Yeek
+go run .
+```
+
+Yeek builds without cgo. To produce an app bundle:
+
+```sh
+go tool mygo build -skip-dmg   # writes build/darwin-arm64/Yeek.app on Apple silicon
+```
+
+`go tool mygo build` also accepts `-platform` to build for other targets. During development, `go tool mygo dev` rebuilds and relaunches the app as files change.
+
+## Usage
+
+### Data directory
+
+Workspaces, settings and request history are stored in SQLite in the platform's application data directory. Response bodies are stored next to it. To keep a separate set of data, for example for testing, start Yeek with another directory:
+
+```sh
+go run . --data-dir /path/to/data
+```
+
+### Language
+
+Yeek follows the system language by default. To pick another one, open **Settings → Interface → Language**.
+
+### Keyboard shortcuts
+
+| Action | macOS | Windows |
+| --- | --- | --- |
+| Send request | `⌘ ↩` | `Ctrl+Enter` |
+| Command palette | `⌘ K` | `Ctrl+K` |
+| New request | `⌘ N` | `Ctrl+N` |
+| Switch request | `⌘ P` | `Ctrl+P` |
+| Edit environments | `⌘ ⇧ E` | `Ctrl+Shift+E` |
+| Focus URL | `⌘ L` | `Ctrl+L` |
+| Find / replace in editor | `⌘ F` / `⌘ ⌥ F` | `Ctrl+F` / `Ctrl+Alt+F` |
+| Go to line | `⌃ G` | `Ctrl+G` |
+| Settings | `⌘ ,` | `Ctrl+,` |
+
+**Settings → Shortcuts** lists every shortcut and lets you remap them.
+
+### Connecting AI agents
+
+Turn on **Settings → Agents → Enable MCP server**. While Yeek is open, it then serves its tools at `http://127.0.0.1:64343/mcp`. The same page shows the setup snippet and access token for Claude Code, Codex, Cursor, VS Code and other MCP clients.
+
+## Plugins
+
+Plugins are Go source files that Yeek loads at runtime. A plugin exports a `Plugin` variable of type `plugin.Definition`. It can contribute template functions, authentication types, request and response hooks, actions, importers, response filters and themes. The full API is in [`plugin/plugin.go`](plugin/plugin.go).
 
 ```go
 package extension
 
 import (
-    "strings"
-    "yeek/plugin"
+	"strings"
+
+	"yeek/plugin"
 )
 
 var Plugin = plugin.Definition{
-    Name: "Text Tools",
-    Version: "1.0.0",
-    Templates: []plugin.Template{{
-        Name: "text.upper",
-        Fields: []plugin.Field{{Name: "value", Label: "Value"}},
-        Run: func(ctx plugin.Context, args map[string]string) (string, error) {
-            return strings.ToUpper(args["value"]), nil
-        },
-    }},
+	Name:    "Text Tools",
+	Version: "1.0.0",
+	Templates: []plugin.Template{{
+		Name:        "text.upper",
+		Description: "Convert text to upper case",
+		Fields:      []plugin.Field{{Name: "value", Label: "Value"}},
+		Run: func(ctx plugin.Context, args map[string]string) (string, error) {
+			return strings.ToUpper(args["value"]), nil
+		},
+	}},
 }
 ```
 
-The function can then be used as `${[ text.upper(value='hello') ]}` in a request or environment variable.
+Load the file from **Settings → Plugins**, then use the function anywhere a template is accepted:
+
+```text
+${[ text.upper(value='hello') ]}
+```
+
+> [!WARNING]
+> Plugins run with the same access to your files and network as Yeek itself. Only load plugins you trust.
 
 ## Development
 
+### Project layout
+
+| Path | Contents |
+| --- | --- |
+| `main.go` | Application entry point, menus and window management |
+| `internal/desktop` | The user interface: views, dialogs, editors and settings |
+| `internal/engine` | Storage, protocol clients, templates, auth, importers, sync and Git |
+| `internal/filter` | JSONPath and XPath response filtering |
+| `internal/mcp` | The Model Context Protocol server |
+| `plugin` | The public plugin API |
+| `locales` | Translation catalogs; `catalog_gen.go` is generated from them |
+| `cmd/fixture` | A local test server for every supported protocol |
+| `cmd/icon` | Generates the app icons |
+| `third_party` | Vendored MyGo UI extensions, PDF.js, and third-party licenses |
+
+### Testing and checks
+
 ```sh
-go test ./...
-make check   # gofmt, golangci-lint, govulncheck and gosec
-make clean   # remove build/ and the binaries go build leaves
+go test ./...   # unit tests and headless UI tests
+make check      # gofmt, golangci-lint, govulncheck and gosec
+make clean      # remove build output
 ```
 
-`go run ./cmd/fixture` starts loopback HTTP, cookie, WebSocket, SSE, GraphQL, image, CSV, and gRPC endpoints for native interface checks. `go run ./cmd/icon` regenerates the app icon, the Yeek mark (a Y in curly braces); `-variant debug` draws the debug build's pink-on-black icon.
+UI tests run against MyGo's headless tester. They click, type and render without opening a window, so they run wherever `go test` does.
 
-Add `-tls-dir /path/to/test-keys` to the fixture command to generate synthetic certificates and enable the mTLS endpoint on port 9842. The generated client PFX uses the passphrase `fixture-pass`.
+### Local test server
+
+```sh
+go run ./cmd/fixture
+```
+
+This starts loopback endpoints for HTTP, cookies, redirects, WebSocket, server-sent events, GraphQL, images, CSV and gRPC (ports 9840 and 9841). Add `-tls-dir /path/to/keys` to generate throwaway certificates and serve an mTLS endpoint on port 9842. The generated client PFX uses the passphrase `fixture-pass`.
+
+### Translations
+
+User-facing text lives in `locales/<language>.json`, with English (`en.json`) as the source. After you edit a catalog, regenerate the accessors and check the catalogs:
+
+```sh
+go tool mygo generate
+go tool mygo i18n check
+```
+
+To add a language, add a catalog named after its BCP 47 tag, for example `locales/de.json`.
+
+### Debug builds
+
+On macOS, `scripts/mac-debug.sh` builds `build/debug/Yeek Debug.app`. It has its own bundle identifier, data directory and icon, so it runs alongside a release install. Pass `--open` to launch it after the build.
 
 ## Releasing
 
-Yeek updates itself from the GitHub releases of `tacshi/Yeek`, which MyGo signs with the update key from `go tool mygo keygen` (its public half is `updates.publicKey` in `mygo.json`). Releases are built on a Mac.
+Maintainers publish releases from a Mac.
 
-`scripts/mac-release.sh [version]` builds signed, notarized disk images into `build/mac-release`: `Yeek-<version>-arm64.dmg`, `-x64.dmg` and `-universal.dmg`. It needs `DEVELOPER_ID_APPLICATION`, the Developer ID Application identity, and a `notarytool` keychain profile named `Yeek` (`YEEK_NOTARY_PROFILE` names another). `--arch` picks some of the images, and `--skip-notarize` skips Apple's notary service.
+| Script | Purpose |
+| --- | --- |
+| `scripts/mac-release.sh [version]` | Signed, notarized macOS disk images (arm64, x64, universal). Requires `DEVELOPER_ID_APPLICATION` and a `notarytool` keychain profile (`Yeek` by default, or set `YEEK_NOTARY_PROFILE`). |
+| `scripts/win-release.sh [version]` | Windows installers for x64 and ARM64, cross-built with NSIS (`brew install makensis`). `scripts/win-release.ps1` does the same on Windows. |
+| `scripts/publish.sh <version>` | Builds both platforms, uploads to a draft release, tags the commit and publishes. Notes come from `release-notes/Yeek-<version>.md`, or are drafted from the commits since the last tag. |
 
-`scripts/win-release.sh [version]` cross-builds the Windows installers into `build/windows-release`: `Yeek-<version>-x64-setup.exe` and `-arm64-setup.exe`, which install for the current user so the app can update itself. It needs NSIS (`brew install makensis`). On Windows, `scripts/win-release.ps1 [version]` builds the same installers; MyGo downloads NSIS when it isn't installed. The installers aren't code signed, so SmartScreen warns about them.
+Updates are signed with the key from `go tool mygo keygen`. Its public half is `updates.publicKey` in `mygo.json`.
 
-`scripts/publish.sh <version>` publishes a release from `main`. Its notes come from `release-notes/Yeek-<version>.md` when that file exists. Otherwise the script drafts them from the commits since the last `v*` tag and asks before publishing: `y` publishes, `e` opens them in `$EDITOR`, anything else aborts. It runs both build scripts, which upload to a draft release, then tags the commit and publishes the release. `--no-upload` builds without publishing, and `--skip-mac` or `--skip-windows` leaves a platform out. `mygo.json` keeps its version: the scripts hand the version and notes to the builds for the run only.
+## Contributing
+
+Bug reports, feature requests and pull requests are welcome. [Open an issue](https://github.com/tacshi/Yeek/issues) to discuss larger changes before starting on them.
+
+Before opening a pull request:
+
+1. Run `go test ./...` and `make check`.
+2. Add tests for behavior changes. UI changes can be tested headlessly.
+3. Put new user-facing text in `locales/en.json`, and add translations where you can.
 
 ## License
 
 Yeek is released under the [MIT License](LICENSE).
 
-It builds on [MyGo](https://github.com/egoist/mygo) (MIT) and adapts model conventions and theme palettes from [Yaak](https://github.com/mountain-loop/yaak) (MIT). Their notices are in `third_party/NOTICE`, `third_party/MyGo-LICENSE` and `third_party/Yaak-LICENSE`, and the licenses of other dependencies are in `third_party/DEPENDENCY_LICENSES.txt`. All of these ship inside the app.
+It is built on [MyGo](https://github.com/egoist/mygo) (MIT). Notices and licenses for the third-party code it includes are in [`third_party/`](third_party), and the licenses of its Go dependencies are in [`third_party/DEPENDENCY_LICENSES.txt`](third_party/DEPENDENCY_LICENSES.txt). All of them ship inside the app.

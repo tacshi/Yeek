@@ -7,16 +7,13 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"github.com/vektah/gqlparser/v2/ast"
+	"yeek/locales"
 )
 
-// graphQLDocsOpen reports whether a GraphQL request shows Yaak's
-// documentation explorer beside it.
 func (a *App) graphQLDocsOpen(d *Draft) bool {
 	return d != nil && d.BodyType == "graphql" && a.docsTrail[d.ID] != nil && a.graphQLIndex(d) != nil
 }
 
-// openGraphQLDocs opens the explorer of a request, at a type when one is
-// named.
 func (a *App) openGraphQLDocs(id, typ string) {
 	if a.docsTrail == nil {
 		a.docsTrail = map[string][]string{}
@@ -30,8 +27,6 @@ func (a *App) openGraphQLDocs(id, typ string) {
 
 func (a *App) closeGraphQLDocs(id string) { delete(a.docsTrail, id) }
 
-// graphQLDocsPane is Yaak's GraphQLDocsExplorer: the types it went through,
-// with a search, over the root types or the type it is at.
 func (a *App) graphQLDocsPane(c *ui.Context, p colors, d *Draft) {
 	index := a.graphQLIndex(d)
 	schema := index.Schema
@@ -44,7 +39,6 @@ func (a *App) graphQLDocsPane(c *ui.Context, p colors, d *Draft) {
 	}
 	ui.Column(c).Fill().Padding(12, 12, 12, 0).Children(func() {
 		ui.Column(c).Fill().Radius(8).Children(func() {
-			// The header: where the explorer is, a search, and close.
 			ui.Row(c).Height(40).Shrink(0).Padding(0, 4, 0, 12).Gap(6).Children(func() {
 				icon(c, "book").FontSize(14).TextColor(p.muted)
 				ui.Row(c).Gap(6).Shrink(1).MinWidth(0).Children(func() {
@@ -56,15 +50,15 @@ func (a *App) graphQLDocsPane(c *ui.Context, p colors, d *Draft) {
 							ui.Text(c, name).FontSize(13).TextColor(p.muted).SingleLine()
 							continue
 						}
-						link := ui.ButtonBase(c).Key(i).Label("Go to " + name)
+						link := ui.ButtonBase(c).Key(i).Label(locales.GoToName(name))
 						link.Children(func() { ui.Text(c, name).FontSize(13).TextColor(p.notice).SingleLine() })
 						if link.Clicked() {
 							a.docsTrail[d.ID] = slices.Clone(trail[:i+1])
 						}
 					}
 				})
-				ui.TextInput(c, &a.docsSearch).Label("Search GraphQL schema").Placeholder("Search").Grow(1).MinWidth(60).Height(26).FontSize(12)
-				if smallIconButton(c, "close", "Close documentation explorer").Clicked() {
+				ui.TextInput(c, &a.docsSearch).Label(locales.SearchGraphQLSchema()).Placeholder(locales.Search()).Grow(1).MinWidth(60).Height(26).FontSize(12)
+				if smallIconButton(c, "close", locales.CloseDocumentationExplorer()).Clicked() {
 					a.closeGraphQLDocs(d.ID)
 				}
 			})
@@ -80,7 +74,6 @@ func (a *App) graphQLDocsPane(c *ui.Context, p colors, d *Draft) {
 				a.graphQLDocsType(c, p, d, trail[len(trail)-1], visit)
 			})
 		}).Draw(func(pt *ui.Painter, r ui.Rect) {
-			// A dashed border, as Yaak's explorer has.
 			for x := r.X; x < r.X+r.W; x += 6 {
 				pt.Fill(ui.Rect{X: x, Y: r.Y, W: 3, H: 1}, p.border, 0)
 				pt.Fill(ui.Rect{X: x, Y: r.Y + r.H - 1, W: 3, H: 1}, p.border, 0)
@@ -97,10 +90,9 @@ func docsHeading(c *ui.Context, text string) {
 	ui.Text(c, text).FontSize(17).FontWeight(600).Margin(6, 0, 2, 0)
 }
 
-// graphQLDocsHome is the explorer's first page: the root types, then all.
 func (a *App) graphQLDocsHome(c *ui.Context, p colors, d *Draft, visit func(string)) {
 	schema := a.graphQLIndex(d).Schema
-	docsHeading(c, "Root Types")
+	docsHeading(c, locales.RootTypes())
 	for _, root := range []struct {
 		label string
 		name  string
@@ -121,7 +113,7 @@ func (a *App) graphQLDocsHome(c *ui.Context, p colors, d *Draft, visit func(stri
 	}
 	slices.Sort(names)
 	ui.Row(c).Gap(6).Margin(10, 0, 0, 0).Children(func() {
-		ui.Text(c, "All Schema Types").FontSize(14).FontWeight(600)
+		ui.Text(c, locales.AllSchemaTypes()).FontSize(14).FontWeight(600)
 		(&countBadge{count: len(names)}).view(c, p)
 	})
 	if schema.Description != "" {
@@ -141,16 +133,14 @@ func typeName(t *ast.Definition) string {
 	return t.Name
 }
 
-// docsLink is Yaak's GqlTypeLink.
 func docsLink(c *ui.Context, p colors, name string, visit func(string)) {
-	link := ui.ButtonBase(c).Label("Go to " + name)
+	link := ui.ButtonBase(c).Label(locales.GoToName(name))
 	link.Children(func() { ui.Text(c, name).Font("monospace").FontSize(12).TextColor(p.notice) })
 	if link.Clicked() {
 		visit(name)
 	}
 }
 
-// graphQLDocsType is Yaak's GqlTypeInfo for a type.
 func (a *App) graphQLDocsType(c *ui.Context, p colors, d *Draft, name string, visit func(string)) {
 	typ := a.graphQLIndex(d).Schema.Types[name]
 	if typ == nil {
@@ -159,11 +149,11 @@ func (a *App) graphQLDocsType(c *ui.Context, p colors, d *Draft, name string, vi
 	docsHeading(c, typ.Name)
 	description := typ.Description
 	if description == "" {
-		description = "No description"
+		description = locales.NoDescription()
 	}
 	ui.Text(c, description).FontSize(12).TextColor(p.muted).Selectable()
 	if links := append(slices.Clone(typ.Interfaces), typ.Types...); len(links) > 0 {
-		ui.Text(c, map[bool]string{true: "Possible Types", false: "Interfaces"}[len(typ.Types) > 0]).FontSize(14).FontWeight(600).Margin(8, 0, 0, 0)
+		ui.Text(c, map[bool]string{true: locales.PossibleTypes(), false: locales.Interfaces()}[len(typ.Types) > 0]).FontSize(14).FontWeight(600).Margin(8, 0, 0, 0)
 		for _, link := range links {
 			ui.Box(c).Key("link-" + link).Children(func() { docsLink(c, p, link, visit) })
 		}
@@ -173,7 +163,7 @@ func (a *App) graphQLDocsType(c *ui.Context, p colors, d *Draft, name string, vi
 	})
 	if len(fields) > 0 {
 		ui.Row(c).Gap(6).Margin(8, 0, 0, 0).Children(func() {
-			ui.Text(c, "Fields").FontSize(14).FontWeight(600)
+			ui.Text(c, locales.Fields()).FontSize(14).FontWeight(600)
 			(&countBadge{count: len(fields)}).view(c, p)
 		})
 	}
@@ -201,7 +191,7 @@ func (a *App) graphQLDocsType(c *ui.Context, p colors, d *Draft, name string, vi
 		})
 	}
 	if len(typ.EnumValues) > 0 {
-		ui.Text(c, "Enum Values").FontSize(14).FontWeight(600).Margin(8, 0, 0, 0)
+		ui.Text(c, locales.EnumValues()).FontSize(14).FontWeight(600).Margin(8, 0, 0, 0)
 	}
 	for _, value := range typ.EnumValues {
 		ui.Column(c).Key("enum-" + value.Name).Gap(3).Children(func() {
@@ -214,8 +204,6 @@ func (a *App) graphQLDocsType(c *ui.Context, p colors, d *Draft, name string, vi
 	}
 }
 
-// graphQLDocsSearch is Yaak's GqlSchemaSearch: types and fields whose
-// names hold the query.
 func (a *App) graphQLDocsSearch(c *ui.Context, p colors, d *Draft, query string, visit func(string)) {
 	schema := a.graphQLIndex(d).Schema
 	names := make([]string, 0, len(schema.Types))
@@ -236,7 +224,7 @@ func (a *App) graphQLDocsSearch(c *ui.Context, p colors, d *Draft, query string,
 			}
 			ui.Row(c).Key(name + "." + field.Name).Gap(4).Children(func() {
 				ui.Text(c, name+".").Font("monospace").FontSize(12).TextColor(p.subtle)
-				link := ui.ButtonBase(c).Label("Go to " + name + "." + field.Name)
+				link := ui.ButtonBase(c).Label(locales.GoToName(name + "." + field.Name))
 				link.Children(func() { ui.Text(c, field.Name).Font("monospace").FontSize(12).TextColor(p.accent) })
 				if link.Clicked() {
 					visit(name)
@@ -246,6 +234,6 @@ func (a *App) graphQLDocsSearch(c *ui.Context, p colors, d *Draft, query string,
 		}
 	}
 	if shown == 0 {
-		ui.Text(c, "No results for "+strconv.Quote(query)).Italic().FontSize(12).TextColor(p.subtle)
+		ui.Text(c, locales.NoResultsForQueryTitle(strconv.Quote(query))).Italic().FontSize(12).TextColor(p.subtle)
 	}
 }

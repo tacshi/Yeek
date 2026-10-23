@@ -37,7 +37,6 @@ func TestPromptTemplate(t *testing.T) {
 		t.Fatalf("unstored prompt reused %q", got)
 	}
 
-	// Forever: stored under the namespace, which renders its own tags, and the label.
 	remembered := `${[ prompt.text(label='OTP Code', store='forever', namespace='${[ctx.workspace()]}') ]}`
 	answer = "123456"
 	for range 2 {
@@ -52,7 +51,6 @@ func TestPromptTemplate(t *testing.T) {
 		t.Fatal("value not stored under its key", saved)
 	}
 
-	// Expire: a value older than its TTL is asked for again.
 	expiring := `${[ prompt.text(key='Session Token', store='expire', namespace='ns', ttl='0') ]}`
 	answer = "a"
 	if got, _ := e.Render(ctx, expiring, wid, "", ""); got != "a" {
@@ -84,7 +82,6 @@ func TestPromptTemplate(t *testing.T) {
 	if _, err := e.Render(cancelled, once, wid, "", ""); !errors.Is(err, ErrPromptCancelled) {
 		t.Fatal(err)
 	}
-	// Yaak's prompt plugin renders nothing in a preview, asking nothing.
 	if got, err := e.PreviewTemplate(ctx, once, wid, "", "", ""); err != nil || got != "" {
 		t.Fatal("preview evaluated prompt", got, err)
 	}

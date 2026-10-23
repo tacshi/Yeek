@@ -20,6 +20,8 @@ import (
 	"time"
 
 	xproxy "golang.org/x/net/proxy"
+
+	"yeek/locales"
 )
 
 type networkTransport struct {
@@ -141,18 +143,18 @@ func NormalizeProxyURL(value string) (*url.URL, error) {
 	}
 	u, err := url.Parse(value)
 	if err != nil || u.Hostname() == "" || !slices.Contains([]string{"http", "https", "socks5", "socks5h"}, u.Scheme) {
-		return nil, errors.New("proxy address must use HTTP, HTTPS, or SOCKS5")
+		return nil, errors.New(locales.ProxyAddressMustUseHTTPHTTPS())
 	}
 	if u.Path != "" && u.Path != "/" || u.RawQuery != "" || u.Fragment != "" {
-		return nil, errors.New("proxy address must not contain a path, query, or fragment")
+		return nil, errors.New(locales.ProxyAddressMustNotContainA())
 	}
 	if _, err = NetworkHostname(u.Hostname()); err != nil {
-		return nil, fmt.Errorf("proxy hostname: %w", err)
+		return nil, fmt.Errorf("%s: %w", locales.ProxyHostname(), err)
 	}
 	if raw := u.Port(); raw != "" {
 		port, err := strconv.Atoi(raw)
 		if err != nil || port < 1 || port > 65535 {
-			return nil, errors.New("proxy port must be between 1 and 65535")
+			return nil, errors.New(locales.ProxyPortMustBeBetween1())
 		}
 	}
 	u.Path = ""
@@ -248,13 +250,13 @@ func ValidateDNSOverride(value Object) error {
 		for _, raw := range array(value, key) {
 			ip, err := netip.ParseAddr(fmt.Sprint(raw))
 			if err != nil || key == "ipv4" && !ip.Is4() || key == "ipv6" && !ip.Is6() {
-				return fmt.Errorf("enter valid %s addresses separated by commas", strings.ToUpper(key))
+				return errors.New(locales.EnterValidToUpperAddressesSeparatedBy(strings.ToUpper(key)))
 			}
 			n++
 		}
 	}
 	if n == 0 {
-		return errors.New("enter at least one IP address")
+		return errors.New(locales.EnterAtLeastOneIPAddress())
 	}
 	return nil
 }
@@ -272,7 +274,7 @@ func (t *networkTransport) overrideAddresses(host string) ([]string, bool, error
 			continue
 		}
 		if err = ValidateDNSOverride(entry); err != nil {
-			return nil, true, fmt.Errorf("DNS override for %s: %w", host, err)
+			return nil, true, fmt.Errorf("%s: %w", locales.DNSOverrideForHost(host), err)
 		}
 		result := []string{}
 		for _, key := range []string{"ipv4", "ipv6"} {
@@ -317,7 +319,7 @@ func (t *networkTransport) dialDirect(ctx context.Context, network, address stri
 		}
 		last = err
 	}
-	return nil, fmt.Errorf("DNS override for %s: %w", host, last)
+	return nil, fmt.Errorf("%s: %w", locales.DNSOverrideForHost(host), last)
 }
 func (t *networkTransport) dialProxy(ctx context.Context, address string, proxyURL *url.URL) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
@@ -348,7 +350,7 @@ func (t *networkTransport) dialProxy(ctx context.Context, address string, proxyU
 			if d, ok := dialer.(xproxy.ContextDialer); ok {
 				conn, last = d.DialContext(ctx, "tcp", target)
 			} else {
-				return nil, errors.New("SOCKS proxy does not support cancellation")
+				return nil, errors.New(locales.SOCKSProxyDoesNotSupportCancellation())
 			}
 		} else {
 			conn, last = t.connectProxy(ctx, target, proxyURL)
@@ -407,7 +409,7 @@ func (t *networkTransport) connectProxy(ctx context.Context, target string, prox
 		config.NextProtos = []string{"http/1.1"}
 		tlsConn := tls.Client(conn, config)
 		if err = tlsConn.HandshakeContext(ctx); err != nil {
-			return nil, fmt.Errorf("proxy TLS: %w", err)
+			return nil, fmt.Errorf("%s: %w", locales.ProxyTLS(), err)
 		}
 		conn = tlsConn
 	}
@@ -425,7 +427,7 @@ func (t *networkTransport) connectProxy(ctx context.Context, target string, prox
 		return nil, err
 	}
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return nil, fmt.Errorf("proxy CONNECT returned %s", response.Status)
+		return nil, errors.New(locales.ProxyCONNECTReturnedStatus(response.Status))
 	}
 	if err = conn.SetDeadline(time.Time{}); err != nil {
 		return nil, err

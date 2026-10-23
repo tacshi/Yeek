@@ -24,7 +24,7 @@ func (m memorySecrets) Get(s, u string) (string, error) {
 	return v, nil
 }
 func (m memorySecrets) Set(s, u, v string) error { m[s+u] = v; return nil }
-func TestEncryptionYaakCompatibility(t *testing.T) {
+func TestEncryptionGoldenVector(t *testing.T) {
 	encoded := "7941346b336e43017c7cb13467eecaa963b11734be636f9cc4152de348584fb27e95d1a70973e557cd335cf29e12d0d305d63ca0aa168f1b17003b1690a9d49140f0"
 	data, err := hex.DecodeString(encoded)
 	if err != nil {
@@ -71,7 +71,7 @@ func TestSyncRoundTripAndConflict(t *testing.T) {
 	if err = e.ApplySync(t.Context(), wid, dir, plan, ""); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "yaak."+str(r, "id")+".yaml")
+	path := filepath.Join(dir, "yeek."+str(r, "id")+".yaml")
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is generated inside t.TempDir.
 	if err != nil {
 		t.Fatal(err)

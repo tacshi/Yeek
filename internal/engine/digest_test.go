@@ -13,8 +13,6 @@ import (
 	"testing"
 )
 
-// Ported from Yaak's plugins/auth-digest/tests.
-
 func mustChallenge(t *testing.T, headers []string, realm string) digestChallenge {
 	t.Helper()
 	c, err := selectDigestChallenge(parseChallenges(headers), realm)
@@ -111,7 +109,6 @@ func TestDigestSelectChallenge(t *testing.T) {
 }
 
 func TestDigestRFCWorkedExamples(t *testing.T) {
-	// RFC 7616 §3.9.1
 	headers := []string{
 		`Digest realm="http-auth@example.org", qop="auth, auth-int", algorithm=SHA-256, nonce="7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"`,
 		`Digest realm="http-auth@example.org", qop="auth, auth-int", algorithm=MD5, nonce="7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"`,
@@ -127,7 +124,6 @@ func TestDigestRFCWorkedExamples(t *testing.T) {
 	if got := mustDigest(t, md5o); got != `Digest username="Mufasa", realm="http-auth@example.org", uri="/dir/index.html", algorithm=MD5, nonce="7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", nc=00000001, cnonce="f2/wE4q74E6zIJEtWaHKaf5wv/H5QzzpXusqGemxURZJ", qop=auth, response="8ca523f5e9506fed4657c9700eebdbec", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"` {
 		t.Errorf("MD5: %s", got)
 	}
-	// RFC 2617 §3.5
 	rfc2617 := digestOptions{Username: "Mufasa", Password: "Circle Of Life", Method: "GET", URI: "/dir/index.html", Cnonce: "0a4f113b", Nc: 1, Challenge: mustChallenge(t, []string{`Digest realm="testrealm@host.com", qop="auth,auth-int", nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093", opaque="5ccc069c403ebaf9f0171e9517f40e41"`}, "")}
 	if got := mustDigest(t, rfc2617); !strings.Contains(got, `response="6629fae49393a05397450978507c4ef1"`) {
 		t.Errorf("RFC 2617: %s", got)
@@ -259,8 +255,6 @@ func TestDigestApply(t *testing.T) {
 	}
 }
 
-// parseDigestCredentials reads the Authorization header independently of the
-// code under test, like Yaak's test server.
 func parseDigestCredentials(header string) map[string]string {
 	params := map[string]string{}
 	i := strings.Index(header, " ") + 1

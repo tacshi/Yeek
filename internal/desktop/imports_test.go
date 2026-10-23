@@ -21,15 +21,13 @@ func writeImportFixture(t *testing.T, path, text string) {
 	}
 }
 
-// Yaak's ImportDataDialog: sources, detected, then a preview that writes
-// nothing until applied, then Import Complete.
 func TestImportDialogPreviewsThenApplies(t *testing.T) {
 	a, e := cookieApp(t)
 	before := a.workspace
 	tt := ui.NewTester(a.View, 1360, 860)
 	a.importFile()
 	tt.Frame()
-	for _, text := range []string{"Import Data", "files", "folder", "URL", "Supports OpenAPI, Swagger, Postman, Insomnia, Bruno, curl, and Yaak exports", "Import into", "Cancel", "Preview Import"} {
+	for _, text := range []string{"Import Data", "files", "folder", "URL", "Supports Yeek, OpenAPI, Swagger, Postman, Insomnia, Bruno and curl exports", "Import into", "Cancel", "Preview Import"} {
 		if !tt.HasText(text) {
 			t.Fatalf("missing %q: %v", text, tt.Texts())
 		}
@@ -83,8 +81,6 @@ func TestImportDialogPreviewsThenApplies(t *testing.T) {
 	}
 }
 
-// Importing again prefills the workspace's linked sources and goes back
-// into it; a conflict is resolved in its row.
 func TestImportDialogReimportResolvesConflicts(t *testing.T) {
 	a, e := cookieApp(t)
 	path := filepath.Join(t.TempDir(), "collection.json")
@@ -177,13 +173,11 @@ func TestImportDialogSelectionAndFailedSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if len(a.imports.sources) != 0 || !tt.HasText("Supports OpenAPI, Swagger, Postman, Insomnia, Bruno, curl, and Yaak exports") {
+	if len(a.imports.sources) != 0 || !tt.HasText("Supports Yeek, OpenAPI, Swagger, Postman, Insomnia, Bruno and curl exports") {
 		t.Fatal("source not removed")
 	}
 }
 
-// Yaak's import-data deep link: confirmed for a URL, then the imported
-// workspace opened with its first environment.
 func TestImportDeepLinkOpensTheImportedWorkspace(t *testing.T) {
 	data, err := os.ReadFile("../engine/testdata/insomnia/basic.input.json")
 	if err != nil {
@@ -213,7 +207,6 @@ func TestImportDeepLinkOpensTheImportedWorkspace(t *testing.T) {
 		t.Fatal(last.message)
 	}
 
-	// A path imports without asking; neither fails.
 	path := filepath.Join(t.TempDir(), "insomnia.json")
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
@@ -230,8 +223,6 @@ func TestImportDeepLinkOpensTheImportedWorkspace(t *testing.T) {
 	}
 }
 
-// Yaak's GrpcProtoSelectionDialog lists proto files and import folders as
-// a PathList.
 func TestProtoFilesShowAsAPathList(t *testing.T) {
 	a, e := cookieApp(t)
 	m, _ := e.Save(t.Context(), engine.Object{"model": "grpc_request", "workspaceId": a.workspace, "name": "Greeter"})
@@ -255,7 +246,7 @@ func TestProtoFilesShowAsAPathList(t *testing.T) {
 	}
 }
 
-func TestSplitPathMatchesYaak(t *testing.T) {
+func TestSplitPath(t *testing.T) {
 	for path, want := range map[string][2]string{
 		"/a/b/c/d/e.json":                    {"e.json", "…/b/c/d"},
 		"/a/b/e.json":                        {"e.json", "a/b"},

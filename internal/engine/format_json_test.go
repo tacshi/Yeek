@@ -2,8 +2,7 @@ package engine
 
 import "testing"
 
-// Ported from Yaak's crates/yaak-templates/src/format_json.rs tests.
-func TestFormatJSONMatchesYaak(t *testing.T) {
+func TestFormatJSON(t *testing.T) {
 	for _, c := range []struct{ name, input, want string }{
 		{"test_simple_object", `{"foo":"bar","baz":"qux"}`, `{
   "foo": "bar",
@@ -132,7 +131,6 @@ func TestFormatJSONMatchesYaak(t *testing.T) {
 	}
 }
 
-// Yaak's TextViewer decodes \uXXXX escapes and \/ in pretty JSON.
 func TestPrettyJSONResponse(t *testing.T) {
 	got := PrettyJSONResponse(`{"name":"caf\u00e9","emoji":"\ud83d\ude00","url":"https:\/\/x.dev\/a"}`)
 	want := "{\n  \"name\": \"café\",\n  \"emoji\": \"😀\",\n  \"url\": \"https://x.dev/a\"\n}"

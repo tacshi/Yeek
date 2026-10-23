@@ -45,8 +45,7 @@ func TestTemplateCompletionRanges(t *testing.T) {
 	}
 }
 
-// Yaak's templateTags.test.ts (#710).
-func TestTemplateTagsMatchYaak(t *testing.T) {
+func TestTemplateTags(t *testing.T) {
 	type tag struct {
 		start, end int
 		inner      string
@@ -82,7 +81,6 @@ func TestTemplateTagsMatchYaak(t *testing.T) {
 		}
 	}
 
-	// Linear on Yaak's adversarial inputs.
 	start := time.Now()
 	quotes := "${[" + strings.Repeat("'", 20000) + " ]}"
 	if got := find(quotes); len(got) != 1 || got[0].end != len([]rune(quotes)) {
@@ -98,7 +96,6 @@ func TestTemplateTagsMatchYaak(t *testing.T) {
 		t.Fatalf("took %v", elapsed)
 	}
 
-	// Never panics, and always reports real bounds.
 	alphabet := []rune{'$', '{', '[', ']', '}', '\'', '\\', 'a', 'b'}
 	rng := rand.New(rand.NewPCG(0x5eed, 0)) // #nosec G404 -- a seeded generator, so that the cases repeat.
 	for range 2000 {
@@ -227,7 +224,6 @@ func TestTemplateFunctionPreservesNestedAndUnknownArguments(t *testing.T) {
 	f := templateForm{definitions: (*engine.Engine)(nil).TemplateDefinitions()}
 	f.selectExpression(expression)
 	got, err := f.expression()
-	// As in Yaak's form, a nested function is text holding its tag.
 	if err != nil || got.Arguments["request"].Value != "${[ ctx.request() ]}" || got.Arguments["custom"].Kind != "boolean" {
 		t.Fatalf("edited expression: %#v %v", got, err)
 	}
@@ -256,9 +252,6 @@ func TestTemplateCompletionInBodyAndMouseSelection(t *testing.T) {
 	}
 }
 
-// Yaak's TemplateTagWidget: a tag is a chip that opens its function's
-// dialog when clicked, takes the default cursor, and that the caret steps
-// over and Backspace takes whole.
 func TestTemplateChipsOpenTheirDialog(t *testing.T) {
 	a, p := templateTestApp()
 	value := `${[ base64.encode(value="日本\ntext", encoding="base64") ]}`
@@ -307,8 +300,7 @@ func TestTemplateChipsOpenTheirDialog(t *testing.T) {
 	}
 }
 
-// A tag that Yaak's chips don't find, or that spans lines, shows as such.
-func TestTemplateTagKindsMatchYaak(t *testing.T) {
+func TestTemplateTagKinds(t *testing.T) {
 	a, _ := templateTestApp()
 	tags := a.templateTagKinds("${[ missing ]} ${[ base64.encode(value='x') ]} ${[ ctx.workspace() ]}")
 	var got []string
@@ -485,8 +477,6 @@ func TestOnePasswordFormHidesListsUntilSignedIn(t *testing.T) {
 	}
 }
 
-// Yaak's TemplateFunctionDialog: name(…) and the description above the
-// form, a live Rendered Preview, and Save.
 func TestTemplateFunctionDialogPreviewsLive(t *testing.T) {
 	a, _, _ := treeApp(t)
 	value := ""
@@ -524,7 +514,6 @@ func TestTemplateFunctionDialogPreviewsLive(t *testing.T) {
 	}
 }
 
-// Yaak's onClickVariable: a variable's tag opens the environment that has it.
 func TestEditTemplateOnAVariableOpensItsEnvironment(t *testing.T) {
 	a, e := cookieApp(t)
 	base, _ := a.environmentsBreakdown()
@@ -542,7 +531,6 @@ func TestEditTemplateOnAVariableOpensItsEnvironment(t *testing.T) {
 	}
 }
 
-// Yaak's secure() dialog: one password Value, and Reveal Encryption Key.
 func TestSecureTemplateDialog(t *testing.T) {
 	a, _, _ := treeApp(t)
 	value := ""
@@ -564,8 +552,6 @@ func TestSecureTemplateDialog(t *testing.T) {
 	}
 }
 
-// Yaak's DynamicForm: an argument is text that may hold tags, rendered
-// with it; there's no value or expression mode.
 func TestTemplateArgumentsTakeTags(t *testing.T) {
 	a, _, _ := treeApp(t)
 	value := ""
@@ -596,9 +582,6 @@ func TestTemplateArgumentsTakeTags(t *testing.T) {
 	}
 }
 
-// Yaak's withEncryptionEnabled: a secure() chip opens Workspace Encryption
-// first when this machine has no key, then its dialog once it's set up,
-// back over the dialog the chip was in. Closing it gives up.
 func TestSecureChipSetsUpEncryptionFirst(t *testing.T) {
 	a, _, _ := treeApp(t)
 	value := "${[ secure() ]}"
@@ -652,8 +635,6 @@ func TestSecureChipSetsUpEncryptionFirst(t *testing.T) {
 	}
 }
 
-// Encrypt Variables goes through the same gate, and comes back to the
-// environment editor whether encryption was set up or not.
 func TestEncryptVariablesSetsUpEncryptionFirst(t *testing.T) {
 	a, _, _ := treeApp(t)
 	tt := ui.NewTester(a.View, 1100, 800)

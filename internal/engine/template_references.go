@@ -4,11 +4,12 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"yeek/locales"
 )
 
 type referenceDepthKey struct{}
@@ -17,7 +18,7 @@ type selectedCookieJarKey struct{}
 func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[string]string, workspace, environment string) (string, error) {
 	depth, _ := ctx.Value(referenceDepthKey{}).(int)
 	if depth >= 16 {
-		return "", errors.New("request templates contain a cycle or exceed 16 levels")
+		return "", errors.New(locales.RequestTemplatesContainACycleOr())
 	}
 	ctx = context.WithValue(ctx, referenceDepthKey{}, depth+1)
 	if name == "cookie.value" {
@@ -42,13 +43,13 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 	id := cmp.Or(args["requestId"], args["request"])
 	request, err := e.Store.Get(ctx, id)
 	if err != nil {
-		return "", fmt.Errorf("referenced request %q does not exist", id)
+		return "", errors.New(locales.ReferencedRequestIdDoesNotExist(strconv.Quote(id)))
 	}
 	if str(request, "model") != "http_request" {
-		return "", errors.New("template needs an HTTP request")
+		return "", errors.New(locales.TemplateNeedsAnHTTPRequest())
 	}
 	if str(request, "workspaceId") != workspace {
-		return "", errors.New("referenced request must belong to this workspace")
+		return "", errors.New(locales.ReferencedRequestMustBelongToThis())
 	}
 	if strings.HasPrefix(name, "request.") {
 		if name == "request.name" {
@@ -94,9 +95,6 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 			break
 		}
 	}
-	// Yaak's getResponse: previews happen a lot, so "always" is "smart"
-	// in one; "smart" sends without a response, "ttl" once one expires
-	// (0 never does), "never" and anything else don't.
 	behavior := args["behavior"]
 	if behavior == "never" && response == nil {
 		return "", nil
@@ -112,7 +110,6 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 			return "", err
 		}
 	}
-	// Yaak's functions render nothing without a response, or for one that failed.
 	if response == nil || str(response, "error") != "" {
 		return "", nil
 	}
@@ -140,14 +137,9 @@ func (e *Engine) referenceTemplate(ctx context.Context, name string, args map[st
 		}
 		return u.String(), nil
 	}
-	return "", fmt.Errorf("unknown request template %q", name)
+	return "", errors.New(locales.UnknownRequestTemplateName(strconv.Quote(name)))
 }
 
-// rewriteTemplateReferences is Yaak's remap_request_references (#693): in
-// every template tag of value, a request or requestId argument of the
-// response and request functions, nested or base64, that names an imported
-// request is changed to its new ID, and the tag printed again. Other text
-// and tags, including ones naming requests elsewhere, stay as written.
 func rewriteTemplateReferences(value any, ids map[string]string) any {
 	if len(ids) == 0 {
 		return value
@@ -172,7 +164,6 @@ func rewriteTemplateReferences(value any, ids map[string]string) any {
 	}
 }
 
-// remapTemplateText is Yaak's remap_text.
 func remapTemplateText(text string, ids map[string]string) string {
 	var out strings.Builder
 	copied, cursor := 0, 0
@@ -222,7 +213,6 @@ func remapTemplateText(text string, ids map[string]string) string {
 	return out.String()
 }
 
-// remapTemplateArgument is Yaak's remap_argument.
 func remapTemplateArgument(value *templateValue, ids map[string]string) bool {
 	if value.kind != "function" {
 		return false
@@ -251,8 +241,6 @@ func remapTemplateArgument(value *templateValue, ids map[string]string) bool {
 	return changed
 }
 
-// formatTemplateValue is Yaak's Display of a Val: arguments in their order,
-// null ones left out.
 func formatTemplateValue(v templateValue) string {
 	switch v.kind {
 	case "string":
@@ -271,12 +259,10 @@ func formatTemplateValue(v templateValue) string {
 	return v.text
 }
 
-// responseExpired is Yaak's shouldSendExpired.
 func responseExpired(response Object, ttl string) bool {
 	if response == nil {
 		return true
 	}
-	// parseInt: leading digits, a fraction dropped.
 	digits := strings.TrimLeft(ttl, " ")
 	end := 0
 	for end < len(digits) && (digits[end] >= '0' && digits[end] <= '9' || end == 0 && (digits[0] == '-' || digits[0] == '+')) {

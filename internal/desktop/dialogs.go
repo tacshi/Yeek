@@ -7,25 +7,23 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 func (a *App) dialogs(c *ui.Context, p colors) {
 	a.checkEncryptionGate()
-	// A sync review waits for the dialog open when it came in.
 	if !a.dialogOpen {
 		a.showSyncReview()
 	}
-	// Yaak's Import Data and Import Complete dialogs disable closing.
 	locked := a.dialog == "imports" || a.dialog == "import_complete"
 	dialog := ui.DialogBase(c, &a.dialogOpen, func(backdrop, panel ui.Element) {
 		dialogEnter(backdrop, panel)
 		backdrop.Background(ui.RGBA(0, 0, 0, .48))
 		panel.Width(660).MaxWidthPercent(90).MaxHeightPercent(88).Padding(0).Radius(10).Background(p.background).Border(1, p.border).Gap(0)
-		// A dialog without a title draws its own heading and close button.
 		if a.dialogTitle != "" {
 			ui.Row(c).Padding(16, 20).Gap(8).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 				ui.Text(c, a.dialogTitle).FontSize(16).FontWeight(600).Grow(1)
-				if !locked && iconButton(c, "close", "Close dialog").Clicked() {
+				if !locked && iconButton(c, "close", locales.CloseDialog()).Clicked() {
 					a.dialogOpen = false
 				}
 			})
@@ -37,25 +35,25 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			a.multipartPartDialog(c, p)
 		case "workspace", "folder", "rename", "cookie_jar":
 			ui.Column(c).Padding(20).Gap(16).Children(func() {
-				entry := ui.TextInput(c, &a.dialogValue).Label("Name").Placeholder("Name").AutoFocus().FillWidth()
+				entry := ui.TextInput(c, &a.dialogValue).Label(locales.NameTitle()).Placeholder(locales.NameTitle()).AutoFocus().FillWidth()
 				submit := entry.Submitted()
 				ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.dialogOpen = false
 					}
-					if ui.PrimaryButton(c, "Save").Disabled(strings.TrimSpace(a.dialogValue) == "").Clicked() || submit {
+					if ui.PrimaryButton(c, locales.Save()).Disabled(strings.TrimSpace(a.dialogValue) == "").Clicked() || submit {
 						a.confirmName()
 					}
 				})
 			})
 		case "delete":
 			ui.Column(c).Padding(20).Gap(18).Children(func() {
-				ui.Text(c, "Delete “"+a.dialogValue+"” and its contents?")
+				ui.Text(c, locales.DeleteNameAndItsContents(a.dialogValue))
 				ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.dialogOpen = false
 					}
-					if ui.PrimaryButton(c, "Delete").Background(p.red).Clicked() {
+					if ui.PrimaryButton(c, locales.Delete()).Background(p.red).Clicked() {
 						deletedEnvironment := s(a.models[a.dialogID], "model") == "environment"
 						if a.dialogID == a.environment {
 							a.environment = ""
@@ -78,12 +76,12 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			ui.Column(c).Padding(20).Gap(14).Children(func() {
 				ui.TextArea(c, &a.dialogValue).Label(a.dialogTitle).Height(280).Font("monospace").FontSize(12).AutoFocus()
 				ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.dialogOpen = false
 					}
-					label := "Save"
+					label := locales.Save()
 					if a.dialog == "curl" {
-						label = "Import"
+						label = locales.Import()
 					}
 					if ui.PrimaryButton(c, label).Clicked() {
 						if a.dialog == "curl" {
@@ -125,12 +123,12 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			a.cookiesDialog(c, p)
 		case "delete_cookie_jar":
 			ui.Column(c).Padding(20).Gap(16).Children(func() {
-				ui.Text(c, "Delete “"+a.dialogValue+"” and its cookies?")
+				ui.Text(c, locales.DeleteNameAndItsCookies(a.dialogValue))
 				ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-					if ui.Button(c, "Cancel").Clicked() {
+					if ui.Button(c, locales.Cancel()).Clicked() {
 						a.dialogOpen = false
 					}
-					if ui.PrimaryButton(c, "Delete Jar").Background(p.red).Clicked() {
+					if ui.PrimaryButton(c, locales.DeleteJar()).Background(p.red).Clicked() {
 						a.deleteCookieJar(a.dialogID)
 						a.dialogOpen = false
 					}
@@ -149,11 +147,9 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			panel.Width(480)
 			a.askDialog(c, p)
 		case "git_commit":
-			// Yaak's full dialog: the whole window but for a margin.
 			panel.WidthPercent(100).HeightPercent(100)
 			a.gitCommitDialog(c, p)
 		case "git_file_history":
-			// Yaak's lg dialog.
 			panel.Width(1120).HeightPercent(100)
 			a.fileHistoryDialog(c, p)
 		case "git_history":
@@ -169,29 +165,24 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			ui.Scroll(c).MaxHeight(520).Padding(14, 22).Gap(10).Children(func() {
 				for _, h := range hotkeys {
 					ui.Row(c).Key(h.action).Gap(60).Children(func() {
-						ui.Text(c, h.label).Grow(1)
+						ui.Text(c, h.label()).Grow(1)
 						ui.Text(c, a.hotkeyText(h.action)).Font("monospace").TextColor(p.muted)
 					})
 				}
 			})
 		case "exports":
-			// Yaak's md dialog.
 			panel.Width(800)
 			a.exportDialog(c, p)
 		case "imports":
-			// Yaak's lg dialog, 36rem tall.
 			panel.Width(1120).Height(576)
 			a.importDialog(c, p)
 		case "create_workspace":
-			// Yaak's sm dialog.
 			panel.Width(480)
 			a.createWorkspaceDialog(c, p)
 		case "clone_git":
-			// Yaak's md dialog.
 			panel.Width(800)
 			a.cloneGitDialog(c, p)
 		case "workspace_encryption":
-			// Yaak's md dialog.
 			panel.Width(800)
 			a.workspaceEncryptionDialog(c, p)
 		case "import_complete":
@@ -200,14 +191,14 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 		case "encryption_key":
 			ui.Column(c).Padding(22).Gap(15).Children(func() {
 				ui.Text(c, a.dialogValue).Font("monospace").FontSize(13).Selectable()
-				if ui.Button(c, "Copy Key").Clicked() {
+				if ui.Button(c, locales.CopyKey()).Clicked() {
 					c.WriteClipboard(a.dialogValue)
 				}
 			})
 		case "set_encryption_key":
 			ui.Column(c).Padding(22).Gap(15).Children(func() {
-				ui.TextInput(c, &a.dialogValue).Label("Workspace encryption key").Placeholder("YK…").Password().FillWidth()
-				if ui.PrimaryButton(c, "Set Key").Clicked() {
+				ui.TextInput(c, &a.dialogValue).Label(locales.WorkspaceEncryptionKey()).Placeholder("YK…").Password().FillWidth()
+				if ui.PrimaryButton(c, locales.SetKey()).Clicked() {
 					id, value := a.dialogID, a.dialogValue
 					a.run(func() (func(), error) {
 						return func() {
@@ -261,7 +252,6 @@ func (a *App) confirmName() {
 				a.switchWorkspace(s(m, "id"))
 			}
 			if kind == "rename" && s(m, "model") == "environment" {
-				// Renaming happens from the environment editor, which comes back.
 				a.openEnvironmentsAt(s(m, "id"))
 			}
 			if d := a.drafts[s(m, "id")]; d != nil {
@@ -274,7 +264,6 @@ func (a *App) confirmName() {
 	})
 }
 
-// navItem is a left-aligned list entry for dialog sidebars.
 func navItem(c *ui.Context, p colors, label string, active bool) ui.Element {
 	item := ui.ButtonBase(c).Label(label).Height(28).Padding(0, 10).Radius(4).Justify(ui.Start)
 	switch {
@@ -292,7 +281,6 @@ func navItem(c *ui.Context, p colors, label string, active bool) ui.Element {
 	return item
 }
 
-// labeled shows a small caption above a form control.
 func labeled(c *ui.Context, p colors, label string, control func()) {
 	ui.Column(c).Key(label).Gap(6).Children(func() {
 		ui.Text(c, label).FontSize(12).TextColor(p.muted)
@@ -300,7 +288,6 @@ func labeled(c *ui.Context, p colors, label string, control func()) {
 	})
 }
 
-// deleteItemsDialog is Yaak's confirmation for deleting sidebar items.
 func (a *App) deleteItemsDialog(c *ui.Context, p colors) {
 	var names []string
 	for _, id := range a.deleteIDs {
@@ -312,27 +299,26 @@ func (a *App) deleteItemsDialog(c *ui.Context, p colors) {
 		switch {
 		case len(names) == 1:
 			ui.Row(c).Gap(4).Children(func() {
-				ui.Text(c, "Permanently delete")
+				ui.Text(c, locales.PermanentlyDeleteBefore())
 				ui.Text(c, names[0]).Font("monospace").FontSize(12).Padding(1, 4).Radius(3).Background(p.border.Alpha(.4)).SingleLine().Shrink(1).MinWidth(0)
-				ui.Text(c, "?")
+				ui.Text(c, locales.PermanentlyDeleteAfter())
 			})
 		case len(names) < 10:
-			ui.Text(c, "Permanently delete the following?")
+			ui.Text(c, locales.PermanentlyDeleteTheFollowing())
 			ui.Column(c).Gap(4).Children(func() {
 				for i, name := range names {
 					ui.Text(c, name).Key(i).Font("monospace").FontSize(12).Padding(1, 4).Radius(3).Background(p.border.Alpha(.4)).SingleLine()
 				}
 			})
 		default:
-			ui.Text(c, "Permanently delete all "+strings.ToLower(pluralizeCount("Item", len(names)))+"?")
+			ui.Text(c, locales.PermanentlyDeleteAllCountItems(len(names)))
 		}
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
+			if ui.Button(c, locales.Cancel()).Clicked() {
 				a.dialogOpen = false
 			}
-			if ui.PrimaryButton(c, "Delete").Background(p.red).Clicked() {
+			if ui.PrimaryButton(c, locales.Delete()).Background(p.red).Clicked() {
 				for _, id := range a.deleteIDs {
-					// A folder's contents go with it.
 					if !slices.ContainsFunc(a.deleteIDs, func(other string) bool { return other != id && a.hasAncestor(id, other) }) {
 						a.deleteModel(id)
 					}

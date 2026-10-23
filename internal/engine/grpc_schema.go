@@ -4,18 +4,12 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// GRPCMessage is the JSON shape of a gRPC message, for completing and
-// checking what is typed, as Yaak's JSON schema of a method does.
 type GRPCMessage struct {
 	Name   string
 	Fields []GRPCField
 }
 
-// GRPCField is a field of a message by its JSON name. Kind is "string",
-// "number", "boolean", "enum", "bytes", "object" (a message) or "any";
-// Repeated fields are arrays of it, and Map fields objects of it.
 type GRPCField struct {
-	// Name is the JSON name; ProtoName is accepted too.
 	Name, ProtoName, Kind string
 	Repeated              bool
 	Map                   bool
@@ -23,7 +17,6 @@ type GRPCField struct {
 	Message               *GRPCMessage
 }
 
-// Field returns the field named name.
 func (m *GRPCMessage) Field(name string) *GRPCField {
 	if m == nil {
 		return nil
@@ -36,8 +29,6 @@ func (m *GRPCMessage) Field(name string) *GRPCField {
 	return nil
 }
 
-// grpcMessage describes a message's JSON shape, nested messages to a depth
-// that stops recursive types.
 func grpcMessage(d protoreflect.MessageDescriptor, depth int) *GRPCMessage {
 	m := &GRPCMessage{Name: string(d.FullName()), Fields: []GRPCField{}}
 	if depth > 6 {
@@ -51,14 +42,12 @@ func grpcMessage(d protoreflect.MessageDescriptor, depth int) *GRPCMessage {
 		if f.IsMap() {
 			value = f.MapValue()
 		}
-		// A map's kind and message are its values'.
 		field.Kind, field.Enum, field.Message = grpcKind(value, depth)
 		m.Fields = append(m.Fields, field)
 	}
 	return m
 }
 
-// grpcKind is the JSON kind of a field's values, by protobuf's JSON mapping.
 func grpcKind(f protoreflect.FieldDescriptor, depth int) (string, []string, *GRPCMessage) {
 	switch f.Kind() {
 	case protoreflect.BoolKind:
@@ -89,6 +78,5 @@ func grpcKind(f protoreflect.FieldDescriptor, depth int) (string, []string, *GRP
 		}
 		return "object", nil, grpcMessage(f.Message(), depth+1)
 	}
-	// Integers and floats; 64-bit integers may be strings too.
 	return "number", nil, nil
 }

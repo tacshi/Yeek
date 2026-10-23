@@ -8,23 +8,17 @@ import (
 	"github.com/egoist/mygo/yeekui/markdown"
 )
 
-// markdownView is Yaak's Markdown: GitHub's Markdown in Prose's look, at
-// most as wide as Yaak's max-w-lg. Links open only web and mail addresses,
-// or scroll to a heading; others, as file: or javascript:, do nothing.
 func (a *App) markdownView(c *ui.Context, p colors, source string) ui.Element {
 	if a.markdown == nil {
 		a.markdown = &markdown.Options{}
 	}
 	a.markdown.Theme = a.proseTheme(c, p)
 	a.markdown.CodeBlock = func(c *ui.Context, b *markdown.CodeBlockView) {
-		// Yaak's pre: the highlighted code alone, px-4 py-3, without the
-		// language and copy button above it.
 		ui.Column(c).AlignSelf(ui.Stretch).Padding(9, 0, 0, 0).Radius(6).Background(p.sidebar).Clip().Children(func() { b.Body(c) })
 	}
 	return markdown.View(c, source, a.markdown).MaxWidth(512).MinWidth(0)
 }
 
-// proseTheme is Yaak's Prose.css, in ems of the interface's font size.
 func (a *App) proseTheme(c *ui.Context, p colors) *markdown.Theme {
 	size := c.Theme().FontSize
 	codeSize := float32(n(a.settings, "editorFontSize"))
@@ -35,15 +29,12 @@ func (a *App) proseTheme(c *ui.Context, p colors) *markdown.Theme {
 		return markdown.HeadingStyle{Size: size, Weight: weight, Top: 2.5, Bottom: 1.25}
 	}
 	return &markdown.Theme{
-		CodeFont: cmp.Or(s(a.settings, "editorFont"), "monospace"),
-		Text:     p.text,
-		// List markers are text-success.
-		Muted:        p.green,
-		Link:         p.notice,
-		Strong:       p.text,
-		StrongWeight: 700,
-		// Code in text: text-info on bg-surface-active; code blocks:
-		// text-editor on bg-surface-highlight, px-4 py-3, rounded-md.
+		CodeFont:            cmp.Or(s(a.settings, "editorFont"), "monospace"),
+		Text:                p.text,
+		Muted:               p.green,
+		Link:                p.notice,
+		Strong:              p.text,
+		StrongWeight:        700,
 		Code:                p.blue,
 		CodeBackground:      p.border.Alpha(.55),
 		CodeSize:            codeSize / size,
@@ -64,8 +55,6 @@ func (a *App) proseTheme(c *ui.Context, p colors) *markdown.Theme {
 	}
 }
 
-// prismTheme is the prismTheme of Yaak's Markdown, which colors the code of
-// its code blocks.
 func prismTheme(p colors) *editor.Theme {
 	t := &editor.Theme{Background: p.sidebar, Text: p.text}
 	tok := func(color ui.Color, kinds ...editor.TokenKind) {

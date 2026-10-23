@@ -6,11 +6,9 @@ import (
 
 	"uuid"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// handleURLPaste is Yaak's URL bar paste handling: when a paste replaces the
-// whole URL, a cURL command overwrites the request and a URL with a query
-// string moves its parameters to the Params tab.
 func (a *App) handleURLPaste(d *Draft) {
 	text, overwrote, ok := a.templateDoc("url").state.Pasted()
 	if !ok || !overwrote {
@@ -27,8 +25,6 @@ func (a *App) handleURLPaste(d *Draft) {
 	}
 }
 
-// splitQueryString is Yaak's prepareImportQuerystring: the URL before "?"
-// and its query as parameter rows, or false when there is no query.
 func splitQueryString(raw string) (string, []KV, bool) {
 	base, query, found := strings.Cut(raw, "?")
 	if !found || query == "" {
@@ -39,7 +35,6 @@ func splitQueryString(raw string) (string, []KV, bool) {
 		return "", nil, false
 	}
 	rows := []KV{}
-	// Keep the parameters in the order they were written.
 	for pair := range strings.SplitSeq(query, "&") {
 		name, _, _ := strings.Cut(pair, "=")
 		key, err := url.QueryUnescape(name)
@@ -52,8 +47,6 @@ func splitQueryString(raw string) (string, []KV, bool) {
 	return base, rows, true
 }
 
-// overwriteFromCurl replaces the request with what a cURL command describes,
-// keeping what Yaak keeps: its id, place, name and creation time.
 func (a *App) overwriteFromCurl(d *Draft, command string) {
 	imported, err := engine.ParseCurl(strings.TrimSpace(command))
 	if err != nil {
@@ -71,7 +64,7 @@ func (a *App) overwriteFromCurl(d *Draft, command string) {
 			fresh := newDraft(saved)
 			fresh.Tab, fresh.ResponseTab = d.Tab, d.ResponseTab
 			a.drafts[d.ID] = fresh
-			a.toast("Updated request from Curl")
+			a.toast(locales.UpdatedRequestFromCurl())
 		}, err
 	})
 }

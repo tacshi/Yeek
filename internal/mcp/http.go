@@ -12,21 +12,15 @@ import (
 )
 
 const (
-	// DefaultAddr is where the app serves its tools, as Yaak does.
 	DefaultAddr = "127.0.0.1:64343"
-	// Path is the server's one path.
-	Path = "/mcp"
+	Path        = "/mcp"
 )
 
-// HTTPServer is a running server; Stop stops it.
 type HTTPServer struct {
-	// Addr is the address it listens on.
 	Addr string
 	srv  *http.Server
 }
 
-// Serve serves the tools on addr at Path, answering only requests that
-// carry Authorization: Bearer <token>.
 func Serve(host Host, version, addr, token string) (*HTTPServer, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -56,7 +50,6 @@ func Serve(host Host, version, addr, token string) (*HTTPServer, error) {
 	return s, nil
 }
 
-// Stop stops serving, closing the streams still open after a second.
 func (s *HTTPServer) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

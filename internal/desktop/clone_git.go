@@ -8,16 +8,14 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 )
 
-// cloneGitForm is Yaak's CloneGitRepositoryDialog.
 type cloneGitForm struct {
 	url, base, override, subdirectory, error string
 	hasOverride, hasSubdirectory, cloning    bool
 }
 
-// defaultProjectDir is Yaak's appInfo.defaultProjectDir, ~/YaakProjects, in
-// Yeek's name.
 func defaultProjectDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -31,7 +29,7 @@ func (a *App) openCloneGit() {
 		return
 	}
 	a.cloneGit = &cloneGitForm{base: defaultProjectDir()}
-	a.prompt("clone_git", "Clone Git Repository", "", "")
+	a.prompt("clone_git", locales.CloneGitRepository(), "", "")
 }
 
 var (
@@ -39,7 +37,6 @@ var (
 	sshRepoName = regexp.MustCompile(`:([^/]+?)(\.git)?$`)
 )
 
-// extractRepoName is Yaak's: the repository's name from its URL, HTTPS or SSH.
 func extractRepoName(url string) string {
 	if m := repoName.FindStringSubmatch(url); m != nil && m[1] != "" {
 		return m[1]
@@ -50,7 +47,6 @@ func extractRepoName(url string) string {
 	return ""
 }
 
-// pathSeparator is Yaak's getPathSeparator: \ when the path has one.
 func pathSeparator(path string) string {
 	if strings.Contains(path, `\`) {
 		return `\`
@@ -58,8 +54,6 @@ func pathSeparator(path string) string {
 	return "/"
 }
 
-// directory is where the repository clones: the base directory and the
-// repository's name, unless typed.
 func (f *cloneGitForm) directory() string {
 	if f.hasOverride {
 		return f.override
@@ -70,7 +64,6 @@ func (f *cloneGitForm) directory() string {
 	return f.base
 }
 
-// workspaceDirectory is the directory the workspace's files are in.
 func (f *cloneGitForm) workspaceDirectory() string {
 	dir := f.directory()
 	if f.hasSubdirectory && f.subdirectory != "" {
@@ -105,12 +98,12 @@ func (a *App) cloneGitDialog(c *ui.Context, p colors) {
 			}
 			return input
 		}
-		field("Repository URL", &f.url, "https://github.com/user/repo.git", nil).AutoFocus()
+		field(locales.RepositoryURL(), &f.url, "https://github.com/user/repo.git", nil).AutoFocus()
 		directory := f.directory()
-		if field("Directory", &directory, defaultProjectDir(), func() {
-			if smallIconButton(c, "folder", "Browse").Clicked() {
+		if field(locales.Directory(), &directory, defaultProjectDir(), func() {
+			if smallIconButton(c, "folder", locales.Browse()).Clicked() {
 				a.background(func() (func(), error) {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Select Directory", Directory: true})
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.SelectDirectory(), Directory: true})
 					if err != nil || len(paths) == 0 {
 						return nil, err
 					}
@@ -121,17 +114,17 @@ func (a *App) cloneGitDialog(c *ui.Context, p colors) {
 			f.override, f.hasOverride = directory, true
 		}
 		ui.Row(c).Gap(6).Children(func() {
-			ui.Checkbox(c, &f.hasSubdirectory, "Workspace is in a subdirectory").FontSize(13)
-			icon(c, "info").FontSize(12).TextColor(p.subtle).Tooltip("Enable if the Yaak workspace files are not at the root of the repository")
+			ui.Checkbox(c, &f.hasSubdirectory, locales.WorkspaceIsInASubdirectory()).FontSize(13)
+			icon(c, "info").FontSize(12).TextColor(p.subtle).Tooltip(locales.EnableIfTheWorkspaceFilesAre())
 		})
 		if f.hasSubdirectory {
-			field("Subdirectory", &f.subdirectory, "path/to/workspace", nil)
+			field(locales.Subdirectory(), &f.subdirectory, "path/to/workspace", nil)
 		}
 	})
 	dialogFooter(c, p, nil, func() {
-		label := "Clone Repository"
+		label := locales.CloneRepositoryTitle()
 		if f.cloning {
-			label = "Cloning..."
+			label = locales.CloningEllipsis()
 		}
 		if ui.PrimaryButton(c, label).Disabled(f.url == "" || f.directory() == "" || f.cloning).Clicked() {
 			submit = true
@@ -142,9 +135,6 @@ func (a *App) cloneGitDialog(c *ui.Context, p colors) {
 	}
 }
 
-// cloneRepository is Yaak's handleClone with gitClone: credentials asked
-// for and stored when the remote wants them, once, then the workspace in
-// the clone opened.
 func (a *App) cloneRepository(f *cloneGitForm, retried bool) {
 	url, dir, workspaceDir := f.url, f.directory(), f.workspaceDirectory()
 	f.cloning, f.error = true, ""
@@ -155,11 +145,11 @@ func (a *App) cloneRepository(f *cloneGitForm, retried bool) {
 			switch {
 			case err != nil:
 				f.error = err.Error()
-				a.showToast("git-clone-error", "Clone Failed: "+err.Error(), "danger", 0)
+				a.showToast("git-clone-error", locales.CloneFailedError(err.Error()), "danger", 0)
 			case result.Kind == "needs_credentials" && retried:
 				f.error = result.Error
 				if f.error == "" {
-					f.error = "Authentication failed. Please check your credentials and try again."
+					f.error = locales.AuthenticationFailedPleaseCheckYourCredentials()
 				}
 			case result.Kind == "needs_credentials":
 				a.askCredentials(result.URL, result.Error, func(user, password string) {
@@ -167,7 +157,7 @@ func (a *App) cloneRepository(f *cloneGitForm, retried bool) {
 						err := a.Engine.GitAddCredential(a.ctx, result.URL, user, password)
 						return func() {
 							a.cloneGit = f
-							a.prompt("clone_git", "Clone Git Repository", "", "")
+							a.prompt("clone_git", locales.CloneGitRepository(), "", "")
 							a.cloneRepository(f, true)
 						}, err
 					})
@@ -180,11 +170,9 @@ func (a *App) cloneRepository(f *cloneGitForm, retried bool) {
 	})
 }
 
-// openWorkspaceFolder is Yaak's New Workspace > Open Folder: the workspace
-// synced in a folder the user picks.
 func (a *App) openWorkspaceFolder() {
 	a.background(func() (func(), error) {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Select Workspace Directory", Directory: true})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.SelectWorkspaceDirectory(), Directory: true})
 		if err != nil || len(paths) == 0 {
 			return nil, err
 		}

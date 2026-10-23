@@ -532,8 +532,6 @@ func (a *area) paint(e *node, p *Painter, ox, oy float32) {
 			x, y, h := a.caretAt(ed, ed.caret, ed.composeCaret)
 			top := oy + float32(y-a.scroll)
 			if ed.code {
-				// Like Yaak's CodeMirror caret: as tall as the text, centred
-				// in the taller code line.
 				if text := ed.codeOptions.FontSize * 1.3; text < h {
 					top += (h - text) / 2
 					h = text
@@ -541,7 +539,7 @@ func (a *area) paint(e *node, p *Painter, ox, oy float32) {
 			}
 			p.add(scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, top, 0, h}), Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{}), Opacity: p.opacity})
 			op := &p.s.Ops[len(p.s.Ops)-1]
-			op.Rect.W = max(round(2*p.scale), 1) // 2px, as in Yaak
+			op.Rect.W = max(round(2*p.scale), 1)
 		}
 		if phase < 30*time.Second {
 			e.c.After(blink - phase%blink)

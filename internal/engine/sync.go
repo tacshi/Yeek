@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
-// SyncNewest resolves each conflict with the copy updated last, as Yaak's
-// sync does.
 const SyncNewest = "newest"
 
 type SyncChange struct {
@@ -69,10 +69,6 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 			paths[str(m, "modelId")] = str(m, "relPath")
 		}
 	}
-	// tracked are the files of models synced before that the workspace
-	// still has. Yaak's get_fs_candidates (#725): such a file that can't be
-	// read as its model stops the sync, where skipping it would make the
-	// model look deleted and delete it.
 	tracked := map[string]Object{}
 	for id, rel := range paths {
 		if l := local[id]; l != nil && base[id] != "" {
@@ -82,11 +78,11 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 	for _, entry := range entries {
 		previous := tracked[entry.Name()]
 		invalid := func(reason string) error {
-			return fmt.Errorf("Invalid sync file: %s: %s", filepath.Join(dir, entry.Name()), reason) //nolint:staticcheck // Yaak's message, shown as it is
+			return errors.New(locales.InvalidSyncFileJoinReason(filepath.Join(dir, entry.Name()), reason)) //nolint:staticcheck
 		}
 		if !entry.Type().IsRegular() {
 			if previous != nil {
-				return nil, invalid("expected a regular sync file")
+				return nil, invalid(locales.ExpectedARegularSyncFile())
 			}
 			continue
 		}
@@ -110,18 +106,18 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		}
 		if !syncKind(str(m, "model")) || str(m, "id") == "" {
 			if previous != nil {
-				return nil, invalid("file does not contain a Yaak model")
+				return nil, invalid(locales.FileDoesNotContainAWorkspace())
 			}
 			continue
 		}
 		if previous != nil {
 			switch {
 			case str(m, "id") != str(previous, "id"):
-				return nil, invalid(fmt.Sprintf("expected model ID %s, found %s", str(previous, "id"), str(m, "id")))
+				return nil, invalid(locales.ExpectedModelIDExpectedFoundFound(str(previous, "id"), str(m, "id")))
 			case modelWorkspace(m) != workspace:
-				return nil, invalid(fmt.Sprintf("expected workspace ID %s, found %s", workspace, modelWorkspace(m)))
+				return nil, invalid(locales.ExpectedWorkspaceIDExpectedFoundFound(workspace, modelWorkspace(m)))
 			case str(m, "model") != str(previous, "model"):
-				return nil, invalid("model type does not match the tracked model")
+				return nil, invalid(locales.ModelTypeDoesNotMatchThe())
 			}
 		}
 		if modelWorkspace(m) != workspace {
@@ -137,7 +133,7 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		m = defaults
 		id := str(m, "id")
 		if remote[id] != nil {
-			return nil, fmt.Errorf("multiple files contain model %s", id)
+			return nil, errors.New(locales.MultipleFilesContainModelId(id))
 		}
 		remote[id] = m
 		paths[id] = entry.Name()
@@ -158,7 +154,7 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		lh, rh := modelHash(l), modelHash(r)
 		path := paths[id]
 		if path == "" {
-			path = "yaak." + id + ".yaml"
+			path = syncPrefix + id + ".yaml"
 		}
 		change := SyncChange{ID: id, Path: path, Local: l, Remote: r, LocalHash: lh, RemoteHash: rh}
 		switch {
@@ -213,14 +209,8 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 	return result, nil
 }
 
-// ErrSyncStale is ApplySync's answer when the workspace or its directory
-// changed after the plan was made: the plan has to be made, and
-// reviewed, again. Yaak's apply_sync_ops returns false then (#739).
-var ErrSyncStale = errors.New("Files changed while syncing. Review the changes again.") //nolint:staticcheck // Yaak's toast, shown as is
+var ErrSyncStale error = &localizedError{locales.FilesChangedWhileSyncingReviewThe}
 
-// syncedLocal reports whether a model of the database syncs with the
-// workspace's directory: a model of the workspace, and an environment only
-// when it is shared.
 func syncedLocal(m Object, workspace string) bool {
 	if !syncKind(str(m, "model")) || str(m, "id") != workspace && str(m, "workspaceId") != workspace {
 		return false
@@ -228,8 +218,6 @@ func syncedLocal(m Object, workspace string) bool {
 	return str(m, "model") != "environment" || boolean(m, "public")
 }
 
-// sameSyncPlan reports whether two plans would change the same models from
-// the same copies.
 func sameSyncPlan(a, b []SyncChange) bool {
 	effective := func(plan []SyncChange) map[string]SyncChange {
 		m := map[string]SyncChange{}
@@ -253,12 +241,6 @@ func sameSyncPlan(a, b []SyncChange) bool {
 	return true
 }
 
-// ApplySync applies a plan PlanSync made, once reviewed, while its inputs
-// still match, as Yaak's apply_sync_ops does: it returns ErrSyncStale when
-// the plan has to be made again. Files are written first, so the write
-// transaction never waits on the filesystem; inbound changes are then
-// checked against a fresh scan, and the database again inside the
-// transaction, in case another writer changed it meanwhile.
 func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []SyncChange, resolve string) error {
 	current, err := e.PlanSync(ctx, workspace, dir)
 	if err != nil {
@@ -269,10 +251,10 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 	}
 	for _, c := range plan {
 		if c.Conflict && resolve != "push" && resolve != "pull" && resolve != SyncNewest {
-			return fmt.Errorf("%s changed both locally and on disk; choose which copy to keep", c.Path)
+			return errors.New(locales.PathChangedBothLocallyAndOn(c.Path))
 		}
 		if filepath.Base(c.Path) != c.Path {
-			return errors.New("sync filename must stay in its directory")
+			return errors.New(locales.SyncFilenameMustStayInIts())
 		}
 	}
 	dir, err = filepath.Abs(dir)
@@ -302,14 +284,10 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 		if err != nil {
 			return err
 		}
-		// Sync files are created as any file is, as Yaak's are.
 		if err = atomicWrite(path, data, 0o666); err != nil {
 			return err
 		}
 	}
-	// Inbound changes need a fresh scan: a file edited since the plan was
-	// reviewed must not be imported unseen. Files just written now match
-	// the database, so only their database side has to be unchanged.
 	if inbound {
 		current, err = e.PlanSync(ctx, workspace, dir)
 		if err != nil {
@@ -348,7 +326,6 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 		}
 	}
 	if err = e.Store.Write(ctx, Object{"type": "sync"}, func(t *modelTx) error {
-		// The files were checked above; only the database is read again.
 		for _, change := range plan {
 			m, err := t.get(ctx, change.ID)
 			if err != nil || !syncedLocal(m, workspace) {
@@ -374,7 +351,7 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 				progress = true
 			}
 			if !progress {
-				return errors.New("sync files contain missing or circular folders")
+				return errors.New(locales.SyncFilesContainMissingOrCircular())
 			}
 			pending = next
 		}
@@ -423,8 +400,6 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 	return err
 }
 
-// modelWorkspace is the workspace a synced model belongs to: a workspace's
-// own ID, else its workspaceId.
 func modelWorkspace(m Object) string {
 	if str(m, "model") == "workspace" {
 		return str(m, "id")
@@ -432,11 +407,6 @@ func modelWorkspace(m Object) string {
 	return str(m, "workspaceId")
 }
 
-// atomicWrite replaces path with data through a temporary file beside it,
-// so a failed write leaves the previous file whole and readers never see
-// part of it (Yaak's write_sync_file). It keeps an existing file's
-// permissions and won't replace a read-only one; a new file gets perm,
-// less the umask.
 func atomicWrite(path string, data []byte, perm os.FileMode) error {
 	var keep os.FileMode
 	if existing, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil { // #nosec G302 G304 -- the caller's file.
@@ -477,26 +447,15 @@ func atomicWrite(path string, data []byte, perm os.FileMode) error {
 
 var atomicWrites atomic.Int64
 
-// DirWatcher watches the files of dir, not of the directories in it,
-// until ctx is done, calling changed after files changed, from a
-// goroutine of its own, and onError when watching fails. It reports no
-// change of the files SyncTempFile names, the temporary files of
-// atomicWrite.
 type DirWatcher func(ctx context.Context, dir string, changed func(), onError func(error)) error
 
-// SyncTempFile reports whether a file name is that of a temporary file
-// atomicWrite makes beside the file it writes.
 func SyncTempFile(name string) bool {
 	return strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".tmp")
 }
 
-// WatchSync calls changed, from a goroutine of its own, once the
-// workspace's directory or its synced models have changed and settled, so
-// the app syncs them as Yaak's initSync does; onError reports a watch that
-// failed. It returns the function that stops watching.
 func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, changed func(), onError func(error)) (func(), error) {
 	if e.WatchDir == nil {
-		return nil, errors.New("no file watcher")
+		return nil, errors.New(locales.NoFileWatcher())
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	files := make(chan struct{}, 1)
@@ -550,8 +509,6 @@ func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, changed f
 	return cancel, nil
 }
 
-// conflictDirection is how a conflict resolves: as chosen, or for
-// SyncNewest with the copy updated last, as Yaak's sync does.
 func conflictDirection(change SyncChange, resolve string) string {
 	if resolve != SyncNewest {
 		return resolve
@@ -562,8 +519,6 @@ func conflictDirection(change SyncChange, resolve string) string {
 	return "push"
 }
 
-// SyncDirWorkspace is the workspace whose files are in dir, as Yaak's
-// openWorkspaceFromSyncDir finds it.
 func (e *Engine) SyncDirWorkspace(dir string) (string, error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -588,5 +543,5 @@ func (e *Engine) SyncDirWorkspace(dir string) (string, error) {
 			return str(m, "id"), nil
 		}
 	}
-	return "", errors.New("No workspace found in directory") //nolint:staticcheck // Yaak's wording, shown as is.
+	return "", errors.New(locales.NoWorkspaceFoundInDirectory()) //nolint:staticcheck
 }

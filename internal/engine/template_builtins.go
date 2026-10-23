@@ -13,7 +13,6 @@ import (
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"hash"
 	"math"
 	"math/big"
@@ -24,6 +23,7 @@ import (
 	"time"
 
 	"yeek/internal/filter"
+	"yeek/locales"
 )
 
 func extendedTemplateFunction(name string, args map[string]string) (string, error) {
@@ -33,7 +33,7 @@ func extendedTemplateFunction(name string, args map[string]string) (string, erro
 		factories := map[string]func() hash.Hash{"md5": md5.New, "sha1": sha1.New, "sha224": sha256.New224, "sha256": sha256.New, "sha384": sha512.New384, "sha512": sha512.New, "sha3-256": func() hash.Hash { return sha3.New256() }, "sha3-512": func() hash.Hash { return sha3.New512() }}
 		factory := factories[algorithm]
 		if factory == nil {
-			return "", fmt.Errorf("unknown hash algorithm %q", algorithm)
+			return "", errors.New(locales.UnknownHashAlgorithmAlgorithm(strconv.Quote(algorithm)))
 		}
 		h := factory()
 		if strings.HasPrefix(name, "hmac.") {
@@ -126,7 +126,7 @@ func extendedTemplateFunction(name string, args map[string]string) (string, erro
 			return "", err
 		}
 		if maxValue < minValue {
-			return "", errors.New("random maximum must be at least the minimum")
+			return "", errors.New(locales.RandomMaximumMustBeAtLeast())
 		}
 		random, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 53))
 		if err != nil {
@@ -186,7 +186,7 @@ func extendedTemplateFunction(name string, args map[string]string) (string, erro
 		}
 		return date.UTC().Format("2006-01-02T15:04:05.000Z"), nil
 	default:
-		return "", fmt.Errorf("unknown template function %q", name)
+		return "", unknownFunctionError{name}
 	}
 }
 func templatePath(input, path string, args map[string]string) (string, error) {

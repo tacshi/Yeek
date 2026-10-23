@@ -33,7 +33,6 @@ func TestTemplateExpressionRoundTrip(t *testing.T) {
 	if err != nil || got != base64.StdEncoding.EncodeToString([]byte(value)) {
 		t.Fatalf("escaped value: %q %v", got, err)
 	}
-	// Like Yaak, null arguments are left out when a tag is written.
 	if got := FormatTemplateTag(TemplateExpression{Kind: "function", Value: "fn", Arguments: map[string]TemplateExpression{"n": {Kind: "null"}, "a": {Kind: "string", Value: "aaa"}}}); got != "${[ fn(a='aaa') ]}" {
 		t.Fatal(got)
 	}
@@ -44,9 +43,7 @@ func TestTemplateExpressionRoundTrip(t *testing.T) {
 	}
 }
 
-// Yaak renders every function in a preview, the prompt aside; response
-// functions send as their behavior says, "always" as "smart".
-func TestTemplatePreviewRendersLikeYaak(t *testing.T) {
+func TestTemplatePreviewRenders(t *testing.T) {
 	e := testEngine(t)
 	w := saveTest(t, e, Object{"model": "workspace"})
 	wid := str(w, "id")
@@ -87,13 +84,12 @@ func TestTemplatePreviewRendersLikeYaak(t *testing.T) {
 	if got := preview("ttl", "0"); got != "saved" || calls.Load() != 1 {
 		t.Fatalf("a ttl of 0 never expires: %q %d", got, calls.Load())
 	}
-	// Sending, "always" sends every time.
 	if got, err := e.Render(t.Context(), `${[ response.body.raw(request='`+id+`', behavior='always') ]}`, wid, "", ""); err != nil || got != "saved" || calls.Load() != 2 {
 		t.Fatalf("always: %q %v %d", got, err, calls.Load())
 	}
 }
 
-func TestResponseExpiredMatchesYaak(t *testing.T) {
+func TestResponseExpired(t *testing.T) {
 	old := Object{"createdAt": time.Now().UTC().Add(-time.Minute).Format("2006-01-02T15:04:05.000000000")}
 	for _, c := range []struct {
 		response Object

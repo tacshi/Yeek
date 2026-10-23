@@ -1,14 +1,14 @@
-// Code generated from Yaak's apps/yaak-client/lib/data (MIT). DO NOT EDIT.
-
 package desktop
 
+import "yeek/locales"
+
 var headerNameOptions = []completionPreset{
-	{label: "Content-Type", info: "The original media type of the resource (prior to any content encoding applied for sending)"},
-	{label: "Content-Length", info: "The size of the message body, in bytes, sent to the recipient"},
-	{label: "Accept", info: "The content types, expressed as MIME types, the client is able to understand. The server uses content negotiation to select one of the proposals and informs the client of the choice with the Content-Type response header. Browsers set required values for this header based on the context of the request. For example, a browser uses different values in a request when fetching a CSS stylesheet, image, video, or a script."},
-	{label: "Accept-Encoding", info: "The content encoding (usually a compression algorithm) that the client can understand. The server uses content negotiation to select one of the proposals and informs the client of that choice with the Content-Encoding response header."},
-	{label: "Accept-Language", info: "The natural language and locale that the client prefers. The server uses content negotiation to select one of the proposals and informs the client of the choice with the Content-Language response header."},
-	{label: "Authorization", info: "Provide credentials that authenticate a user agent with a server, allowing access to a protected resource."},
+	{label: "Content-Type", info: locales.TheOriginalMediaTypeOfThe},
+	{label: "Content-Length", info: locales.TheSizeOfTheMessageBody},
+	{label: "Accept", info: locales.TheContentTypesExpressedAsMIME},
+	{label: "Accept-Encoding", info: locales.TheContentEncodingUsuallyACompression},
+	{label: "Accept-Language", info: locales.TheNaturalLanguageAndLocaleThat},
+	{label: "Authorization", info: locales.ProvideCredentialsThatAuthenticateAUser},
 	{label: "Cache-Control"},
 	{label: "Cookie"},
 	{label: "Connection"},

@@ -14,17 +14,14 @@ import (
 
 	"yeek/internal/engine"
 	"yeek/internal/mcp"
+	"yeek/locales"
 )
 
-// The MCP server's bearer token lives in key_values, as Yaak keeps it.
 const (
 	mcpTokenNamespace = "no_sync"
 	mcpTokenKey       = "mcp_server_token" // #nosec G101 -- the name of the key_value that holds the token, not a token.
 )
 
-// windowSnapshot is what an MCP tool reads of a window: the workspace it
-// shows and the environment and cookie jar a send from it uses. The window
-// publishes one each frame, for tools that run off its thread.
 type windowSnapshot struct {
 	workspace, environment, cookieJar string
 }
@@ -33,7 +30,6 @@ func (a *App) publishSnapshot() {
 	a.snapshot.Store(&windowSnapshot{workspace: a.workspace, environment: a.environment, cookieJar: a.cookieJar})
 }
 
-// open reports whether the window still runs, with what it shows.
 func (a *App) open() (windowSnapshot, bool) {
 	snapshot := a.snapshot.Load()
 	if a.ctx.Err() != nil || snapshot == nil {
@@ -42,21 +38,15 @@ func (a *App) open() (windowSnapshot, bool) {
 	return *snapshot, true
 }
 
-// MCPServer is Yaak's mcp_ext: Yeek's tools at mcp.DefaultAddr, served while
-// the mcpServerEnabled setting is on, behind a bearer token kept in
-// key_values.
 type MCPServer struct {
-	Engine *engine.Engine
-	// Windows are the app's windows, open and closed.
+	Engine  *engine.Engine
 	Windows func() []*App
-	// Addr is where to listen; mcp.DefaultAddr when empty.
-	Addr string
+	Addr    string
 
 	mu     sync.Mutex
 	server *mcp.HTTPServer
 }
 
-// Run keeps the server running while the setting is on, until ctx is done.
 func (m *MCPServer) Run(ctx context.Context) {
 	changes, unsubscribe := m.Engine.Subscribe()
 	m.sync(ctx)
@@ -76,7 +66,6 @@ func (m *MCPServer) Run(ctx context.Context) {
 	}()
 }
 
-// Running is the address the server listens on, or "".
 func (m *MCPServer) Running() string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -86,7 +75,6 @@ func (m *MCPServer) Running() string {
 	return m.server.Addr
 }
 
-// sync starts or stops the server to match the setting.
 func (m *MCPServer) sync(ctx context.Context) {
 	settings, err := m.Engine.Store.Get(ctx, "default")
 	enabled := err == nil && b(settings, "mcpServerEnabled")
@@ -100,7 +88,7 @@ func (m *MCPServer) sync(ctx context.Context) {
 			server, err = mcp.Serve(mcpHost{m}, appVersion(), cmp.Or(m.Addr, mcp.DefaultAddr), token)
 		}
 		if err != nil {
-			message := fmt.Sprintf("Failed to start the MCP server on port %s: %v", portOf(cmp.Or(m.Addr, mcp.DefaultAddr)), err)
+			message := locales.FailedToStartTheMCPServer(portOf(cmp.Or(m.Addr, mcp.DefaultAddr)), err.Error())
 			m.toastAll(func(a *App) { a.showToast("", message, "danger", 10*time.Second) })
 			return
 		}
@@ -120,7 +108,6 @@ func (m *MCPServer) stop() {
 	}
 }
 
-// token is the server's token, made the first time it starts.
 func (m *MCPServer) token(ctx context.Context) (string, error) {
 	if token := mcpToken(m.list(ctx, "key_value")); token != "" {
 		return token, nil
@@ -135,7 +122,6 @@ func (m *MCPServer) token(ctx context.Context) (string, error) {
 	return token, err
 }
 
-// mcpToken is the token among key_values, or "".
 func mcpToken(keyValues []engine.Object) string {
 	for _, kv := range keyValues {
 		if s(kv, "namespace") == mcpTokenNamespace && s(kv, "key") == mcpTokenKey {
@@ -152,8 +138,6 @@ func (m *MCPServer) list(ctx context.Context, kind string) []engine.Object {
 	return models
 }
 
-// toastAll shows a toast in every open window, as Yaak's show_toast event
-// reaches them all.
 func (m *MCPServer) toastAll(show func(*App)) {
 	for _, a := range m.Windows() {
 		if _, ok := a.open(); !ok {
@@ -167,7 +151,6 @@ func (m *MCPServer) toastAll(show func(*App)) {
 	}
 }
 
-// window is the open window showing the workspace.
 func (m *MCPServer) window(workspace string) (*App, windowSnapshot) {
 	for _, a := range m.Windows() {
 		if snapshot, ok := a.open(); ok && snapshot.workspace == workspace {
@@ -186,8 +169,6 @@ func portOf(addr string) string {
 	return addr
 }
 
-// mcpHost is the app's side of the tools: the workspaces open in its
-// windows, and requests sent as the window showing them sends them.
 type mcpHost struct{ m *MCPServer }
 
 func (h mcpHost) ctx() context.Context { return context.Background() }
@@ -236,7 +217,7 @@ func (h mcpHost) upsert(m engine.Object, kind string) (engine.Object, error) {
 	}
 	saved, err := h.m.Engine.Save(h.ctx(), m)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to upsert %s: %w", map[string]string{"http_request": "HTTP request", "folder": "folder"}[kind], err) //nolint:staticcheck // Yaak's message, shown as is
+		return nil, fmt.Errorf("Failed to upsert %s: %w", map[string]string{"http_request": "HTTP request", "folder": "folder"}[kind], err) //nolint:staticcheck
 	}
 	return saved, nil
 }
@@ -257,7 +238,7 @@ func (h mcpHost) delete(id, kind string) (engine.Object, error) {
 		err = h.m.Engine.Delete(h.ctx(), id)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Failed to delete %s: %w", label, err) //nolint:staticcheck // Yaak's message, shown as is
+		return nil, fmt.Errorf("Failed to delete %s: %w", label, err) //nolint:staticcheck
 	}
 	return m, nil
 }
@@ -271,7 +252,7 @@ func (h mcpHost) DeleteFolder(id string) (engine.Object, error) { return h.delet
 func (h mcpHost) SendHTTPRequest(ctx context.Context, workspace string, request engine.Object, environment string) (engine.Object, error) {
 	a, snapshot := h.m.window(workspace)
 	if a == nil {
-		return nil, fmt.Errorf("No window is open for workspace %s", workspace) //nolint:staticcheck // Yaak's message, shown as is
+		return nil, fmt.Errorf("No window is open for workspace %s", workspace) //nolint:staticcheck
 	}
 	if environment == "" {
 		environment = snapshot.environment
@@ -279,8 +260,6 @@ func (h mcpHost) SendHTTPRequest(ctx context.Context, workspace string, request 
 	return h.m.Engine.SendHTTP(a.authorizationContext(ctx), s(request, "id"), engine.SendOptions{EnvironmentID: environment, CookieJarID: snapshot.cookieJar})
 }
 
-// ShowToast shows the toast in every window. Yeek's toasts take their icon
-// from their color, so the icon asked for goes unused.
 func (h mcpHost) ShowToast(t mcp.Toast) error {
 	h.m.toastAll(func(a *App) { a.showToast("", t.Message, t.Color, t.Timeout) })
 	return nil

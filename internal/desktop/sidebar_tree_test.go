@@ -8,7 +8,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// treeApp has a folder holding one request, and three requests after it.
 func treeApp(t *testing.T) (*App, *engine.Engine, map[string]string) {
 	t.Helper()
 	a, e := cookieApp(t)
@@ -60,7 +59,6 @@ func TestSidebarSelectionWithShiftAndCmd(t *testing.T) {
 	if !slices.Equal(a.tree.selected, []string{ids["Alpha"], ids["Gamma"]}) {
 		t.Fatal(a.tree.selected)
 	}
-	// A folder's row selects it; its chevron opens it.
 	if err := tt.Click("Folder"); err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +113,6 @@ func TestSidebarKeyboardNavigationAndInlineRename(t *testing.T) {
 	if err != nil || s(m, "name") != "Renamed" || a.tree.renaming != "" {
 		t.Fatal(m, err, a.tree.renaming)
 	}
-	// Escape gives up a rename.
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
 	tt.Type("Nope")
@@ -151,9 +148,8 @@ func TestSidebarDeleteSelected(t *testing.T) {
 	}
 }
 
-func TestSidebarMoveItemsKeepsYaakSortPriorities(t *testing.T) {
+func TestSidebarMoveItemsKeepsSortPriorities(t *testing.T) {
 	a, e, ids := treeApp(t)
-	// Between two rows with room: the moved rows fit between their neighbors.
 	a.moveTreeItems([]string{ids["Gamma"]}, "", 1)
 	if !slices.Equal(treeNames(a, ""), []string{"Folder", "Gamma", "Alpha", "Beta"}) {
 		t.Fatal(treeNames(a, ""))
@@ -161,7 +157,6 @@ func TestSidebarMoveItemsKeepsYaakSortPriorities(t *testing.T) {
 	if p := n(a.models[ids["Gamma"]], "sortPriority"); p <= 0 || p >= 1000 {
 		t.Fatal(p)
 	}
-	// Into a folder, as its first child.
 	a.dropTreeItems([]string{ids["Alpha"], ids["Beta"]}, a.models[ids["Folder"]], dropAfter)
 	if !slices.Equal(treeNames(a, ids["Folder"]), []string{"Alpha", "Beta", "Inner"}) {
 		t.Fatal(treeNames(a, ids["Folder"]))
@@ -170,12 +165,10 @@ func TestSidebarMoveItemsKeepsYaakSortPriorities(t *testing.T) {
 	if err != nil || s(stored, "folderId") != ids["Folder"] {
 		t.Fatal(stored, err)
 	}
-	// Back to the root, at its end.
 	a.moveTreeItems([]string{ids["Inner"]}, "", len(a.treeItems("")))
 	if !slices.Equal(treeNames(a, ""), []string{"Folder", "Gamma", "Inner"}) || a.models[ids["Inner"]]["folderId"] != nil {
 		t.Fatal(treeNames(a, ""), a.models[ids["Inner"]])
 	}
-	// Never into itself.
 	a.moveTreeItems([]string{ids["Folder"]}, ids["Folder"], 0)
 	if s(a.models[ids["Folder"]], "folderId") != "" {
 		t.Fatal(a.models[ids["Folder"]])
@@ -254,7 +247,6 @@ func TestMoveRequestsToWorkspaceAndSwitchBehavior(t *testing.T) {
 		t.Fatal(stored, treeNames(a, ""), tt.Texts())
 	}
 
-	// Choosing another workspace asks where to open it, unless remembered.
 	opened := ""
 	a.OpenWorkspace = func(id string) { opened = id }
 	a.openWorkspace(s(other, "id"))
@@ -278,8 +270,6 @@ func TestMoveRequestsToWorkspaceAndSwitchBehavior(t *testing.T) {
 	}
 }
 
-// Renaming a row in place starts with its name selected, so typing
-// replaces it, as Yaak's sidebar does.
 func TestTreeRenameSelectsName(t *testing.T) {
 	a, _, ids := treeApp(t)
 	tt := ui.NewTester(a.View, 1360, 860)

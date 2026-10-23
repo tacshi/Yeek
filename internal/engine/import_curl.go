@@ -5,7 +5,6 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"maps"
 	"math"
 	"net/url"
@@ -14,16 +13,12 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"yeek/locales"
 )
 
-// This file ports Yaak's importer-curl plugin (plugins/importer-curl/src).
-// On top of Yaak's flags it reads the ones Yeek's own Copy as cURL writes
-// (--json, --form-string, --data-binary @file, --aws-sigv4, --ntlm, -m, -k,
-// -L, -I) so a copied command imports back unchanged.
-
 var (
-	curlDataFlags = []string{"d", "data", "data-raw", "data-urlencode", "data-binary", "data-ascii"}
-	// Yeek's additions come after Yaak's list.
+	curlDataFlags      = []string{"d", "data", "data-raw", "data-urlencode", "data-binary", "data-ascii"}
 	curlSupportedFlags = append([]string{"cookie", "b", "d", "data", "data-ascii", "data-binary", "data-raw", "data-urlencode", "digest", "form", "F", "get", "G", "header", "H", "request", "X", "url", "url-query", "user", "u"},
 		"json", "form-string", "max-time", "m", "insecure", "k", "location", "L", "head", "I", "aws-sigv4", "ntlm", "basic")
 	curlBooleanFlags    = []string{"G", "get", "digest", "insecure", "k", "location", "L", "head", "I", "ntlm", "basic"}
@@ -40,8 +35,6 @@ var (
 	curlGraphQLBracesRE = regexp.MustCompile(`\{[\s\S]*\}`)
 )
 
-// curlValueShortFlags are short flags that take a value, derived like
-// Yaak's VALUE_SHORT_FLAGS.
 var curlValueShortFlags = func() []string {
 	var flags []string
 	for _, name := range curlSupportedFlags {
@@ -52,9 +45,6 @@ var curlValueShortFlags = func() []string {
 	return flags
 }()
 
-// expandShortFlags splits a short cluster the way curl reads it: one option
-// per character until one takes a value, which swallows the rest. So -XPOST
-// is -X POST but -fsSL is four flags.
 func expandShortFlags(token string) []string {
 	if !strings.HasPrefix(token, "-") || strings.HasPrefix(token, "--") || len(token) <= 2 {
 		return []string{token}
@@ -73,9 +63,6 @@ func expandShortFlags(token string) []string {
 	return expanded
 }
 
-// splitCurlCommands splits pasted text into shell commands on ;, newlines and
-// CRLF outside quotes, after joining line continuations (tolerating spaces
-// or tabs after the backslash).
 func splitCurlCommands(raw string) []string {
 	joined := curlContinuationRE.ReplaceAllString(raw, " ")
 	escaped := func(i int) bool {
@@ -101,8 +88,6 @@ func splitCurlCommands(raw string) []string {
 			next = joined[i+1]
 		}
 		switch {
-		// Unlike Yaak, an opener must be unescaped: \' outside quotes is a
-		// literal quote, as in the '\'' idiom Copy as cURL writes.
 		case !double && !dollar && ch == '\'' && !single && !escaped(i):
 			single = true
 		case single && ch == '\'':
@@ -131,11 +116,9 @@ func splitCurlCommands(raw string) []string {
 	return commands
 }
 
-// ConvertCurl is Yaak's convertCurl: each curl command in the text becomes a
-// request. Text that doesn't start with "curl " imports nothing.
 func ConvertCurl(raw string) ([]Object, error) {
 	if !curlCommandRE.MatchString(raw) {
-		return nil, errors.New("paste a command beginning with curl")
+		return nil, errors.New(locales.PasteACommandBeginningWithCurl())
 	}
 	var requests []Object
 	for _, command := range splitCurlCommands(raw) {
@@ -159,14 +142,13 @@ func ConvertCurl(raw string) ([]Object, error) {
 	return requests, nil
 }
 
-// ParseCurl imports the first request of a cURL command.
 func ParseCurl(command string) (Object, error) {
 	requests, err := ConvertCurl(command)
 	if err != nil {
 		return nil, err
 	}
 	if len(requests) == 0 {
-		return nil, errors.New("paste a command beginning with curl")
+		return nil, errors.New(locales.PasteACommandBeginningWithCurl())
 	}
 	return requests[0], nil
 }
@@ -190,7 +172,6 @@ func (f curlFlags) strings(names ...string) []string {
 	return values
 }
 
-// first is Yaak's getPairValue: the first value of the first name given.
 func (f curlFlags) first(names ...string) (any, bool) {
 	for _, name := range names {
 		if len(f[name]) > 0 {
@@ -218,9 +199,6 @@ func splitOnce(s, sep string) (string, string, bool) { return strings.Cut(s, sep
 
 func curlRow(name, value string) Object { return Object{"name": name, "value": value, "enabled": true} }
 
-// decodePercentEncoding decodes a form value, keeping it when it isn't valid
-// percent-encoding (curl sends a -d value verbatim, so 100% is fine). Each
-// valid run decodes on its own so 50%25 and 100% becomes "50% and 100%".
 func decodePercentEncoding(text string) string {
 	if decoded, err := url.PathUnescape(text); err == nil {
 		return decoded
@@ -242,7 +220,6 @@ func importCurlCommand(entries []string) (Object, error) {
 		if curlFlagRE.MatchString(entry) {
 			singleDash := entry[0] == '-' && entry[1] != '-'
 			name := strings.TrimPrefix(strings.TrimPrefix(entry, "-"), "-")
-			// curl also accepts --name=value.
 			var value any
 			if k, v, ok := strings.Cut(name, "="); ok && !singleDash {
 				name, value = k, v
@@ -270,7 +247,6 @@ func importCurlCommand(entries []string) (Object, error) {
 		}
 	}
 
-	// URL and query parameters
 	urlArg := ""
 	if len(singletons) > 0 {
 		urlArg = singletons[0]
@@ -289,7 +265,6 @@ func importCurlCommand(entries []string) (Object, error) {
 		parameters = append(parameters, curlRow(name, value))
 	}
 
-	// Authentication from -u
 	username, password, _ := splitOnce(flags.firstString("", "u", "user"), ":")
 	authType := any(nil)
 	auth := Object{}
@@ -301,14 +276,11 @@ func importCurlCommand(entries []string) (Object, error) {
 		auth = Object{"username": strings.TrimSpace(username), "password": strings.TrimSpace(password)}
 	}
 
-	// Headers
 	headers := []any{}
 	for _, header := range flags.strings("header", "H") {
 		name, value, hasColon := splitOnce(header, ":")
 		if strings.TrimSpace(value) == "" {
 			row := curlRow(strings.TrimSuffix(strings.TrimSpace(name), ";"), "")
-			// Yeek: curl's "Name:" removes a header it would add, which is
-			// how Copy as cURL writes a disabled header.
 			if hasColon && name != "" && !strings.HasSuffix(strings.TrimSpace(name), ";") {
 				row["enabled"] = false
 			}
@@ -318,10 +290,8 @@ func importCurlCommand(entries []string) (Object, error) {
 		headers = append(headers, curlRow(strings.TrimSpace(name), strings.TrimSpace(value)))
 	}
 
-	// Cookies
 	var cookies []string
 	for _, cookie := range flags.strings("cookie", "b") {
-		// A value without "=" names a cookie file, which can't become a header.
 		if name, value, ok := splitOnce(cookie, "="); ok {
 			cookies = append(cookies, name+"="+value)
 		}
@@ -335,12 +305,10 @@ func importCurlCommand(entries []string) (Object, error) {
 		}
 	}
 
-	// An Authorization header wins over -u.
 	if extractedType, extracted, filtered := extractCurlAuthorization(headers); extractedType != "" {
 		authType, auth, headers = extractedType, extracted, filtered
 	}
 
-	// Body
 	var contentType Object
 	for _, h := range objects(headers) {
 		if strings.EqualFold(str(h, "name"), "content-type") {
@@ -366,8 +334,6 @@ func importCurlCommand(entries []string) (Object, error) {
 	}
 	dataParameters := curlDataParameters(flags)
 	formFields := []any{}
-	// Unlike Yaak (which lists --form before -F), fields keep command order,
-	// since Copy as cURL interleaves --form and --form-string.
 	for _, flag := range ordered {
 		input, ok := flag.value.(string)
 		if !ok || !slices.Contains([]string{"form", "F", "form-string"}, flag.name) {
@@ -375,7 +341,6 @@ func importCurlCommand(entries []string) (Object, error) {
 		}
 		field, err := parseCurlForm(input, flag.name == "form-string")
 		if err != nil {
-			// Yaak takes anything after the first "=" as the value.
 			key, value, _ := splitOnce(input, "=")
 			field = Object{"name": key, "enabled": true}
 			if file, ok := strings.CutPrefix(value, "@"); ok {
@@ -402,7 +367,6 @@ func importCurlCommand(entries []string) (Object, error) {
 		case "application/json", "text/xml", "text/plain":
 			bodyType = mime
 		default:
-			// Yaak's "other" body type is Yeek's text/plain.
 			bodyType = "text/plain"
 		}
 		body = Object{"text": text}
@@ -415,7 +379,6 @@ func importCurlCommand(entries []string) (Object, error) {
 			parameters = append(parameters, curlRow(decodePercentEncoding(str(p, "name")), decodePercentEncoding(str(p, "value"))))
 		}
 	case len(dataParameters) == 1 && str(dataParameters[0], "filePath") != "" && len(rawData) == 1 && !slices.Contains(flags.strings("data-raw"), rawData[0]):
-		// Yeek: -d @file sends that file, which is a binary file body.
 		bodyType, body = "binary", Object{"filePath": str(dataParameters[0], "filePath")}
 	case len(dataParameters) > 0 && (mimeType == "" || mimeType == "application/x-www-form-urlencoded"):
 		bodyType = cmpOrString(mimeType, "application/x-www-form-urlencoded")
@@ -443,12 +406,10 @@ func importCurlCommand(entries []string) (Object, error) {
 			headers = append(headers, curlRow("Content-Type", "multipart/form-data"))
 		}
 	case len(jsonData) > 0 && !asGET:
-		// Yeek: curl's --json is a JSON body.
 		textBody(strings.Join(jsonData, ""), cmpOrString(mimeType, "application/json"))
 		hasDataBody = true
 	}
 
-	// Method
 	method := strings.ToUpper(flags.firstString("", "X", "request"))
 	if method == "" {
 		switch {
@@ -470,7 +431,6 @@ func importCurlCommand(entries []string) (Object, error) {
 	return m, applyCurlExtras(m, flags)
 }
 
-// applyCurlExtras reads the flags Yeek supports beyond Yaak's importer.
 func applyCurlExtras(m Object, flags curlFlags) error {
 	auth := obj(m, "authentication")
 	if flags.has("ntlm") && str(m, "authenticationType") != "" {
@@ -512,8 +472,6 @@ func cmpOrString(a, b string) string {
 	return b
 }
 
-// extractCurlAuthorization turns a Bearer or Basic Authorization header into
-// the request's authentication, dropping the header.
 func extractCurlAuthorization(headers []any) (string, Object, []any) {
 	i := slices.IndexFunc(headers, func(h any) bool { return strings.EqualFold(str(h.(Object), "name"), "authorization") })
 	if i < 0 {
@@ -544,8 +502,6 @@ func extractCurlAuthorization(headers []any) (string, Object, []any) {
 	return "", nil, headers
 }
 
-// curlDataParameters is Yaak's pairsToDataParameters. -d content is
-// &-separated, but --data-urlencode encodes its whole argument.
 func curlDataParameters(flags curlFlags) []Object {
 	var parameters []Object
 	for _, flag := range curlDataFlags {
@@ -570,8 +526,6 @@ func curlDataParameters(flags curlFlags) []Object {
 	return parameters
 }
 
-// parseCurlMultipart reads a multipart body Chrome DevTools puts in
-// --data-raw.
 func parseCurlMultipart(raw, boundary string) []any {
 	var fields []any
 	for part := range strings.SplitSeq(raw, "--"+boundary) {
@@ -598,8 +552,6 @@ func parseCurlMultipart(raw, boundary string) []any {
 	return fields
 }
 
-// parseGraphQLJSONBody is Yaak's GraphQL detection for a JSON body: a
-// query/variables/operationName envelope that scores as a GraphQL document.
 func parseGraphQLJSONBody(mimeType, text, rawURL string) Object {
 	if mimeType != "application/json" {
 		return nil
@@ -669,7 +621,7 @@ func parseGraphQLJSONBody(mimeType, text, rawURL string) Object {
 func parseCurlForm(input string, literal bool) (Object, error) {
 	name, text, found := strings.Cut(input, "=")
 	if !found {
-		return nil, errors.New("cURL form fields need name=value")
+		return nil, errors.New(locales.CURLFormFieldsNeedNameValue())
 	}
 	field := Object{"name": name, "enabled": true}
 	if literal {
@@ -681,7 +633,7 @@ func parseCurlForm(input string, literal bool) (Object, error) {
 		text = strings.TrimPrefix(text, "@")
 	}
 	if strings.HasPrefix(text, "<") {
-		return nil, errors.New("file-backed text fields need an fs.readFile template")
+		return nil, errors.New(locales.FileBackedTextFieldsNeedAn())
 	}
 	value, rest, err := curlFormWord(text)
 	if err != nil {
@@ -696,7 +648,7 @@ func parseCurlForm(input string, literal bool) (Object, error) {
 		rest = strings.TrimPrefix(rest, ";")
 		key, after, exists := strings.Cut(rest, "=")
 		if !exists {
-			return nil, errors.New("invalid cURL form attribute")
+			return nil, errors.New(locales.InvalidCURLFormAttribute())
 		}
 		key = strings.TrimSpace(key)
 		value, tail, err := curlFormWord(after)
@@ -709,12 +661,12 @@ func parseCurlForm(input string, literal bool) (Object, error) {
 		case "type":
 			field["contentType"] = value
 		case "headers", "encoder":
-			return nil, fmt.Errorf("cURL multipart attribute %s is not supported", key)
+			return nil, errors.New(locales.CURLMultipartAttributeKeyIsNot(key))
 		default:
 			if str(field, "contentType") != "" {
 				field["contentType"] = str(field, "contentType") + "; " + key + "=" + value
 			} else {
-				return nil, fmt.Errorf("unknown cURL form attribute %s", key)
+				return nil, errors.New(locales.UnknownCURLFormAttributeKey(key))
 			}
 		}
 		rest = tail
@@ -736,19 +688,15 @@ func curlFormWord(text string) (string, string, error) {
 		if text[i] == '"' {
 			rest := strings.TrimSpace(text[i+1:])
 			if rest != "" && !strings.HasPrefix(rest, ";") {
-				return "", "", errors.New("unexpected text after quoted cURL form value")
+				return "", "", errors.New(locales.UnexpectedTextAfterQuotedCURLForm())
 			}
 			return value.String(), rest, nil
 		}
 		value.WriteByte(text[i])
 	}
-	return "", "", errors.New("cURL form value has an unfinished quote")
+	return "", "", errors.New(locales.CURLFormValueHasAnUnfinished())
 }
 
-// splitShell tokenizes one command like a POSIX shell (via Yaak's shlex):
-// '...' is literal, "..." takes backslash escapes for $ ` " \ and newline,
-// $'...' takes ANSI-C escapes, and a backslash outside quotes escapes the
-// next character.
 func splitShell(s string) ([]string, error) {
 	args := []string{}
 	var b strings.Builder
@@ -758,7 +706,7 @@ func splitShell(s string) ([]string, error) {
 		switch {
 		case c == '\\':
 			if i+1 >= len(s) {
-				return nil, errors.New("cURL has an unfinished quote or escape")
+				return nil, errors.New(locales.CURLHasAnUnfinishedQuoteOr())
 			}
 			i++
 			if s[i] != '\n' {
@@ -768,7 +716,7 @@ func splitShell(s string) ([]string, error) {
 		case c == '\'':
 			end := strings.IndexByte(s[i+1:], '\'')
 			if end < 0 {
-				return nil, errors.New("cURL has an unfinished quote or escape")
+				return nil, errors.New(locales.CURLHasAnUnfinishedQuoteOr())
 			}
 			b.WriteString(s[i+1 : i+1+end])
 			i += end + 1
@@ -800,7 +748,7 @@ func splitShell(s string) ([]string, error) {
 				b.WriteByte(s[i])
 			}
 			if !closed {
-				return nil, errors.New("cURL has an unfinished quote or escape")
+				return nil, errors.New(locales.CURLHasAnUnfinishedQuoteOr())
 			}
 			started = true
 		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
@@ -820,9 +768,6 @@ func splitShell(s string) ([]string, error) {
 	return args, nil
 }
 
-// readANSIQuoted reads the body of $'...' up to its closing quote, writing
-// the decoded text, and returns how many bytes it consumed (including the
-// quote).
 func readANSIQuoted(s string, b *strings.Builder) (int, error) {
 	simple := map[byte]byte{'a': '\a', 'b': '\b', 'e': 0x1b, 'E': 0x1b, 'f': '\f', 'n': '\n', 'r': '\r', 't': '\t', 'v': '\v', '\\': '\\', '\'': '\'', '"': '"', '?': '?'}
 	hexDigits := func(from, max int) (uint64, int) {
@@ -888,5 +833,5 @@ func readANSIQuoted(s string, b *strings.Builder) (int, error) {
 		b.WriteByte('\\')
 		b.WriteByte(e)
 	}
-	return 0, errors.New("cURL has an unfinished quote or escape")
+	return 0, errors.New(locales.CURLHasAnUnfinishedQuoteOr())
 }

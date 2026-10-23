@@ -17,6 +17,8 @@ import (
 	"github.com/youmark/pkcs8"
 	"golang.org/x/net/idna"
 	"software.sslmate.com/src/go-pkcs12"
+
+	"yeek/locales"
 )
 
 func NetworkHostname(value string) (string, error) {
@@ -28,7 +30,7 @@ func NetworkHostname(value string) (string, error) {
 		return address.String(), nil
 	}
 	if host == "" || strings.ContainsAny(host, "/:?#@\\ \t\r\n") {
-		return "", errors.New("enter a hostname without a scheme, port, or path")
+		return "", errors.New(locales.EnterAHostnameWithoutAScheme())
 	}
 	ascii := true
 	for _, r := range host {
@@ -43,7 +45,7 @@ func NetworkHostname(value string) (string, error) {
 	}
 	host, err := idna.Lookup.ToASCII(strings.TrimSuffix(host, "."))
 	if err != nil {
-		return "", errors.New("invalid hostname")
+		return "", errors.New(locales.InvalidHostname())
 	}
 	return strings.ToLower(host), nil
 }
@@ -62,20 +64,20 @@ func networkPort(u *url.URL) string {
 }
 func ValidateClientCertificate(model Object) error {
 	if _, err := NetworkHostname(str(model, "host")); err != nil {
-		return fmt.Errorf("certificate host: %w", err)
+		return fmt.Errorf("%s: %w", locales.CertificateHost(), err)
 	}
 	if value := model["port"]; value != nil && value != "" {
 		port := number(model, "port")
 		if port < 1 || port > 65535 || math.Trunc(port) != port {
-			return errors.New("certificate port must be between 1 and 65535")
+			return errors.New(locales.CertificatePortMustBeBetween1())
 		}
 	}
 	pfx, crt, key := str(model, "pfxFile"), str(model, "crtFile"), str(model, "keyFile")
 	if pfx != "" && (crt != "" || key != "") {
-		return errors.New("choose either a PFX file or a PEM certificate and key")
+		return errors.New(locales.ChooseEitherAPFXFileOr())
 	}
 	if pfx == "" && (crt == "" || key == "") {
-		return errors.New("choose a certificate and private key, or a PFX file")
+		return errors.New(locales.ChooseACertificateAndPrivateKey())
 	}
 	return nil
 }
@@ -105,7 +107,7 @@ func readTLSFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	if len(data) > 16<<20 {
-		return nil, errors.New("certificate file exceeds 16 MiB")
+		return nil, errors.New(locales.CertificateFileExceeds16MiB())
 	}
 	return data, nil
 }
@@ -117,14 +119,14 @@ func LoadClientCertificate(model Object) (tls.Certificate, error) {
 	if path := str(model, "pfxFile"); path != "" {
 		data, err := readTLSFile(path)
 		if err != nil {
-			return tls.Certificate{}, fmt.Errorf("read PFX: %w", err)
+			return tls.Certificate{}, fmt.Errorf("%s: %w", locales.ReadPFX(), err)
 		}
 		key, leaf, chain, err := pkcs12.DecodeChain(data, password)
 		if err != nil {
-			return tls.Certificate{}, fmt.Errorf("decode PFX: %w", err)
+			return tls.Certificate{}, fmt.Errorf("%s: %w", locales.DecodePFX(), err)
 		}
 		if leaf == nil {
-			return tls.Certificate{}, errors.New("PFX file contains no certificate")
+			return tls.Certificate{}, errors.New(locales.PFXFileContainsNoCertificate())
 		}
 		pair := tls.Certificate{PrivateKey: key, Leaf: leaf, Certificate: [][]byte{leaf.Raw}}
 		for _, ca := range chain {
@@ -134,20 +136,20 @@ func LoadClientCertificate(model Object) (tls.Certificate, error) {
 	}
 	crt, err := readTLSFile(str(model, "crtFile"))
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("read certificate: %w", err)
+		return tls.Certificate{}, fmt.Errorf("%s: %w", locales.ReadCertificate(), err)
 	}
 	key, err := readTLSFile(str(model, "keyFile"))
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("read private key: %w", err)
+		return tls.Certificate{}, fmt.Errorf("%s: %w", locales.ReadPrivateKey(), err)
 	}
 	block, _ := pem.Decode(key)
 	if block == nil {
-		return tls.Certificate{}, errors.New("private key file contains no PEM key")
+		return tls.Certificate{}, errors.New(locales.PrivateKeyFileContainsNoPEM())
 	}
 	if block.Type == "ENCRYPTED PRIVATE KEY" {
 		private, err := pkcs8.ParsePKCS8PrivateKey(block.Bytes, []byte(password))
 		if err != nil {
-			return tls.Certificate{}, fmt.Errorf("decrypt private key: %w", err)
+			return tls.Certificate{}, fmt.Errorf("%s: %w", locales.DecryptPrivateKey(), err)
 		}
 		der, err := x509.MarshalPKCS8PrivateKey(private)
 		if err != nil {
@@ -155,16 +157,16 @@ func LoadClientCertificate(model Object) (tls.Certificate, error) {
 		}
 		key = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 	} else if block.Headers["Proc-Type"] == "4,ENCRYPTED" {
-		//nolint:staticcheck // Legacy PEM is an explicit certificate import format.
+		//nolint:staticcheck
 		der, err := x509.DecryptPEMBlock(block, []byte(password))
 		if err != nil {
-			return tls.Certificate{}, fmt.Errorf("decrypt legacy PEM key: %w", err)
+			return tls.Certificate{}, fmt.Errorf("%s: %w", locales.DecryptLegacyPEMKey(), err)
 		}
 		key = pem.EncodeToMemory(&pem.Block{Type: block.Type, Bytes: der})
 	}
 	pair, err := tls.X509KeyPair(crt, key)
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("client certificate: %w", err)
+		return tls.Certificate{}, fmt.Errorf("%s: %w", locales.ClientCertificate(), err)
 	}
 	if pair.Leaf == nil && len(pair.Certificate) > 0 {
 		pair.Leaf, err = x509.ParseCertificate(pair.Certificate[0])
@@ -177,7 +179,7 @@ func certificateAuthorities(path string) (*x509.CertPool, error) {
 	}
 	data, err := readTLSFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read CA file: %w", err)
+		return nil, fmt.Errorf("%s: %w", locales.ReadCAFile(), err)
 	}
 	pool, err := x509.SystemCertPool()
 	if err != nil {
@@ -186,7 +188,7 @@ func certificateAuthorities(path string) (*x509.CertPool, error) {
 	if !pool.AppendCertsFromPEM(data) {
 		cert, err := x509.ParseCertificate(data)
 		if err != nil {
-			return nil, errors.New("CA file contains no valid PEM or DER certificates")
+			return nil, errors.New(locales.CAFileContainsNoValidPEM())
 		}
 		pool.AddCert(cert)
 	}

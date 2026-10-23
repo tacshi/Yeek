@@ -10,9 +10,9 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// requestResponses lists a request's responses, newest first.
 func (a *App) requestResponses(requestID string) []engine.Object {
 	var responses []engine.Object
 	for _, response := range a.list("http_response") {
@@ -24,8 +24,6 @@ func (a *App) requestResponses(requestID string) []engine.Object {
 	return responses
 }
 
-// pinKey is Yaak's key for the response pinned while latest is the newest:
-// a newer response unpins it.
 func pinKey(latest string) string { return "pinned_http_response_id::" + latest }
 
 func (a *App) pinnedResponseID(latest string) string {
@@ -39,8 +37,6 @@ func (a *App) pinnedResponseID(latest string) string {
 	return ""
 }
 
-// activeResponse is Yaak's usePinnedHttpResponse: the pinned response,
-// else the latest.
 func (a *App) activeResponse(requestID string) engine.Object {
 	latest := a.responses[requestID]
 	if latest == nil {
@@ -53,7 +49,6 @@ func (a *App) activeResponse(requestID string) engine.Object {
 	return latest
 }
 
-// pinResponse pins a response, or unpins the one pinned.
 func (a *App) pinResponse(requestID, id string) {
 	latest := s(a.responses[requestID], "id")
 	if latest == "" {
@@ -71,7 +66,6 @@ func (a *App) pinResponse(requestID, id string) {
 	})
 }
 
-// deleteResponses deletes responses, and finds each request's latest again.
 func (a *App) deleteResponses(responses []engine.Object) {
 	for _, response := range responses {
 		id, request := s(response, "id"), s(response, "requestId")
@@ -89,7 +83,6 @@ func (a *App) deleteResponses(responses []engine.Object) {
 	}
 }
 
-// formatMillis is Yaak's formatMillis.
 func formatMillis(ms float64) string {
 	switch {
 	case ms < 1000:
@@ -103,52 +96,50 @@ func formatMillis(ms float64) string {
 	return fmt.Sprintf("%dm %ds", int(ms/60_000), int(math.Round(math.Mod(ms, 60_000)/1000)))
 }
 
-// historyGroup is how long ago Yaak's response history says a response came.
 func historyGroup(created, now time.Time) string {
 	ago := now.Sub(created)
 	switch {
 	case ago < 5*time.Minute:
-		return "Just now"
+		return locales.JustNow()
 	case ago < 15*time.Minute:
-		return "5 minutes ago"
+		return locales.N5MinutesAgo()
 	case ago < time.Hour:
-		return "15 minutes ago"
+		return locales.N15MinutesAgo()
 	case ago < 3*time.Hour:
-		return "1 hour ago"
+		return locales.N1HourAgo()
 	case ago < 6*time.Hour:
-		return "3 hours ago"
+		return locales.N3HoursAgo()
 	}
 	y, m, d := now.Date()
 	cy, cm, cd := created.Date()
 	switch {
 	case y == cy && m == cm && d == cd:
-		return "Today"
+		return locales.Today()
 	case now.AddDate(0, 0, -1).Format(time.DateOnly) == created.Format(time.DateOnly):
-		return "Yesterday"
+		return locales.Yesterday()
 	case y == cy:
-		return created.Format("Jan 2")
+		return formatDate(created, "Jan 2", "MMMd")
 	}
-	return created.Format("Jan 2, 2006")
+	return formatDate(created, "Jan 2, 2006", "yMMMd")
 }
 
-// responseHistoryMenu is Yaak's RecentHttpResponsesDropdown.
 func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Object) {
 	responses := a.requestResponses(requestID)
 	latest := ""
 	if len(responses) > 0 {
 		latest = s(responses[0], "id")
 	}
-	if m.Item("Delete").Chosen() {
+	if m.Item(locales.Delete()).Chosen() {
 		a.deleteResponses([]engine.Object{active})
 	}
-	if m.Item("Delete all").Disabled(len(responses) == 0).Chosen() {
+	if m.Item(locales.DeleteAll()).Disabled(len(responses) == 0).Chosen() {
 		a.deleteResponses(responses)
 	}
-	if latest != s(active, "id") && m.Item("Unpin Response").Disabled(len(responses) == 0).Chosen() {
+	if latest != s(active, "id") && m.Item(locales.UnpinResponse()).Disabled(len(responses) == 0).Chosen() {
 		a.pinResponse(requestID, s(active, "id"))
 	}
 	m.Separator()
-	m.Item("Recent").Disabled(true)
+	m.Item(locales.Recent()).Disabled(true)
 	now := time.Now()
 	last, recent, shownEmpty := "", false, false
 	for i, response := range responses {
@@ -157,13 +148,13 @@ func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Ob
 			created, _ = time.Parse("2006-01-02T15:04:05.999999999", s(response, "createdAt"))
 		}
 		group := historyGroup(created.Local(), now)
-		if group == "Just now" {
+		if group == locales.JustNow() {
 			recent = true
 		} else if !recent && !shownEmpty {
-			m.Item("No recent requests").Disabled(true)
+			m.Item(locales.NoRecentRequests()).Disabled(true)
 			shownEmpty = true
 		}
-		if group != "Just now" && group != last {
+		if group != locales.JustNow() && group != last {
 			m.Separator()
 			m.Item(group).Disabled(true)
 			last = group
@@ -178,15 +169,14 @@ func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Ob
 		}
 	}
 	if !recent && !shownEmpty {
-		m.Item("No recent requests").Disabled(true)
+		m.Item(locales.NoRecentRequests()).Disabled(true)
 	}
 }
 
-// historyIcon is a pin while an earlier response is pinned.
 func (a *App) historyIcon(c *ui.Context, requestID string, active engine.Object) ui.Element {
 	glyph := "history"
 	if latest := a.responses[requestID]; latest != nil && s(latest, "id") != s(active, "id") {
 		glyph = "pin"
 	}
-	return iconButton(c, glyph, "Show response history")
+	return iconButton(c, glyph, locales.ShowResponseHistory())
 }

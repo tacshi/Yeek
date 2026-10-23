@@ -30,7 +30,6 @@ func TestWorkspaceSettingsEditHeadersAuthAndSettings(t *testing.T) {
 	shot("0")
 	d := a.workspaceDraft
 
-	// Headers: the defaults are inherited, and a new header saves to the workspace.
 	if err := tt.Click("Headers"); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +51,6 @@ func TestWorkspaceSettingsEditHeadersAuthAndSettings(t *testing.T) {
 		t.Fatalf("workspace headers = %v", saved["headers"])
 	}
 
-	// Auth: a workspace offers No Auth instead of inheriting.
 	if err := tt.Click("Auth"); err != nil {
 		t.Fatal(err)
 	}
@@ -72,8 +70,6 @@ func TestWorkspaceSettingsEditHeadersAuthAndSettings(t *testing.T) {
 		t.Fatalf("workspace auth = %v", saved["authenticationType"])
 	}
 
-	// Settings: workspace values are plain, not overrides. ("Settings" also
-	// names the header's gear button, so choose the tab directly.)
 	d.Tab = 1
 	tt.Frame()
 	shot("1")
@@ -134,7 +130,6 @@ func contains(items []string, want string) bool {
 	return false
 }
 
-// A scrolling list's scrollbar must not cover the controls at its right edge.
 func TestRowActionsClickableWhenListScrolls(t *testing.T) {
 	a, e := cookieApp(t)
 	params := []any{}

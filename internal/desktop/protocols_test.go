@@ -18,7 +18,7 @@ import (
 	"yeek/internal/engine"
 )
 
-func TestGRPCRequestLikeYaak(t *testing.T) {
+func TestGRPCRequest(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +40,6 @@ func TestGRPCRequestLikeYaak(t *testing.T) {
 	tt := ui.NewTester(a.View, 1360, 860)
 	tt.Frame()
 	d := a.drafts[id]
-	// The schema is reflected without asking, and its first method chosen.
 	if d.Service == "" || d.RPCMethod == "" || !tt.HasText("Schema Detected") || tt.HasText("Params") || !tt.HasText("Metadata") {
 		t.Fatal(d.Service, d.RPCMethod, tt.Texts())
 	}
@@ -57,7 +56,6 @@ func TestGRPCRequestLikeYaak(t *testing.T) {
 	if requestName(engine.Object{"model": "grpc_request", "url": "x", "service": d.Service, "method": d.RPCMethod}) != "Health/Check" || !tt.HasText("Send") {
 		t.Fatal(d.Service, d.RPCMethod)
 	}
-	// The message completes the method's input fields, and checks them.
 	if err := tt.Click("Message body"); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +96,6 @@ func TestGRPCRequestLikeYaak(t *testing.T) {
 	}
 	tt.Frame()
 	tt.Frame()
-	// A unary call shows the message received.
 	if !tt.HasText("Messages") || !tt.HasText("Message Received") || !strings.Contains(strings.Join(tt.Texts(), " "), "SERVING") {
 		t.Fatal(tt.Texts())
 	}
@@ -140,7 +137,7 @@ func TestNewRequestNamesAndCreateMenu(t *testing.T) {
 	}
 }
 
-func TestWebSocketRequestLikeYaak(t *testing.T) {
+func TestWebSocketRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {

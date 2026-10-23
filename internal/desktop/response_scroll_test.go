@@ -10,8 +10,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// Like Yaak's response.body.<id> editor state, a new response opens at its
-// first line rather than where the previous response was scrolled to.
 func TestNewResponseOpensAtTop(t *testing.T) {
 	var rows []string
 	for i := range 30 {
@@ -23,8 +21,6 @@ func TestNewResponseOpensAtTop(t *testing.T) {
 		a.applyModel(engine.Object{"model": "http_response", "id": id, "requestId": d.ID, "state": "closed", "status": float64(200), "contentLength": float64(len(body)), "headers": []any{engine.Object{"name": "Content-Type", "value": "application/json"}}, "createdAt": created})
 		a.bodies[id] = body
 	}
-	// gutterPixels is the line-number gutter, which shows the first visible
-	// line; the rest of the editor also shows a scroll bar after a scroll.
 	gutterPixels := func(tt *ui.Tester) []byte {
 		t.Helper()
 		r, ok := tt.Find("Response body")
@@ -32,7 +28,7 @@ func TestNewResponseOpensAtTop(t *testing.T) {
 			t.Fatal("no response editor")
 		}
 		img := tt.Image()
-		scale := float32(img.Bounds().Dx()) / 1360 // the tester renders at the display scale
+		scale := float32(img.Bounds().Dx()) / 1360
 		x0, y0, w, h := int(r.X*scale), int(r.Y*scale), int(36*scale), int(r.H*scale)
 		var out []byte
 		for y := y0; y < y0+h; y++ {
@@ -42,7 +38,6 @@ func TestNewResponseOpensAtTop(t *testing.T) {
 		return out
 	}
 
-	// Scroll a long response to its end, then receive a shorter one.
 	a, d, tt := viewerApp(t, "application/json", long, engine.Object{"createdAt": "2026-01-01T00:00:00"})
 	tt.Frame()
 	r, _ := tt.Find("Response body")
@@ -52,7 +47,6 @@ func TestNewResponseOpensAtTop(t *testing.T) {
 	tt.Frame()
 	got := gutterPixels(tt)
 
-	// Scrolled explicitly to its top, it looks the same: it was already there.
 	tt.Scroll(r.X+100, r.Y+100, 0, -100000)
 	tt.Frame()
 	if !bytes.Equal(got, gutterPixels(tt)) {

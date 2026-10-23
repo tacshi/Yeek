@@ -7,10 +7,6 @@ import (
 	"github.com/ebitengine/purego/objc"
 )
 
-// setProcessName gives an unbundled run, as `go run .`, the app's name in the
-// macOS menu bar, which otherwise shows the executable's name. A packaged app
-// already gets it from CFBundleName in its Info.plist. It must run before
-// AppKit builds the menu bar.
 func setProcessName(name string) {
 	if _, err := purego.Dlopen("/System/Library/Frameworks/Foundation.framework/Foundation", purego.RTLD_GLOBAL|purego.RTLD_NOW); err != nil {
 		return

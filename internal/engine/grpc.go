@@ -22,14 +22,15 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"yeek/locales"
 )
 
 type GRPCMethod struct {
 	Name                             string
 	ClientStreaming, ServerStreaming bool
 	Example                          string
-	// Input is the shape of the request message.
-	Input *GRPCMessage
+	Input                            *GRPCMessage
 }
 type GRPCService struct {
 	Name    string
@@ -118,7 +119,7 @@ func grpcDescriptors(ctx context.Context, conn *grpc.ClientConn, protoFiles []st
 	defer reflector.Reset()
 	names, err := reflector.ListServices()
 	if err != nil {
-		return nil, fmt.Errorf("server reflection failed; select .proto files if reflection is disabled: %w", err)
+		return nil, fmt.Errorf("%s: %w", locales.ServerReflectionFailedSelectProtoFiles(), err)
 	}
 	for _, name := range names {
 		file, err := reflector.FileContainingSymbol(name)
@@ -195,7 +196,7 @@ func (e *Engine) StartGRPC(ctx context.Context, id, environment string, files []
 		method = service.Methods().ByName(protoreflect.Name(str(r.Model, "method")))
 	}
 	if method == nil {
-		return nil, errors.New("select a gRPC service and method")
+		return nil, errors.New(locales.SelectAGRPCServiceAndMethod())
 	}
 	model, err := e.Save(ctx, Object{"model": "grpc_connection", "workspaceId": r.Model["workspaceId"], "requestId": id, "url": r.Model["url"], "service": r.Model["service"], "method": r.Model["method"], "state": "connected"})
 	if err != nil {
@@ -299,14 +300,14 @@ func (e *Engine) writeGRPC(ctx context.Context, session *grpcSession, text strin
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	if session.closedSend {
-		return errors.New("request stream is already finished")
+		return errors.New(locales.RequestStreamIsAlreadyFinished())
 	}
 	if strings.TrimSpace(text) == "" {
 		text = "{}"
 	}
 	message := dynamicpb.NewMessage(session.method.Input())
 	if err := protojson.Unmarshal([]byte(text), message); err != nil {
-		return fmt.Errorf("request message: %w", err)
+		return fmt.Errorf("%s: %w", locales.RequestMessage(), err)
 	}
 	if err := session.stream.SendMsg(message); err != nil {
 		return err
@@ -319,10 +320,10 @@ func (e *Engine) SendGRPCMessage(ctx context.Context, id, text string) error {
 	session := e.grpcSessions[id]
 	e.mu.Unlock()
 	if session == nil {
-		return errors.New("gRPC connection is closed")
+		return errors.New(locales.GRPCConnectionIsClosed())
 	}
 	if !session.method.IsStreamingClient() {
-		return errors.New("this method accepts only one request message")
+		return errors.New(locales.ThisMethodAcceptsOnlyOneRequest())
 	}
 	return e.writeGRPC(ctx, session, text)
 }
@@ -331,7 +332,7 @@ func (e *Engine) FinishGRPC(id string) error {
 	session := e.grpcSessions[id]
 	e.mu.Unlock()
 	if session == nil {
-		return errors.New("gRPC connection is closed")
+		return errors.New(locales.GRPCConnectionIsClosed())
 	}
 	session.mu.Lock()
 	defer session.mu.Unlock()

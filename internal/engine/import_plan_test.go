@@ -11,7 +11,7 @@ import (
 )
 
 func importDocumentForTest() ImportDocument {
-	return ImportDocument{Format: "Yaak", Origin: "/collection.yaak", Label: "API", Models: []Object{
+	return ImportDocument{Format: "Yeek", Origin: "/collection.yeek", Label: "API", Models: []Object{
 		{"model": "workspace", "id": "w", "name": "API"},
 		{"model": "environment", "id": "e", "workspaceId": "w", "parentId": "w", "parentModel": "workspace", "name": "Base", "variables": []any{Object{"name": "host", "value": "https://example.test"}}},
 		{"model": "folder", "id": "f", "workspaceId": "w", "name": "Group"},
@@ -63,7 +63,6 @@ func TestImportPreviewReimportAndConflicts(t *testing.T) {
 			t.Fatalf("reimport %s: %s (%v)", item.Name, item.Action, item.ChangedFields)
 		}
 	}
-	// Editor row identifiers and empty optional fields are not content changes.
 	saveTest(t, e, Object{"model": "http_request", "id": rid, "headers": []any{Object{"id": "editor-row", "name": "Accept", "value": "application/json", "enabled": true}}, "description": "", "body": Object{}})
 	p = testImportPlan(t, e, doc, wid)
 	if item := planItem(t, p, "http_request:r"); item.Action != "unchanged" {
@@ -208,7 +207,7 @@ func TestImportReimportFromMultiWorkspaceFileStaysScoped(t *testing.T) {
 	e := testEngine(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "workspaces.json")
-	content := `{"yaakSchema":5,"resources":{"workspaces":[{"id":"one","name":"One"},{"id":"two","name":"Two"}],"httpRequests":[{"id":"r1","workspaceId":"one","name":"First","url":"https://one.test"},{"id":"r2","workspaceId":"two","name":"Second","url":"https://two.test"}]}}`
+	content := `{"yeekSchema":5,"resources":{"workspaces":[{"id":"one","name":"One"},{"id":"two","name":"Two"}],"httpRequests":[{"id":"r1","workspaceId":"one","name":"First","url":"https://one.test"},{"id":"r2","workspaceId":"two","name":"Second","url":"https://two.test"}]}}`
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -237,9 +236,9 @@ func TestImportReimportFromMultiWorkspaceFileStaysScoped(t *testing.T) {
 	}
 }
 
-func TestImportLegacyYaakEnvironmentMigrations(t *testing.T) {
+func TestImportLegacyEnvironmentMigrations(t *testing.T) {
 	e := testEngine(t)
-	data := `{"yaakSchema":2,"resources":{"workspaces":[{"id":"w","name":"Legacy","variables":[{"name":"host","value":"https://base.test"}]}],"environments":[{"id":"e","workspaceId":"w","name":"Staging","variables":[{"name":"host","value":"https://staging.test"}]}],"requests":[{"id":"r","workspaceId":"w","url":"${[ host ]}/items"}]}}`
+	data := `{"yeekSchema":2,"resources":{"workspaces":[{"id":"w","name":"Legacy","variables":[{"name":"host","value":"https://base.test"}]}],"environments":[{"id":"e","workspaceId":"w","name":"Staging","variables":[{"name":"host","value":"https://staging.test"}]}],"requests":[{"id":"r","workspaceId":"w","url":"${[ host ]}/items"}]}}`
 	models, err := e.Import(t.Context(), []byte(data), "")
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +253,7 @@ func TestImportLegacyYaakEnvironmentMigrations(t *testing.T) {
 	if err != nil || str(resolved.Model, "url") != "https://staging.test/items" {
 		t.Fatal(resolved.Model, err)
 	}
-	models = openAPIModels(t, `{"yaakSchema":4,"resources":{"workspaces":[{"id":"w","name":"v4"}],"environments":[{"id":"b","workspaceId":"w","base":true},{"id":"c","workspaceId":"w","base":false}]}}`)
+	models = openAPIModels(t, `{"yeekSchema":4,"resources":{"workspaces":[{"id":"w","name":"v4"}],"environments":[{"id":"b","workspaceId":"w","base":true},{"id":"c","workspaceId":"w","base":false}]}}`)
 	for _, m := range models {
 		if str(m, "id") == "b" && str(m, "parentModel") != "workspace" || str(m, "id") == "c" && str(m, "parentModel") != "environment" {
 			t.Fatal(m)
@@ -373,7 +372,7 @@ func TestImportFileLinksPersistAndTemplatesRemap(t *testing.T) {
 		}
 	}
 	data, _ := json.Marshal(Object{"resources": resources})
-	path := filepath.Join(t.TempDir(), "api.yaak")
+	path := filepath.Join(t.TempDir(), "api.yeek")
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -413,8 +412,7 @@ func TestImportFileLinksPersistAndTemplatesRemap(t *testing.T) {
 	}
 }
 
-// Yaak's warn_if_imported_elsewhere and resolve_linked_source.
-func TestImportLinksByKeysAndWarnsLikeYaak(t *testing.T) {
+func TestImportLinksByKeysAndWarns(t *testing.T) {
 	e := testEngine(t)
 	doc := importDocumentForTest()
 	first := testImportPlan(t, e, doc, "")
@@ -424,31 +422,27 @@ func TestImportLinksByKeysAndWarnsLikeYaak(t *testing.T) {
 		t.Fatalf("first import warned: %v", first.Warnings)
 	}
 
-	// The same file into a new workspace: a second copy.
 	again := testImportPlan(t, e, importDocumentForTest(), "")
 	if !slices.ContainsFunc(again.Warnings, func(w ImportWarning) bool {
 		return w.Title == "Already imported into API" && w.Detail == "Importing here makes a second copy" && w.Level == "warning"
 	}) {
 		t.Fatalf("warnings %v", again.Warnings)
 	}
-	// Back into its workspace it isn't.
 	if back := testImportPlan(t, e, importDocumentForTest(), wid); len(back.Warnings) != 0 {
 		t.Fatalf("warned importing back: %v", back.Warnings)
 	}
 
-	// Moved: a new origin, the same keys, still links.
 	moved := importDocumentForTest()
-	moved.Origin = "/moved/collection.yaak"
+	moved.Origin = "/moved/collection.yeek"
 	plan := testImportPlan(t, e, moved, wid)
 	if item := planItem(t, plan, "http_request:r"); item.Action != "unchanged" {
 		t.Fatalf("moved file not linked: %s", item.Action)
 	}
 
-	// Two sources holding the same keys, neither from this origin: new.
 	sources, _ := e.Store.List(t.Context(), "import_source", wid)
 	bindings, _ := e.Store.List(t.Context(), "import_source_resource", wid)
 	copySource := clone(sources[0])
-	copySource["id"], copySource["origin"], copySource["originLabel"] = newID("import_source"), "/copy.yaak", "copy.yaak"
+	copySource["id"], copySource["origin"], copySource["originLabel"] = newID("import_source"), "/copy.yeek", "copy.yeek"
 	if err := e.Store.Write(t.Context(), Object{"type": "test"}, func(tx *modelTx) error {
 		if _, err := tx.upsert(t.Context(), copySource); err != nil {
 			return err
@@ -465,7 +459,7 @@ func TestImportLinksByKeysAndWarnsLikeYaak(t *testing.T) {
 		t.Fatal(err)
 	}
 	elsewhere := importDocumentForTest()
-	elsewhere.Origin = "/third.yaak"
+	elsewhere.Origin = "/third.yeek"
 	ambiguous := testImportPlan(t, e, elsewhere, wid)
 	if !slices.ContainsFunc(ambiguous.Warnings, func(w ImportWarning) bool {
 		return w.Title == "Imported as new" && strings.HasSuffix(w.Detail, " already contain these resources") && w.Level == "warning"
@@ -477,7 +471,7 @@ func TestImportLinksByKeysAndWarnsLikeYaak(t *testing.T) {
 	}
 }
 
-func TestDisplayListMatchesYaak(t *testing.T) {
+func TestDisplayList(t *testing.T) {
 	for _, c := range []struct {
 		items []string
 		want  string

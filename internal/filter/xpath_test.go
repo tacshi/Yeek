@@ -5,10 +5,6 @@ import (
 	"testing"
 )
 
-// Ported from Yaak's crates/yaak-filter/tests/xpath.rs. Its expected output
-// is what the @yaak/filter-xpath plugin (xmldom and xpath) returned for the
-// same input, except where a test says otherwise.
-
 const (
 	xmlItems = `<root><item id="1">A</item><item id="2">B &amp; C</item><empty/></root>`
 	xmlFeed  = `<feed xmlns="http://www.w3.org/2005/Atom" xmlns:m="urn:m"><entry><title>T</title><m:thumb url="x"/></entry></feed>`
@@ -40,7 +36,6 @@ func TestNodeSetsSerializeOneNodePerLine(t *testing.T) {
 	assertXPath(t, xmlMixed, "//comment()", "<!-- c -->\n<!--note-->")
 }
 
-// The plugin printed a leading space before each attribute (` id="1"`).
 func TestAttributesSerializeAsNameAndValue(t *testing.T) {
 	assertXPath(t, xmlItems, "//item/@id", "id=\"1\"\nid=\"2\"")
 	assertXPath(t, xmlMixed, "/a/@x", `x="1&quot;2"`)
@@ -59,14 +54,9 @@ func TestScalarResultsPrintLikeJavaScript(t *testing.T) {
 func TestNamespacesAreDeclaredWhereTheyAreUsed(t *testing.T) {
 	assertXPath(t, xmlFeed, "//*[local-name()='entry']", `<entry xmlns="http://www.w3.org/2005/Atom"><title>T</title><m:thumb url="x" xmlns:m="urn:m"/></entry>`)
 	assertXPath(t, xmlFeed, "//*[local-name()='thumb']", `<m:thumb url="x" xmlns:m="urn:m"/>`)
-	// Yaak's XPath 1.0 engine finds nothing for //entry, as XPath 1.0 has no
-	// default namespace for unprefixed names; antchfx/xpath matches the
-	// local name.
 	assertXPath(t, xmlFeed, "//m:thumb", `<m:thumb url="x" xmlns:m="urn:m"/>`)
 }
 
-// The plugin kept the XML declaration and the CDATA section; this, like
-// Yaak's parser, keeps neither.
 func TestRootSerializesTheWholeDocument(t *testing.T) {
 	assertXPath(t, xmlMixed, "/", `<!-- c --><a x="1&quot;2"><!--note--><b>&lt;raw&gt;</b></a>`)
 	assertXPath(t, xmlMixed, "//b/text()", "&lt;raw&gt;")

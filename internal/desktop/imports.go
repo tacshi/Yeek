@@ -3,7 +3,6 @@ package desktop
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -13,10 +12,9 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// importSource is Yaak's ImportSourcePath: a file, a folder or a URL (kind
-// "" lets the engine tell a path's), or Yeek's pasted text, which has no path.
 type importSource struct {
 	path, kind, content string
 }
@@ -32,13 +30,10 @@ func (s importSource) input() engine.ImportInput {
 	return engine.ImportInput{Kind: kind, Origin: s.path}
 }
 
-// importDetection is Yaak's ImportSourceDetection of a source's format.
 type importDetection struct {
 	status, importer, message string
 }
 
-// importDialog is Yaak's ImportDataDialog: sources, a destination and a
-// preview of the plan to commit.
 type importDialog struct {
 	sources        []importSource
 	detections     map[string]*importDetection
@@ -65,12 +60,11 @@ func (a *App) openImport(inputs []engine.ImportInput, destination engine.ImportD
 	}
 	state := &importDialog{detections: map[string]*importDetection{}, toggled: map[string]bool{}}
 	a.imports = state
-	a.prompt("imports", "Import Data", "", "")
+	a.prompt("imports", locales.ImportData(), "", "")
 	if destination.WorkspaceID != "" && destination.WorkspaceID == a.workspace && len(inputs) > 0 {
 		state.choice = "current"
 	}
 	if inputs == nil && a.workspace != "" {
-		// The current workspace's linked sources, ready to import again.
 		for _, source := range a.list("import_source") {
 			if s(source, "workspaceId") == a.workspace {
 				inputs = append(inputs, engine.ImportInput{Origin: s(source, "origin")})
@@ -88,7 +82,6 @@ func (a *App) openImport(inputs []engine.ImportInput, destination engine.ImportD
 	a.addImportSources(state, added)
 }
 
-// sourcePath is Yaak's toSourcePath: a URL unless it looks like a local path.
 func sourcePath(path string) importSource {
 	if isImportFilePath(path) {
 		return importSource{path: path}
@@ -96,8 +89,6 @@ func sourcePath(path string) importSource {
 	return importSource{path: path, kind: "url"}
 }
 
-// isImportFilePath is Yaak's: a bare hostname is a URL, a local path needs
-// an absolute or explicitly relative start.
 func isImportFilePath(value string) bool {
 	for _, prefix := range []string{"/", "./", "../", "~/", `\\`} {
 		if strings.HasPrefix(value, prefix) {
@@ -107,13 +98,12 @@ func isImportFilePath(value string) bool {
 	return len(value) > 2 && (value[0] >= 'a' && value[0] <= 'z' || value[0] >= 'A' && value[0] <= 'Z') && value[1] == ':' && (value[2] == '\\' || value[2] == '/')
 }
 
-// addImportSources adds the sources not in the list yet and detects their formats.
 func (a *App) addImportSources(state *importDialog, added []importSource) {
 	state.error = ""
 	for _, source := range added {
 		if source.kind == "text" {
 			state.texts++
-			source.path = fmt.Sprintf("Pasted text %d", state.texts)
+			source.path = locales.PastedTextIndex(state.texts)
 		}
 		if strings.TrimSpace(source.path) == "" || slices.ContainsFunc(state.sources, func(s importSource) bool { return s.path == source.path }) {
 			continue
@@ -143,8 +133,6 @@ func (a *App) removeImportSource(state *importDialog, path string) {
 	a.findImportOrigins(state)
 }
 
-// findImportOrigins looks up the linked sources of the dialog's sources,
-// for the destination they were last imported into.
 func (a *App) findImportOrigins(state *importDialog) {
 	var origins []string
 	for _, source := range state.sources {
@@ -175,7 +163,6 @@ func (a *App) findImportOrigins(state *importDialog) {
 	})
 }
 
-// linkedWorkspace is the one workspace the sources were last imported into, if one.
 func (a *App) linkedWorkspace(state *importDialog) engine.Object {
 	var ids []string
 	for _, source := range state.originSources {
@@ -192,9 +179,6 @@ func (a *App) linkedWorkspace(state *importDialog) engine.Object {
 	return nil
 }
 
-// importDestinationKind is the destination chosen, else Yaak's default:
-// back into the current workspace when the sources are linked to it, a new
-// one otherwise.
 func (a *App) importDestinationKind(state *importDialog) string {
 	if state.choice != "" {
 		return state.choice
@@ -280,7 +264,6 @@ func (a *App) applyImport() {
 			}
 		}
 		if workspace == "" {
-			// An import into a workspace that was there writes no workspace.
 			workspace = plan.Destination.WorkspaceID
 		}
 		var models []engine.Object
@@ -308,7 +291,6 @@ func (a *App) applyImport() {
 				} else if a.drafts[a.active] == nil {
 					a.drafts[a.active] = newDraft(a.models[a.active])
 				}
-				// Yaak opens the workspace at the first environment imported.
 				if a.models[environment] != nil {
 					a.environment = environment
 				}
@@ -316,7 +298,7 @@ func (a *App) applyImport() {
 			}
 			if a.imports == state {
 				a.importCounts = counts
-				a.prompt("import_complete", "Import Complete", "", "")
+				a.prompt("import_complete", locales.ImportComplete(), "", "")
 			}
 		}, nil
 	})
@@ -336,9 +318,7 @@ func (a *App) importDialog(c *ui.Context, p colors) {
 	})
 }
 
-// importSourcesStep is the dialog's first step: the sources, where they go.
 func (a *App) importSourcesStep(c *ui.Context, p colors, state *importDialog) {
-	// The empty drop zone fills the dialog, as Yaak's flex-1 does; a list scrolls.
 	body := ui.Column(c)
 	if len(state.sources) > 0 {
 		body = ui.Scroll(c)
@@ -350,11 +330,11 @@ func (a *App) importSourcesStep(c *ui.Context, p colors, state *importDialog) {
 		}
 		if linked := a.linkedWorkspace(state); linked != nil && s(linked, "id") != a.importDestinationWorkspace(state) {
 			ui.Row(c).Gap(0).Children(func() {
-				label := "These sources were"
+				label := locales.TheseSourcesWereLastImportedInto()
 				if len(state.sources) == 1 {
-					label = "This source was"
+					label = locales.ThisSourceWasLastImportedInto()
 				}
-				ui.Text(c, label+" last imported into").FontSize(12).TextColor(p.muted).Margin(0, 3.3, 0, 0)
+				ui.Text(c, label).FontSize(12).TextColor(p.muted).Margin(0, 3.3, 0, 0)
 				if inlineLink(c, p, s(linked, "name"), false, 12).Clicked() {
 					if s(linked, "id") == a.workspace {
 						state.choice = "current"
@@ -378,40 +358,40 @@ func (a *App) importSourcesStep(c *ui.Context, p colors, state *importDialog) {
 			return
 		}
 		ui.Row(c).Gap(8).Children(func() {
-			ui.Text(c, "Import into").FontSize(12).TextColor(p.muted)
-			options := []string{"New Workspace"}
+			ui.Text(c, locales.ImportInto()).FontSize(12).TextColor(p.muted)
+			options := []string{locales.NewWorkspace()}
 			values := []string{"new"}
 			if a.workspace != "" {
-				options, values = append(options, "Current Workspace"), append(values, "current")
+				options, values = append(options, locales.CurrentWorkspace()), append(values, "current")
 			}
-			options, values = append(options, "Other Workspace"), append(values, "other")
+			options, values = append(options, locales.OtherWorkspace()), append(values, "other")
 			selected := options[max(0, slices.Index(values, kind))]
-			if ui.Select(c, &selected, options).Label("Import into").FontSize(12).Changed() {
+			if ui.Select(c, &selected, options).Label(locales.ImportInto()).FontSize(12).Changed() {
 				state.choice = values[slices.Index(options, selected)]
 			}
 			if kind == "other" {
-				names, ids := []string{"Select a workspace"}, []string{""}
+				names, ids := []string{locales.SelectAWorkspace()}, []string{""}
 				for _, w := range workspaces {
 					if s(w, "id") != a.workspace {
 						names, ids = append(names, s(w, "name")), append(ids, s(w, "id"))
 					}
 				}
 				workspace := names[max(0, slices.Index(ids, state.other))]
-				if ui.Select(c, &workspace, names).Label("Workspace").FontSize(12).Changed() {
+				if ui.Select(c, &workspace, names).Label(locales.Workspace()).FontSize(12).Changed() {
 					state.other = ids[slices.Index(names, workspace)]
 				}
 			}
 		})
 	}, func() {
-		if ui.Button(c, "Cancel").Disabled(state.busy).Clicked() {
+		if ui.Button(c, locales.Cancel()).Disabled(state.busy).Clicked() {
 			if state.cancel != nil {
 				state.cancel()
 			}
 			a.dialogOpen = false
 		}
-		label := "Preview Import"
+		label := locales.PreviewImport()
 		if state.busy {
-			label = "Analyzing"
+			label = locales.Analyzing()
 		}
 		if ui.PrimaryButton(c, label).Disabled(len(state.sources) == 0 || !allDetected || state.busy || kind == "other" && state.other == "").Clicked() {
 			a.previewImport()
@@ -419,13 +399,12 @@ func (a *App) importSourcesStep(c *ui.Context, p colors, state *importDialog) {
 	})
 }
 
-// importSourceList is Yaak's ImportSourceList.
 func (a *App) importSourceList(c *ui.Context, p colors, state *importDialog) {
 	pick := func(directory bool) {
 		a.background(func() (func(), error) {
-			title := "Select Import Files"
+			title := locales.SelectImportFiles()
 			if directory {
-				title = "Select Import Folder"
+				title = locales.SelectImportFolder()
 			}
 			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: title, Multiple: true, Directory: directory})
 			return func() {
@@ -462,17 +441,17 @@ func (a *App) importSourceList(c *ui.Context, p colors, state *importDialog) {
 			state.pathInput, state.showPathInput = "", false
 		}
 		ui.Row(c).FillWidth().Gap(4).Padding(2, 4, 2, 0).Radius(6).Border(1, p.border).Children(func() {
-			field := ui.TextInput(c, &state.pathInput).Label("URL or file path").Placeholder("Paste a URL or a file path").AutoFocus().Grow(1).Border(0, ui.Transparent).Disabled(state.busy)
+			field := ui.TextInput(c, &state.pathInput).Label(locales.URLOrFilePath()).Placeholder(locales.PasteAURLOrAFile()).AutoFocus().Grow(1).Border(0, ui.Transparent).Disabled(state.busy)
 			if field.Submitted() {
 				add()
 			}
 			if field.Shortcut(0, ui.KeyEscape) {
 				state.pathInput, state.showPathInput = "", false
 			}
-			if trimmed != "" && ui.Button(c, "Add").FontSize(11).Padding(2, 8).Clicked() {
+			if trimmed != "" && ui.Button(c, locales.Add()).FontSize(11).Padding(2, 8).Clicked() {
 				add()
 			}
-			if smallIconButton(c, "close", "Cancel").Clicked() {
+			if smallIconButton(c, "close", locales.Cancel()).Clicked() {
 				state.pathInput, state.showPathInput = "", false
 			}
 		})
@@ -488,27 +467,26 @@ func (a *App) importSourceList(c *ui.Context, p colors, state *importDialog) {
 			area.Children(func() {
 				icon(c, "folderInput").FontSize(40).TextColor(p.subtle).Margin(0, 0, 4, 0)
 				if hovering {
-					ui.Text(c, "Drop to add").FontSize(13).TextColor(p.muted)
+					ui.Text(c, locales.DropToAdd()).FontSize(13).TextColor(p.muted)
 				} else {
-					// A text's own end spaces don't lay out, so a space is a margin.
 					const space = 3.6
 					ui.Row(c).Gap(0).Children(func() {
-						ui.Text(c, "Choose").FontSize(13).TextColor(p.muted).Margin(0, space, 0, 0)
-						if inlineLink(c, p, "files", state.busy, 13).Clicked() {
+						ui.Text(c, locales.ImportPickChoose()).FontSize(13).TextColor(p.muted).Margin(0, space, 0, 0)
+						if inlineLink(c, p, locales.ImportPickFiles(), state.busy, 13).Clicked() {
 							pick(false)
 						}
-						ui.Text(c, ", a").FontSize(13).TextColor(p.muted).Margin(0, space, 0, 0)
-						if inlineLink(c, p, "folder", state.busy, 13).Clicked() {
+						ui.Text(c, locales.ImportPickA()).FontSize(13).TextColor(p.muted).Margin(0, space, 0, 0)
+						if inlineLink(c, p, locales.ImportPickFolder(), state.busy, 13).Clicked() {
 							pick(true)
 						}
-						ui.Text(c, ", or a").FontSize(13).TextColor(p.muted).Margin(0, space, 0, 0)
-						if inlineLink(c, p, "URL", state.busy, 13).Clicked() {
+						ui.Text(c, locales.ImportPickOrA()).FontSize(13).TextColor(p.muted).Margin(0, space, 0, 0)
+						if inlineLink(c, p, locales.ImportPickURL(), state.busy, 13).Clicked() {
 							openPath()
 						}
-						ui.Text(c, ", or drag them here").FontSize(13).TextColor(p.muted)
+						ui.Text(c, locales.ImportPickOrDrag()).FontSize(13).TextColor(p.muted)
 					})
 				}
-				ui.Text(c, "Supports OpenAPI, Swagger, Postman, Insomnia, Bruno, curl, and Yaak exports").FontSize(11).TextColor(p.subtle)
+				ui.Text(c, locales.SupportsYeekOpenAPISwaggerPostmanInsomnia()).FontSize(11).TextColor(p.subtle)
 			})
 			pathInput()
 		})
@@ -521,10 +499,10 @@ func (a *App) importSourceList(c *ui.Context, p colors, state *importDialog) {
 			items = append(items, item)
 		}
 		area = pathList(c, p, items, func(path string) { a.removeImportSource(state, path) }, []pathListAdd{
-			{"Files", func() { pick(false) }},
-			{"Folder", func() { pick(true) }},
-			{"URL or file path", openPath},
-		}, "Add files, a folder, or a URL", "or drop them here", false, state.busy, pathInput)
+			{locales.Files(), func() { pick(false) }},
+			{locales.Folder(), func() { pick(true) }},
+			{locales.URLOrFilePath(), openPath},
+		}, locales.AddFilesAFolderOrA(), locales.OrDropThemHere(), false, state.busy, pathInput)
 		if area.FileDragOver() {
 			area.Background(p.border.Alpha(.35))
 		}
@@ -547,7 +525,7 @@ func importDetectionSubtitle(c *ui.Context, p colors, source importSource, detec
 	case detection == nil:
 	case detection.status == "loading":
 		ui.Spinner(c).Size(10, 10).TextColor(p.subtle)
-		ui.Text(c, "Detecting format").FontSize(11).TextColor(p.subtle)
+		ui.Text(c, locales.DetectingFormat()).FontSize(11).TextColor(p.subtle)
 		return
 	case detection.status == "error":
 		ui.Text(c, detection.message).FontSize(11).TextColor(p.red).SingleLine().MinWidth(0)
@@ -575,7 +553,6 @@ func importSourceIcon(source importSource) string {
 	return "import"
 }
 
-// inlineLink is Yaak's InlineButton: underlined text that acts.
 func inlineLink(c *ui.Context, p colors, label string, disabled bool, size float32) ui.Element {
 	link := ui.ButtonBase(c).Label(label).Disabled(disabled)
 	link.Children(func() {
@@ -589,8 +566,6 @@ func inlineLink(c *ui.Context, p colors, label string, disabled bool, size float
 	return link
 }
 
-// dialogFooter is Yaak's DialogFooter: an optional left slot, then the
-// actions at the end, under a rule.
 func dialogFooter(c *ui.Context, p colors, left, actions func()) {
 	ui.Row(c).Padding(12, 24).Gap(12).BorderWidth(1, 0, 0, 0).BorderColor(p.border).Children(func() {
 		if left != nil {
@@ -601,8 +576,6 @@ func dialogFooter(c *ui.Context, p colors, left, actions func()) {
 	})
 }
 
-// importTreeNode is a row of the preview's tree (Yaak's TreeRow): the
-// destination workspace, the group of its environments, or a plan item.
 type importTreeNode struct {
 	key, kind, label string
 	isNew            bool
@@ -610,12 +583,10 @@ type importTreeNode struct {
 	children         []*importTreeNode
 }
 
-// importPreview is the dialog's second step: the plan, to check and apply.
 func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 	plan := state.plan
 	var items []*engine.ImportItem
 	for _, item := range plan.Items {
-		// The workspace roots the tree; commit always applies it.
 		if item.Kind != "workspace" {
 			items = append(items, item)
 		}
@@ -633,7 +604,6 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 		}
 		return out
 	}
-	// Deleting a folder takes its contents with it, leaving them nothing to decide.
 	disabled := map[*engine.ImportItem]bool{}
 	for _, item := range items {
 		if item.Action != "delete" {
@@ -659,7 +629,7 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 			changes++
 		}
 	}
-	destinationLabel, destinationValue := "Destination", cmp.Or(s(a.models[plan.Destination.WorkspaceID], "name"), "Unknown workspace")
+	destinationLabel, destinationValue := locales.Destination(), cmp.Or(s(a.models[plan.Destination.WorkspaceID], "name"), locales.UnknownWorkspace())
 	var newWorkspaces []*engine.ImportItem
 	for _, item := range plan.Items {
 		if item.Kind == "workspace" && item.Action == "create" {
@@ -675,11 +645,11 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 		}
 		switch len(names) {
 		case 0:
-			destinationLabel, destinationValue = "New workspace", "Untitled"
+			destinationLabel, destinationValue = locales.NewWorkspaceTitle(), locales.Untitled()
 		case 1:
-			destinationLabel, destinationValue = "New workspace", names[0]
+			destinationLabel, destinationValue = locales.NewWorkspaceTitle(), names[0]
 		default:
-			destinationLabel, destinationValue = fmt.Sprintf("%d new workspaces", len(names)), strings.Join(names, ", ")
+			destinationLabel, destinationValue = locales.CountNewWorkspaces(len(names)), strings.Join(names, ", ")
 		}
 	}
 	var roots []*importTreeNode
@@ -710,7 +680,6 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 			targets[item] = true
 		}
 		if checked && n.item != nil {
-			// Checking anything brings back the folders it lives in.
 			for _, parent := range ancestors(n.item) {
 				if parent.Kind == "folder" && (parent.Action == "create" || parent.Action == "ignored") {
 					targets[parent] = true
@@ -734,7 +703,7 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 					ui.Text(c, value).FontSize(13).FontWeight(500).MaxLines(3)
 				})
 			}
-			previewRow("Detected format", plan.Importer(), false)
+			previewRow(locales.DetectedFormat(), plan.Importer(), false)
 			previewRow(destinationLabel, destinationValue, true)
 		})
 		seen := map[string]bool{}
@@ -764,20 +733,18 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 	})
 	dialogFooter(c, p, func() {
 		if unchanged > 0 {
-			ui.Text(c, fmt.Sprintf("%d %s unchanged", unchanged, pluralize("resource", unchanged))).FontSize(11).TextColor(p.muted)
+			ui.Text(c, locales.CountResourcesUnchanged(unchanged)).FontSize(11).TextColor(p.muted)
 		}
 	}, func() {
-		if ui.Button(c, "Back").Disabled(state.busy).Clicked() {
+		if ui.Button(c, locales.Back()).Disabled(state.busy).Clicked() {
 			state.plan = nil
 		}
-		label := "Done"
+		label := locales.Done()
 		switch {
 		case state.applying:
-			label = "Importing"
-		case changes == 1:
-			label = "Apply 1 Change"
-		case changes > 1:
-			label = fmt.Sprintf("Apply %d Changes", changes)
+			label = locales.Importing()
+		case changes > 0:
+			label = locales.ApplyCountChanges(changes)
 		}
 		if ui.PrimaryButton(c, label).Disabled(state.busy).Clicked() {
 			a.applyImport()
@@ -785,8 +752,6 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 	})
 }
 
-// importItemTree is Yaak's buildItemTree: items under their folders, the
-// environments of the workspace grouped under "Variables".
 func importItemTree(items []*engine.ImportItem) []*importTreeNode {
 	byID := map[string]*engine.ImportItem{}
 	for _, item := range items {
@@ -836,11 +801,9 @@ func importItemTree(items []*engine.ImportItem) []*importTreeNode {
 	if len(environments) == 0 {
 		return others
 	}
-	return append([]*importTreeNode{{key: "group:environments", kind: "group", label: "Variables", children: environments}}, others...)
+	return append([]*importTreeNode{{key: "group:environments", kind: "group", label: locales.Variables(), children: environments}}, others...)
 }
 
-// importTogglable is Yaak's togglableItems: what a row's checkbox decides,
-// its own item and those below; unchanged and conflicting ones decide nothing.
 func importTogglable(n *importTreeNode) []*engine.ImportItem {
 	var out []*engine.ImportItem
 	if n.item != nil && n.item.Action != "unchanged" && n.item.Action != "conflict" {
@@ -852,8 +815,6 @@ func importTogglable(n *importTreeNode) []*engine.ImportItem {
 	return out
 }
 
-// importRelevant is Yaak's isRelevant: a heading, or a change; a row shows
-// when it or one below it is relevant.
 func importRelevant(n *importTreeNode) bool {
 	if n.kind == "destination" || n.item != nil && n.item.Action != "unchanged" {
 		return true
@@ -861,7 +822,6 @@ func importRelevant(n *importTreeNode) bool {
 	return slices.ContainsFunc(n.children, importRelevant)
 }
 
-// importTreeRow is Yaak's CheckboxTree, a row and then its children.
 func (a *App) importTreeRow(c *ui.Context, p colors, state *importDialog, n *importTreeNode, depth int, collapsed func(*importTreeNode) bool, toggle func(*importTreeNode, bool), disabled map[*engine.ImportItem]bool) {
 	if !importRelevant(n) {
 		return
@@ -896,7 +856,7 @@ func (a *App) importTreeRow(c *ui.Context, p colors, state *importDialog, n *imp
 				ui.Box(c).Width(16).Margin(0, 2, 0, 0).Shrink(0)
 			} else {
 				checked := selected == len(covered)
-				box := checkbox(c, p, &checked, selected > 0 && selected < len(covered), "Toggle "+name).Disabled(n.item != nil && disabled[n.item])
+				box := checkbox(c, p, &checked, selected > 0 && selected < len(covered), locales.ToggleName(name)).Disabled(n.item != nil && disabled[n.item])
 				if box.Changed() {
 					toggle(n, checked)
 				}
@@ -907,7 +867,7 @@ func (a *App) importTreeRow(c *ui.Context, p colors, state *importDialog, n *imp
 					icon(c, "box").FontSize(13).TextColor(p.muted).Shrink(0)
 					ui.Text(c, n.label).FontSize(13).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
 					if n.isNew {
-						importChip(c, p, "new", "Created by this import", p.green)
+						importChip(c, p, locales.New(), locales.CreatedByThisImport(), p.green)
 					}
 				case "group":
 					ui.Text(c, n.label).FontSize(13).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
@@ -919,7 +879,7 @@ func (a *App) importTreeRow(c *ui.Context, p colors, state *importDialog, n *imp
 						if item.Resolution == "take_source" {
 							choice = 1
 						}
-						control := ui.Segmented(c, &choice, "Keep mine", "Take source").Label("Resolve conflict for " + item.Name).FontSize(11)
+						control := ui.Segmented(c, &choice, locales.KeepMine(), locales.TakeSource()).Label(locales.ResolveConflictForName(item.Name)).FontSize(11)
 						if help := importActionHelp(item); help != "" {
 							control.Tooltip(help)
 						}
@@ -940,7 +900,6 @@ func (a *App) importTreeRow(c *ui.Context, p colors, state *importDialog, n *imp
 	})
 }
 
-// importChip is Yaak's Chip with an IconTooltip, as ActionChip.
 func importChip(c *ui.Context, p colors, label, help string, color ui.Color) {
 	chip := ui.Row(c).Gap(4).Padding(2, 8).Radius(6).Background(color.Alpha(.1)).Border(1, color.Alpha(.1)).Shrink(0)
 	chip.Children(func() {
@@ -967,12 +926,22 @@ func importActionColor(p colors, item *engine.ImportItem) ui.Color {
 	return p.muted
 }
 
-// importActionLabel is Yaak's actionLabel.
 func importActionLabel(item *engine.ImportItem) string {
-	return map[string]string{"create": "new", "update": "updated", "delete": "removed", "keep_local": "edited", "ignored": "ignored"}[item.Action]
+	switch item.Action {
+	case "create":
+		return locales.New()
+	case "update":
+		return locales.Updated()
+	case "delete":
+		return locales.Removed()
+	case "keep_local":
+		return locales.Edited()
+	case "ignored":
+		return locales.Ignored()
+	}
+	return ""
 }
 
-// importActionHelp is Yaak's actionHelp, with the fields that changed.
 func importActionHelp(item *engine.ImportItem) string {
 	help := func(text string) string {
 		if len(item.ChangedFields) == 0 {
@@ -986,55 +955,53 @@ func importActionHelp(item *engine.ImportItem) string {
 	}
 	switch item.Action {
 	case "create":
-		return "Not in this workspace yet"
+		return locales.NotInThisWorkspaceYet()
 	case "update":
 		if item.Reason == "moved_into_ignored_folder" {
-			return "Moved into a folder that isn't imported. Importing that folder brings it along"
+			return locales.MovedIntoAFolderThatIsnt()
 		}
-		return help("Changed in the source since the last import")
+		return help(locales.ChangedInTheSourceSinceThe())
 	case "delete":
-		return "Gone from the source since the last import. Checking it deletes it here"
+		return locales.GoneFromTheSourceSinceThe()
 	case "keep_local":
-		return help("Changed here since the last import. Checking it reverts to the source")
+		return help(locales.ChangedHereSinceTheLastImport())
 	case "conflict":
-		return help("Changed here and in the source since the last import")
+		return help(locales.ChangedHereAndInTheSource())
 	case "ignored":
-		return "Not in this workspace. Imports leave it alone until you check it"
+		return locales.NotInThisWorkspaceImportsLeave()
 	}
 	return ""
 }
 
 var upperLetter = regexp.MustCompile(`([A-Z])`)
 
-// importFieldLabel is Yaak's fieldLabel: urlParameters as "url parameters".
 func importFieldLabel(field string) string {
 	return strings.ToLower(upperLetter.ReplaceAllString(field, " $1"))
 }
 
-// importCompleteDialog is Yaak's Import Complete dialog: what was imported.
 func (a *App) importCompleteDialog(c *ui.Context, p colors) {
 	ui.Column(c).Padding(8, 24, 16, 24).Gap(12).Children(func() {
 		ui.Column(c).Gap(4).Padding(0, 0, 0, 12).Children(func() {
-			for _, kind := range []struct{ model, label string }{
-				{"workspace", "Workspace"}, {"environment", "Environment"}, {"folder", "Folder"},
-				{"http_request", "HTTP Request"}, {"grpc_request", "GRPC Request"}, {"websocket_request", "Websocket Request"},
+			for _, kind := range []struct {
+				model string
+				label func(int) string
+			}{
+				{"workspace", locales.CountWorkspaces}, {"environment", locales.CountEnvironments}, {"folder", locales.CountFolders},
+				{"http_request", locales.CountHTTPRequests}, {"grpc_request", locales.CountGRPCRequests}, {"websocket_request", locales.CountWebsocketRequests},
 			} {
 				if count := a.importCounts[kind.model]; count > 0 {
-					ui.Text(c, "•  "+pluralizeCount(kind.label, count)).FontSize(13)
+					ui.Text(c, "•  "+kind.label(count)).FontSize(13)
 				}
 			}
 		})
 		ui.Row(c).Children(func() {
-			if ui.PrimaryButton(c, "Done").Clicked() {
+			if ui.PrimaryButton(c, locales.Done()).Clicked() {
 				a.dialogOpen = false
 			}
 		})
 	})
 }
 
-// ImportDeepLink is Yaak's import-data deep link: a file at fileURL, once
-// confirmed, or at path, imported as it is, then the first workspace it
-// imported opened with its first environment.
 func (a *App) ImportDeepLink(fileURL, path, name string) {
 	if a.deferUntilInputs(func() { a.ImportDeepLink(fileURL, path, name) }) {
 		return
@@ -1045,12 +1012,12 @@ func (a *App) ImportDeepLink(fileURL, path, name string) {
 	}
 	input := engine.ImportInput{Origin: path}
 	if fileURL != "" {
-		if !a.confirmNative("Import "+name+" from "+fileURL+"?", "Import") {
+		if !a.confirmNative(locales.ImportNameFromUrl(name, fileURL), locales.Import()) {
 			return
 		}
 		input = engine.ImportInput{Kind: "url", Origin: fileURL}
 	} else if path == "" {
-		a.showToast("", "Failed to import data", "danger", 0)
+		a.showToast("", locales.FailedToImportData(), "danger", 0)
 		return
 	}
 	a.saveActive()
@@ -1085,7 +1052,7 @@ func (a *App) ImportDeepLink(fileURL, path, name string) {
 			}
 		}
 		return func() {
-			a.showToast("", fmt.Sprintf("Imported data for %d workspaces", workspaces), "success", 5*time.Second)
+			a.showToast("", locales.ImportedDataForCountWorkspaces(workspaces), "success", 5*time.Second)
 			if workspace == "" {
 				return
 			}
@@ -1099,18 +1066,14 @@ func (a *App) ImportDeepLink(fileURL, path, name string) {
 	})
 }
 
-// confirmNative asks with the system's message box, as Yaak's deep links
-// do: true when the confirm button is chosen.
 func (a *App) confirmNative(message, confirm string) bool {
 	if a.confirmMessage != nil {
 		return a.confirmMessage(message, confirm)
 	}
-	result, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: a.Window, Type: mygo.MessageInfo, Message: message, Buttons: []string{confirm, "Cancel"}, CancelButton: 1})
+	result, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: a.Window, Type: mygo.MessageInfo, Message: message, Buttons: []string{confirm, locales.Cancel()}, CancelButton: 1})
 	return err == nil && result.Button == 0
 }
 
-// checkbox is Yaak's Checkbox: a box, checked, unchecked or mixed
-// ("indeterminate"), titled label for assistive technology.
 func checkbox(c *ui.Context, p colors, checked *bool, mixed bool, label string) ui.Element {
 	box := ui.CheckboxBase(c, checked).Label(label).Size(16, 16).Radius(4).Shrink(0).Border(1, p.border)
 	if mixed {

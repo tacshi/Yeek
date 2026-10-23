@@ -13,10 +13,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// Ported from yaak-http/src/types.rs build_url tests. Yaak's empty and
-// repeated fragment cases are left out: fragments never reach the wire and
-// Go's url.URL can't represent them verbatim.
-func TestBuildURLMatchesYaak(t *testing.T) {
+func TestBuildURL(t *testing.T) {
 	param := func(name, value string) Object { return Object{"name": name, "value": value, "enabled": true} }
 	for _, c := range []struct {
 		name, url, want string
@@ -31,7 +28,7 @@ func TestBuildURLMatchesYaak(t *testing.T) {
 		{"special chars", "https://example.com/api", "https://example.com/api?special%20chars%21%40%23=value%20with%20spaces%20%26%20symbols", []any{param("special chars!@#", "value with spaces & symbols")}},
 		{"adds protocol", "example.com/api", "http://example.com/api?foo=bar", []any{param("foo", "bar")}},
 		{"adds https for dev domain", "example.dev/api", "https://example.dev/api?foo=bar", []any{param("foo", "bar")}},
-		{"adds https for app domain", "yaak.app", "https://yaak.app", nil},
+		{"adds https for app domain", "example.app", "https://example.app", nil},
 		{"adds https for page domain", "docs.example.page/x", "https://docs.example.page/x", nil},
 		{"protocol-relative", "//example.dev/api", "https://example.dev/api", nil},
 		{"fragment", "https://example.com/api#section", "https://example.com/api?foo=bar#section", []any{param("foo", "bar")}},
@@ -39,7 +36,7 @@ func TestBuildURLMatchesYaak(t *testing.T) {
 		{"trims trailing whitespace", "https://example.com/api ", "https://example.com/api", nil},
 		{"trims whitespace with params", " https://example.com/api ", "https://example.com/api?foo=bar", []any{param("foo", "bar")}},
 		{"trims whitespace without scheme", "  example.com/api\t", "http://example.com/api", nil},
-		{"existing query and fragment", "https://yaak.app?foo=bar#some-hash", "https://yaak.app?foo=bar&baz=qux#some-hash", []any{param("baz", "qux")}},
+		{"existing query and fragment", "https://api.example.com?foo=bar#some-hash", "https://api.example.com?foo=bar&baz=qux#some-hash", []any{param("baz", "qux")}},
 		{"empty query and fragment", "https://example.com/api?#section", "https://example.com/api?foo=bar#section", []any{param("foo", "bar")}},
 		{"fragment with special chars", "https://example.com#section/with/slashes?and=fake&query", "https://example.com?real=param#section/with/slashes?and=fake&query", []any{param("real", "param")}},
 		{"unencoded space in typed query", "https://example.com/api?q=a b", "https://example.com/api?q=a%20b", nil},
@@ -65,8 +62,7 @@ func TestBuildURLGraphQLGetReplacesOperationName(t *testing.T) {
 	}
 }
 
-// Ported from yaak-http/src/decompress.rs.
-func TestDecodeContentMatchesYaak(t *testing.T) {
+func TestDecodeContent(t *testing.T) {
 	original := []byte("hello world, this is a test of compression")
 	compress := func(w io.WriteCloser, buf *bytes.Buffer) []byte {
 		_, _ = w.Write(original)
@@ -110,8 +106,7 @@ func TestDecodeContentMatchesYaak(t *testing.T) {
 	}
 }
 
-// Ported from yaak-models/src/queries/duplicate_name.rs.
-func TestDuplicateNamesMatchYaak(t *testing.T) {
+func TestDuplicateNames(t *testing.T) {
 	for name, want := range map[string]string{"Foo": "Foo Copy", "Foo Copy": "Foo Copy 2", "Foo Copy 2": "Foo Copy 3", "Foo Copy 99": "Foo Copy 100", "Copy": "Copy Copy", "Foo Copy x": "Foo Copy x Copy"} {
 		if got := nextCopyName(name); got != want {
 			t.Errorf("nextCopyName(%q) = %q, want %q", name, got, want)
@@ -128,7 +123,6 @@ func TestDuplicateNamesMatchYaak(t *testing.T) {
 	w := saveTest(t, e, Object{"model": "workspace", "name": "W"})
 	folder := saveTest(t, e, Object{"model": "folder", "workspaceId": str(w, "id"), "name": "Folder"})
 	request := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "name": "Foo"})
-	// Same name in another folder and as another model type don't count.
 	saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "folderId": str(folder, "id"), "name": "Foo Copy"})
 	saveTest(t, e, Object{"model": "grpc_request", "workspaceId": str(w, "id"), "name": "Foo Copy"})
 	names := []string{}

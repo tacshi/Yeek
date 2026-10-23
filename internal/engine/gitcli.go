@@ -12,15 +12,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"yeek/locales"
 )
 
-// Yaak's Git menu changes repositories with the git command, as Yeek does.
+var ErrGitNotFound error = &localizedError{locales.GitWasNotFoundInstallGit}
 
-// ErrGitNotFound is returned when git is not installed.
-var ErrGitNotFound = errors.New("git was not found; install Git to use it with Yeek")
-
-// gitCommand runs git in dir, without prompting in a terminal, and returns
-// its output and error output together.
 func gitCommand(ctx context.Context, dir string, stdin string, args ...string) (string, bool, error) {
 	path, err := exec.LookPath("git")
 	if err != nil {
@@ -51,14 +48,11 @@ func gitRun(ctx context.Context, dir, failure string, args ...string) error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("%s: %s", failure, strings.TrimSpace(out))
+		return errors.New(locales.FailureError(failure, strings.TrimSpace(out)))
 	}
 	return nil
 }
 
-// GitBranchInfo is Yaak's: the branch checked out, the local branches and
-// the remote ones, and how far the branch is ahead of and behind its
-// upstream.
 type GitBranchInfo struct {
 	Head                          string
 	LocalBranches, RemoteBranches []string
@@ -78,7 +72,6 @@ func (e *Engine) GitBranchInfo(ctx context.Context, dir string) (GitBranchInfo, 
 		info.Head = strings.TrimSpace(out)
 	}
 	if info.Head == "HEAD" || !ok {
-		// No commit yet, or a detached HEAD: the branch HEAD names.
 		if out, ok, _ := gitCommand(ctx, dir, "", "symbolic-ref", "--short", "HEAD"); ok {
 			info.Head = strings.TrimSpace(out)
 		}
@@ -97,7 +90,6 @@ func (e *Engine) GitBranchInfo(ctx context.Context, dir string) (GitBranchInfo, 
 		return names
 	}
 	info.LocalBranches, info.RemoteBranches = list("refs/heads"), list("refs/remotes")
-	// As Yaak does, against origin's branch of the same name.
 	if out, ok, _ := gitCommand(ctx, dir, "", "rev-list", "--left-right", "--count", "HEAD...refs/remotes/origin/"+info.Head); ok {
 		if fields := strings.Fields(out); len(fields) == 2 {
 			info.Ahead, _ = strconv.Atoi(fields[0])
@@ -107,39 +99,37 @@ func (e *Engine) GitBranchInfo(ctx context.Context, dir string) (GitBranchInfo, 
 	return info, nil
 }
 
-// gitDir reports whether dir is inside a Git repository.
+var ErrRepositoryNotFound error = &localizedError{locales.RepositoryNotFound}
+
 func gitDir(dir string) (string, error) {
 	out, ok, err := gitCommand(context.Background(), dir, "", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
 	if !ok {
-		return "", errors.New("repository not found")
+		return "", ErrRepositoryNotFound
 	}
 	return strings.TrimSpace(out), nil
 }
 
-// GitCheckoutBranch is Yaak's git_checkout_branch.
 func (e *Engine) GitCheckoutBranch(ctx context.Context, dir, branch string, force bool) (string, error) {
 	branch = strings.TrimPrefix(branch, "origin/")
 	args := []string{"checkout"}
 	if force {
 		args = append(args, "--force")
 	}
-	return branch, gitRun(ctx, dir, "Failed to checkout", append(args, branch)...)
+	return branch, gitRun(ctx, dir, locales.FailedToCheckout(), append(args, branch)...)
 }
 
-// GitCreateBranch creates a branch from base, else from HEAD.
 func (e *Engine) GitCreateBranch(ctx context.Context, dir, name, base string) error {
 	args := []string{"branch", name}
 	if base != "" {
 		args = append(args, base)
 	}
-	return gitRun(ctx, dir, "Failed to create branch", args...)
+	return gitRun(ctx, dir, locales.FailedToCreateBranch(), args...)
 }
 
-// ErrNotFullyMerged is returned when a branch to delete is not merged.
-var ErrNotFullyMerged = errors.New("branch is not fully merged")
+var ErrNotFullyMerged error = &localizedError{locales.BranchIsNotFullyMerged}
 
 func (e *Engine) GitDeleteLocalBranch(ctx context.Context, dir, name string, force bool) error {
 	flag := "-d"
@@ -153,7 +143,7 @@ func (e *Engine) GitDeleteLocalBranch(ctx context.Context, dir, name string, for
 	case !ok && strings.Contains(strings.ToLower(out), "not fully merged"):
 		return ErrNotFullyMerged
 	case !ok:
-		return fmt.Errorf("Failed to delete branch: %s", strings.TrimSpace(out)) //nolint:staticcheck // Yaak's wording, shown as is.
+		return errors.New(locales.FailedToDeleteBranchTrimSpace(strings.TrimSpace(out)))
 	}
 	return nil
 }
@@ -164,38 +154,31 @@ func (e *Engine) GitMergeBranch(ctx context.Context, dir, name string) error {
 		return err
 	}
 	if strings.Contains(strings.ToLower(out), "conflict") {
-		return errors.New("Merge conflicts detected. Please resolve them manually.") //nolint:staticcheck // Yaak's wording, shown as is.
+		return errors.New(locales.MergeConflictsDetectedPleaseResolveThem())
 	}
-	return fmt.Errorf("Failed to merge: %s", strings.TrimSpace(out)) //nolint:staticcheck // Yaak's wording, shown as is.
+	return errors.New(locales.FailedToMergeTrimSpace(strings.TrimSpace(out)))
 }
 
 func (e *Engine) GitDeleteRemoteBranch(ctx context.Context, dir, name string) error {
-	return gitRun(ctx, dir, "Failed to delete remote branch", "push", "origin", "--delete", strings.TrimPrefix(name, "origin/"))
+	return gitRun(ctx, dir, locales.FailedToDeleteRemoteBranch(), "push", "origin", "--delete", strings.TrimPrefix(name, "origin/"))
 }
 
 func (e *Engine) GitRenameBranch(ctx context.Context, dir, oldName, newName string) error {
-	return gitRun(ctx, dir, "Failed to rename branch", "branch", "-m", oldName, newName)
+	return gitRun(ctx, dir, locales.FailedToRenameBranch(), "branch", "-m", oldName, newName)
 }
 
-// GitResetChanges discards all uncommitted changes.
 func (e *Engine) GitResetChanges(ctx context.Context, dir string) error {
-	return gitRun(ctx, dir, "Failed to reset", "reset", "--hard", "HEAD")
+	return gitRun(ctx, dir, locales.FailedToReset(), "reset", "--hard", "HEAD")
 }
 
-// GitResult is what Yaak's push and pull come back with.
 type GitResult struct {
-	// Kind is success, up_to_date, needs_credentials, diverged or
-	// uncommitted_changes.
 	Kind, Message  string
 	URL, Error     string
 	Remote, Branch string
 }
 
-// ErrNoRemote is returned when a repository has no remote to push to.
-var ErrNoRemote = errors.New("no remote found")
+var ErrNoRemote error = &localizedError{locales.NoRemoteFound}
 
-// gitRemote is the remote Yaak uses: the branch's push remote, else
-// origin, else the first.
 func gitRemote(ctx context.Context, dir, branch string, push bool) (name, address string, err error) {
 	out, _, err := gitCommand(ctx, dir, "", "remote")
 	if err != nil {
@@ -227,12 +210,11 @@ func (e *Engine) gitHead(ctx context.Context, dir string) (string, error) {
 		return "", err
 	}
 	if info.Head == "" {
-		return "", errors.New("no branch is checked out")
+		return "", errors.New(locales.NoBranchIsCheckedOut())
 	}
 	return info.Head, nil
 }
 
-// GitPush is Yaak's git_push.
 func (e *Engine) GitPush(ctx context.Context, dir string) (GitResult, error) {
 	branch, err := e.gitHead(ctx, dir)
 	if err != nil {
@@ -252,20 +234,19 @@ func (e *Engine) GitPush(ctx context.Context, dir string) (GitResult, error) {
 	case (strings.Contains(lower, "rejected") || strings.Contains(lower, "failed to push")) && credentials:
 		return GitResult{Kind: "needs_credentials", URL: address, Error: out}, nil
 	case strings.Contains(lower, "rejected") || strings.Contains(lower, "failed to push"):
-		return GitResult{}, fmt.Errorf("Failed to push: %s", out) //nolint:staticcheck // Yaak's wording, shown as is.
+		return GitResult{}, errors.New(locales.FailedToPushOut(out))
 	case !ok && strings.Contains(lower, "could not read"):
 		return GitResult{Kind: "needs_credentials", URL: address}, nil
 	case !ok && credentials:
 		return GitResult{Kind: "needs_credentials", URL: address, Error: out}, nil
 	case !ok:
-		return GitResult{}, fmt.Errorf("Failed to push: %s", out) //nolint:staticcheck // Yaak's wording, shown as is.
+		return GitResult{}, errors.New(locales.FailedToPushOut(out))
 	case strings.Contains(lower, "up-to-date"):
 		return GitResult{Kind: "up_to_date"}, nil
 	}
-	return GitResult{Kind: "success", Message: "Pushed to " + remote + "/" + branch}, nil
+	return GitResult{Kind: "success", Message: locales.PushedToRemoteBranch(remote, branch)}, nil
 }
 
-// GitPull is Yaak's git_pull: a fetch of the branch, then a fast-forward.
 func (e *Engine) GitPull(ctx context.Context, dir string) (GitResult, error) {
 	if out, ok, err := gitCommand(ctx, dir, "", "status", "--porcelain", "--untracked-files=no", "--", "."); err != nil {
 		return GitResult{}, err
@@ -291,7 +272,7 @@ func (e *Engine) GitPull(ctx context.Context, dir string) (GitResult, error) {
 	case strings.Contains(lower, "unable to access"):
 		return GitResult{Kind: "needs_credentials", URL: address, Error: out}, nil
 	case !ok:
-		return GitResult{}, fmt.Errorf("Failed to fetch: %s", out) //nolint:staticcheck // Yaak's wording, shown as is.
+		return GitResult{}, errors.New(locales.FailedToFetchOut(out))
 	}
 	out, ok, err = gitCommand(ctx, dir, "", "merge", "--ff-only", remote+"/"+branch)
 	if err != nil {
@@ -302,26 +283,24 @@ func (e *Engine) GitPull(ctx context.Context, dir string) (GitResult, error) {
 		if strings.Contains(lower, "cannot fast-forward") || strings.Contains(lower, "not possible to fast-forward") || strings.Contains(lower, "diverged") {
 			return GitResult{Kind: "diverged", Remote: remote, Branch: branch}, nil
 		}
-		return GitResult{}, fmt.Errorf("Failed to merge: %s", out) //nolint:staticcheck // Yaak's wording, shown as is.
+		return GitResult{}, errors.New(locales.FailedToMergeOut(out))
 	}
 	if strings.Contains(lower, "up to date") {
 		return GitResult{Kind: "up_to_date"}, nil
 	}
-	return GitResult{Kind: "success", Message: "Pulled from " + remote + "/" + branch}, nil
+	return GitResult{Kind: "success", Message: locales.PulledFromRemoteBranch(remote, branch)}, nil
 }
 
-// GitPullForceReset resets the branch to the remote's, for a diverged pull.
 func (e *Engine) GitPullForceReset(ctx context.Context, dir, remote, branch string) (GitResult, error) {
-	if err := gitRun(ctx, dir, "Failed to fetch", "fetch", remote); err != nil {
+	if err := gitRun(ctx, dir, locales.FailedToFetch(), "fetch", remote); err != nil {
 		return GitResult{}, err
 	}
-	if err := gitRun(ctx, dir, "Failed to reset", "reset", "--hard", remote+"/"+branch); err != nil {
+	if err := gitRun(ctx, dir, locales.FailedToReset(), "reset", "--hard", remote+"/"+branch); err != nil {
 		return GitResult{}, err
 	}
-	return GitResult{Kind: "success", Message: "Reset to " + remote + "/" + branch}, nil
+	return GitResult{Kind: "success", Message: locales.ResetToRemoteBranch(remote, branch)}, nil
 }
 
-// GitPullMerge merges the remote's branch, for a diverged pull.
 func (e *Engine) GitPullMerge(ctx context.Context, dir, remote, branch string) (GitResult, error) {
 	out, ok, err := gitCommand(ctx, dir, "", "pull", "--no-rebase", remote, branch)
 	if err != nil {
@@ -329,19 +308,17 @@ func (e *Engine) GitPullMerge(ctx context.Context, dir, remote, branch string) (
 	}
 	if !ok {
 		if strings.Contains(strings.ToLower(out), "conflict") {
-			return GitResult{}, errors.New("Merge conflicts detected. Please resolve them manually.") //nolint:staticcheck // Yaak's wording, shown as is.
+			return GitResult{}, errors.New(locales.MergeConflictsDetectedPleaseResolveThem())
 		}
-		return GitResult{}, fmt.Errorf("Failed to merge pull: %s", strings.TrimSpace(out)) //nolint:staticcheck // Yaak's wording, shown as is.
+		return GitResult{}, errors.New(locales.FailedToMergePullTrimSpace(strings.TrimSpace(out)))
 	}
-	return GitResult{Kind: "success", Message: "Merged from " + remote + "/" + branch}, nil
+	return GitResult{Kind: "success", Message: locales.MergedFromRemoteBranch(remote, branch)}, nil
 }
 
-// GitAddCredential is Yaak's git_add_credential: git's credential helper
-// keeps the username and password for the remote.
 func (e *Engine) GitAddCredential(ctx context.Context, remote, username, password string) error {
 	u, err := url.Parse(remote)
 	if err != nil || u.Host == "" {
-		return fmt.Errorf("Failed to parse remote url %s", remote) //nolint:staticcheck // Yaak's wording, shown as is.
+		return errors.New(locales.FailedToParseRemoteUrlRemote(remote))
 	}
 	input := "protocol=" + u.Scheme + "\nhost=" + u.Host + "\n"
 	if path := strings.TrimPrefix(u.Path, "/"); path != "" {
@@ -353,12 +330,11 @@ func (e *Engine) GitAddCredential(ctx context.Context, remote, username, passwor
 		return err
 	}
 	if !ok {
-		return errors.New("Failed to approve git credential") //nolint:staticcheck // Yaak's wording, shown as is.
+		return errors.New(locales.FailedToApproveGitCredential())
 	}
 	return nil
 }
 
-// GitRemoteInfo is a remote and where it is.
 type GitRemoteInfo struct{ Name, URL string }
 
 func (e *Engine) GitRemotes(ctx context.Context, dir string) ([]GitRemoteInfo, error) {
@@ -374,8 +350,6 @@ func (e *Engine) GitRemotes(ctx context.Context, dir string) ([]GitRemoteInfo, e
 	return remotes, nil
 }
 
-// GitCommitStaged is Yaak's git_commit: it commits what is staged in dir,
-// leaving what is staged elsewhere in the repository for the user.
 func (e *Engine) GitCommitStaged(ctx context.Context, dir, message string) error {
 	root, err := gitDir(dir)
 	if err != nil {
@@ -394,24 +368,22 @@ func (e *Engine) GitCommitStaged(ctx context.Context, dir, message string) error
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("Failed to list staged files: %s", out) //nolint:staticcheck // Yaak's wording, shown as is.
+		return errors.New(locales.FailedToListStagedFilesOut(out))
 	}
 	staged := slices.DeleteFunc(strings.Split(out, "\x00"), func(s string) bool { return s == "" })
 	if len(staged) == 0 {
-		return errors.New("No staged changes to commit") //nolint:staticcheck // Yaak's wording, shown as is.
+		return errors.New(locales.NoStagedChangesToCommit())
 	}
-	return gitRun(ctx, root, "Failed to commit", append([]string{"--literal-pathspecs", "commit", "--message", message, "--"}, staged...)...)
+	return gitRun(ctx, root, locales.FailedToCommit(), append([]string{"--literal-pathspecs", "commit", "--message", message, "--"}, staged...)...)
 }
 
-// GitClone is Yaak's git_clone: url cloned into dir, its parent made first,
-// and "needs_credentials" when the remote asked for them.
 func (e *Engine) GitClone(ctx context.Context, address, dir string) (GitResult, error) {
 	parent := filepath.Dir(dir)
 	if parent == dir || parent == "" {
-		return GitResult{}, errors.New("Invalid clone directory") //nolint:staticcheck // Yaak's wording, shown as is.
+		return GitResult{}, errors.New(locales.InvalidCloneDirectory())
 	}
 	if err := os.MkdirAll(parent, 0o755); err != nil { // #nosec G301 -- a project folder the user picked.
-		return GitResult{}, fmt.Errorf("Failed to create directory: %w", err) //nolint:staticcheck // Yaak's wording.
+		return GitResult{}, fmt.Errorf("%s: %w", locales.FailedToCreateDirectory(), err) //nolint:staticcheck
 	}
 	out, ok, err := gitCommand(ctx, parent, "", "clone", address, dir)
 	if err != nil {
@@ -425,7 +397,7 @@ func (e *Engine) GitClone(ctx context.Context, address, dir string) (GitResult, 
 		case strings.Contains(lower, "unable to access") || strings.Contains(lower, "authentication failed"):
 			return GitResult{Kind: "needs_credentials", URL: address, Error: out}, nil
 		}
-		return GitResult{}, fmt.Errorf("Failed to clone: %s", strings.TrimSpace(out)) //nolint:staticcheck // Yaak's wording.
+		return GitResult{}, errors.New(locales.FailedToCloneTrimSpace(strings.TrimSpace(out))) //nolint:staticcheck
 	}
 	return GitResult{Kind: "success"}, nil
 }

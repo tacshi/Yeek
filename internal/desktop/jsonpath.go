@@ -9,19 +9,15 @@ import (
 	"unicode"
 )
 
-// pathSegment is one step of a JSON path: an object key or an array index.
 type pathSegment struct {
 	key     string
 	index   int
 	isIndex bool
 }
 
-// jsonOutline maps each token of a JSON document (keys, values, colons and
-// brackets) to the member it belongs to, in rune offsets, so the path under
-// the caret is a lookup. It tolerates malformed input by keeping what it read.
 type jsonOutline struct {
 	spans []jsonSpan
-	nodes []jsonNode // nodes[0] is the root value
+	nodes []jsonNode
 }
 type jsonSpan struct{ from, to, node int }
 type jsonNode struct {
@@ -61,7 +57,6 @@ func (s *jsonScanner) child(parent int, seg pathSegment) int {
 	return len(s.out.nodes) - 1
 }
 
-// value reads one value belonging to node.
 func (s *jsonScanner) value(node, depth int) {
 	if s.err || s.pos >= len(s.runes) || depth > maxJSONDepth {
 		s.err = true
@@ -149,7 +144,6 @@ func (s *jsonScanner) value(node, depth int) {
 	}
 }
 
-// str reads a JSON string and returns its source text.
 func (s *jsonScanner) str() (string, bool) {
 	if s.pos >= len(s.runes) || s.runes[s.pos] != '"' {
 		return "", false
@@ -172,10 +166,6 @@ func (s *jsonScanner) str() (string, bool) {
 	return "", false
 }
 
-// pathAt returns the path of the member on the caret's line, following Yaak:
-// the character before the caret picks the token, and a caret in whitespace
-// or punctuation of a container uses the first token of its line. It is nil
-// when the text is not JSON.
 func (o *jsonOutline) pathAt(text string, caret int) []pathSegment {
 	if len(o.spans) == 0 {
 		return nil
@@ -204,7 +194,6 @@ func (o *jsonOutline) pathAt(text string, caret int) []pathSegment {
 	return path
 }
 
-// nodeAt finds the token covering rune offset pos.
 func (o *jsonOutline) nodeAt(pos int) (int, bool) {
 	if pos < 0 {
 		return 0, false
@@ -226,8 +215,6 @@ func (o *jsonOutline) nodeAt(pos int) (int, bool) {
 
 var bareJSONKey = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 
-// jsonPathString writes the first count segments as JSONPath, choosing dot or
-// quoted bracket form for each key as Yaak does; no segments is the root, "$".
 func jsonPathString(path []pathSegment, count int) string {
 	var b strings.Builder
 	b.WriteString("$")
@@ -245,8 +232,6 @@ func jsonPathString(path []pathSegment, count int) string {
 	return b.String()
 }
 
-// parseJSONPath reads a plain JSONPath of keys and indexes, such as
-// $.data[0]["a b"], and reports false for anything else (wildcards, filters).
 func parseJSONPath(expr string) ([]pathSegment, bool) {
 	expr = strings.TrimSpace(expr)
 	if !strings.HasPrefix(expr, "$") {

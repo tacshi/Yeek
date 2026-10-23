@@ -1,4 +1,3 @@
-// Fixture provides loopback endpoints for checking Yeek's native protocol views.
 package main
 
 import (

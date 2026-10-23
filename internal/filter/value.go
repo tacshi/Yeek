@@ -13,9 +13,6 @@ import (
 	"golang.org/x/text/language"
 )
 
-// The slice of JavaScript values and coercions the safe evaluator needs:
-// Yaak's crates/yaak-filter/src/jsonpath/value.rs.
-
 type jsKind uint8
 
 const (
@@ -24,7 +21,6 @@ const (
 	jsBool
 	jsNumber
 	jsString
-	// jsDoc is an array or object of the document, compared by identity.
 	jsDoc
 	jsArrayKind
 	jsRegexKind
@@ -44,7 +40,6 @@ type jsValue struct {
 
 type jsArray struct {
 	items []jsValue
-	// match is set on the array String.prototype.match returns.
 	match *matchInfo
 }
 
@@ -114,8 +109,6 @@ func (m method) name() string {
 	return ""
 }
 
-// isAllowedMethodName reports whether a call may use the method; anything
-// else is rejected before evaluation.
 func isAllowedMethodName(name string) bool {
 	for _, table := range [][]namedMethod{stringMethods, arrayMethods, numberMethods, regexMethods} {
 		for _, entry := range table {
@@ -146,9 +139,7 @@ var (
 	regexProto    = []string{"exec", "compile", "toString"}
 	functionProto = []string{"length", "name", "arguments", "caller", "apply", "bind", "call", "toString"}
 	objectProto   = []string{"hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "toString", "valueOf", "toLocaleString"}
-	// blocked members are refused off a prototype, as jsonpath-plus's safe
-	// evaluator does.
-	blocked = []string{"constructor", "__proto__", "__defineGetter__", "__defineSetter__", "__lookupGetter__", "__lookupSetter__"}
+	blocked       = []string{"constructor", "__proto__", "__defineGetter__", "__defineSetter__", "__lookupGetter__", "__lookupSetter__"}
 )
 
 func isJSWhitespace(c rune) bool {
@@ -226,7 +217,6 @@ func (v jsValue) typeOf() string {
 	return "object"
 }
 
-// toPrimitive is ToPrimitive: every object here stringifies, whatever the hint.
 func (v jsValue) toPrimitive() jsValue {
 	if v.isObject() {
 		return jsStringValue(v.toJSString())
@@ -292,7 +282,6 @@ func (v jsValue) toUint32() uint32 {
 	return uint32(m)
 }
 
-// toInteger is ToIntegerOrInfinity.
 func (v jsValue) toInteger() float64 {
 	n := v.toNumber()
 	if math.IsNaN(n) {
@@ -332,7 +321,6 @@ func (v jsValue) strictEq(o jsValue) bool {
 	return v.sameObject(o)
 }
 
-// sameValueZero is SameValueZero, for Array.prototype.includes.
 func (v jsValue) sameValueZero(o jsValue) bool {
 	if v.kind == jsNumber && o.kind == jsNumber && math.IsNaN(v.n) && math.IsNaN(o.n) {
 		return true
@@ -364,7 +352,6 @@ func (v jsValue) looseEq(o jsValue) bool {
 	return v.strictEq(o)
 }
 
-// lessThan is IsLessThan; ok is false for JavaScript's undefined, from NaN.
 func (v jsValue) lessThan(o jsValue) (less, ok bool) {
 	a, b := v.toPrimitive(), o.toPrimitive()
 	if a.kind == jsString && b.kind == jsString {
@@ -405,7 +392,6 @@ func joinValues(items []jsValue, separator string) string {
 	return strings.Join(parts, separator)
 }
 
-// stringToNumber is StringToNumber.
 func stringToNumber(s string) float64 {
 	s = strings.TrimFunc(s, isJSWhitespace)
 	if s == "" {
@@ -488,7 +474,6 @@ func digitValue(c rune) int {
 
 func toUTF16(s string) []uint16 { return utf16.Encode([]rune(s)) }
 
-// ownProperty is an own property, as Object.hasOwn sees it.
 func ownProperty(v jsValue, key string) (jsValue, bool) {
 	switch v.kind {
 	case jsDoc:
@@ -550,18 +535,15 @@ func ownProperty(v jsValue, key string) (jsValue, bool) {
 	return undefined, false
 }
 
-// getProperty is object[key] in the safe evaluator: own properties, then
-// the allowlisted methods; any other inherited member is refused rather
-// than guessed at.
 func getProperty(object jsValue, key string) (jsValue, error) {
 	if object.nullish() {
-		return undefined, fmt.Errorf("Cannot read properties of %s (reading '%s')", object.toJSString(), key) //nolint:staticcheck // JavaScript's message
+		return undefined, fmt.Errorf("Cannot read properties of %s (reading '%s')", object.toJSString(), key) //nolint:staticcheck
 	}
 	if own, ok := ownProperty(object, key); ok {
 		return own, nil
 	}
 	if slices.Contains(blocked, key) {
-		return undefined, fmt.Errorf("Cannot read properties of %s (reading '%s')", object.toJSString(), key) //nolint:staticcheck // JavaScript's message
+		return undefined, fmt.Errorf("Cannot read properties of %s (reading '%s')", object.toJSString(), key) //nolint:staticcheck
 	}
 	var methods []namedMethod
 	var proto []string
@@ -608,8 +590,6 @@ func findUnits(haystack, needle []uint16, from int) int {
 
 func clampIndex(n float64, length int) int { return int(math.Max(0, math.Min(n, float64(length)))) }
 
-// relativeIndex is a relative start or end index, as slice and includes
-// take them.
 func relativeIndex(n float64, length int) int {
 	if n < 0 {
 		return clampIndex(float64(length)+n, length)
@@ -674,7 +654,7 @@ func stringMethod(m method, s string, args []jsValue) (jsValue, error) {
 	length := len(units)
 	searchString := func(i int) ([]uint16, error) {
 		if arg(args, i).kind == jsRegexKind {
-			return nil, fmt.Errorf("First argument to String.prototype.%s must not be a regular expression", m.name()) //nolint:staticcheck // JavaScript's message
+			return nil, fmt.Errorf("First argument to String.prototype.%s must not be a regular expression", m.name()) //nolint:staticcheck
 		}
 		return toUTF16(arg(args, i).toJSString()), nil
 	}
@@ -834,7 +814,6 @@ func arrayMethod(m method, items []jsValue, args []jsValue) jsValue {
 	return undefined
 }
 
-// numberToRadix is V8's DoubleToRadixCString, digit for digit.
 func numberToRadix(value float64, radix int) string {
 	if radix == 10 || math.IsInf(value, 0) || math.IsNaN(value) {
 		return numberToString(value)
@@ -913,8 +892,6 @@ func numberToRadix(value float64, radix int) string {
 	return out.String()
 }
 
-// toFixed is Number.prototype.toFixed: the exact decimal value, ties away
-// from zero.
 func toFixed(x float64, digits int) string {
 	if math.IsInf(x, 0) || math.IsNaN(x) || math.Abs(x) >= 1e21 {
 		return numberToString(x)

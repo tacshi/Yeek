@@ -2,10 +2,7 @@ package engine
 
 import "testing"
 
-// Yaak's xml.xpath tests (template-function-xml/tests/xpath.test.ts, #723),
-// then cases whose expected values come from running Yaak's filterXPath
-// (xmldom 0.9.12, xpath 0.0.34) on the same inputs.
-func TestFilterXPathMatchesYaak(t *testing.T) {
+func TestFilterXPath(t *testing.T) {
 	for _, c := range []struct{ body, path, result, want string }{
 		{`<users><user id="42"><name>Alice</name></user><user id="7"><name>Bob</name></user></users>`, `//user/name`, "first", `Alice`},
 		{`<users><user id="42"><name>Alice</name></user><user id="7"><name>Bob</name></user></users>`, `//user/@id`, "first", `42`},
@@ -52,7 +49,7 @@ func TestFilterXPathMatchesYaak(t *testing.T) {
 	}
 }
 
-func TestTemplatePathXMLUsesYaakFilter(t *testing.T) {
+func TestTemplatePathXMLUsesTheFilter(t *testing.T) {
 	users := `<users><user id="42"><name>Alice</name></user><user id="7"><name>Bob</name></user></users>`
 	for _, c := range []struct{ result, want string }{{"", "42"}, {"first", "42"}, {"join", "42 | 7"}, {"all", ` id="42", id="7"`}} {
 		got, err := templatePath(users, "//user/@id", map[string]string{"result": c.result, "join": " | "})

@@ -20,16 +20,10 @@ import (
 	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
-// Yaak's importer-insomnia plugin, ported: Insomnia v4 exports (a
-// resources list) and v5 collections (YAML with a collection tree), with
-// bodies, headers and authentication mapped, and template syntax that has
-// a native equivalent converted (#693, #712). IDs are Yaak's
-// GENERATE_ID::<Insomnia ID>, so a reimport finds the same resources.
-
-// insomniaResources are the resources an import makes, as Yaak's
-// PartialImportResources.
 type insomniaResources struct {
 	workspaces, environments, folders, httpRequests, grpcRequests, websocketRequests []Object
 }
@@ -42,8 +36,6 @@ func (r *insomniaResources) models() []Object {
 	return out
 }
 
-// parseInsomniaImport is Yaak's convertInsomnia for a parsed document:
-// nil when it is neither version.
 func parseInsomniaImport(root Object) []Object {
 	resources := convertInsomniaV5(root)
 	if resources == nil {
@@ -54,7 +46,6 @@ func parseInsomniaImport(root Object) []Object {
 	}
 	models := resources.models()
 	for _, m := range models {
-		// Yaak's "other" body type is Yeek's text/plain.
 		if str(m, "model") == "http_request" && str(m, "bodyType") == "other" {
 			m["bodyType"] = "text/plain"
 		}
@@ -69,8 +60,6 @@ func insomniaID(id string) string {
 	return "GENERATE_ID::" + id
 }
 
-// insomniaDate is JavaScript's new Date(value).toISOString() without its
-// Z, or nil for a falsy or unreadable value.
 func insomniaDate(value any) any {
 	switch v := value.(type) {
 	case float64:
@@ -97,7 +86,6 @@ func insomniaDate(value any) any {
 	return nil
 }
 
-// jsString is JavaScript's String(value).
 func jsString(value any) string {
 	switch v := value.(type) {
 	case nil:
@@ -128,7 +116,6 @@ func jsString(value any) string {
 	return ""
 }
 
-// truthy is JavaScript's truthiness.
 func truthy(value any) bool {
 	switch v := value.(type) {
 	case nil:
@@ -149,14 +136,12 @@ func truthy(value any) bool {
 	return true
 }
 
-// set copies value into m under key unless it is undefined.
 func set(m Object, key string, value any, defined bool) {
 	if defined {
 		m[key] = value
 	}
 }
 
-// meta is the value of key in r's meta, else in r itself (r.meta?.key ?? r.key).
 func insomniaMeta(r Object, key, fallback string) (any, bool) {
 	if v, ok := obj(r, "meta")[key]; ok && v != nil {
 		return v, true
@@ -213,7 +198,6 @@ func asArray(value any) []any {
 
 func insomniaHeaders(r Object) []any { return insomniaPairs(r["headers"], true) }
 
-// insomniaAuthentication is Yaak's importAuthentication: bearer and basic.
 func insomniaAuthentication(m, r Object) {
 	auth := obj(r, "authentication")
 	var kind any
@@ -230,8 +214,6 @@ func insomniaAuthentication(m, r Object) {
 	m["authenticationType"], m["authentication"] = kind, values
 }
 
-// insomniaBodyAndHeaders is Yaak's importHttpBodyAndHeaders: the body, its
-// type, and the headers, with a Content-Type for a body that has none.
 func insomniaBodyAndHeaders(m, r Object) {
 	headers := insomniaHeaders(r)
 	rawBody := obj(r, "body")
@@ -240,7 +222,6 @@ func insomniaBodyAndHeaders(m, r Object) {
 	if s, ok := rawBody["mimeType"].(string); ok {
 		mimeType = strings.TrimSpace(s)
 	}
-	// Insomnia uses application/graphql as an editor marker, but sends a JSON envelope.
 	contentType := mimeType
 	if bodyType == "graphql" {
 		contentType = "application/json"
@@ -294,9 +275,6 @@ func insomniaBody(rawBody Object) (Object, any) {
 				}
 			}
 		} else if recovered := recoverGraphQLEnvelope(body); recovered != nil {
-			// A raw GraphQL document is also valid, kept as it is; an
-			// envelope that didn't parse usually holds template tags, so its
-			// parts are recovered rather than the whole put in the query.
 			return recovered, "graphql"
 		}
 		return Object{"query": body, "variables": ""}, "graphql"
@@ -311,9 +289,6 @@ func insomniaBody(rawBody Object) (Object, any) {
 	return Object{}, nil
 }
 
-// graphQLVariables is how Yaak keeps an envelope's variables: a string as
-// it is, none as "", else JSON.stringify(variables, null, 2), in the
-// envelope's key order.
 func graphQLVariables(envelope string, variables any) string {
 	switch v := variables.(type) {
 	case string:
@@ -330,7 +305,6 @@ func graphQLVariables(envelope string, variables any) string {
 	return jsStringify(value)
 }
 
-// rawJSONMember is the last value of key in the JSON object text, as JSON.parse keeps.
 func rawJSONMember(text, key string) []byte {
 	dec := jsontext.NewDecoder(strings.NewReader(text), jsontext.AllowDuplicateNames(true))
 	if tok, err := dec.ReadToken(); err != nil || tok.Kind() != '{' {
@@ -354,9 +328,6 @@ func rawJSONMember(text, key string) []byte {
 	return found
 }
 
-// jsStringify writes JSON as JSON.stringify(JSON.parse(value), null, 2)
-// does: a repeated key once, where it first appeared, with its last value;
-// numbers as JavaScript prints them; strings with only the escapes JSON needs.
 func jsStringify(value jsontext.Value) string {
 	dec := jsontext.NewDecoder(bytes.NewReader(value), jsontext.AllowDuplicateNames(true))
 	node, err := readJSNode(dec)
@@ -368,8 +339,6 @@ func jsStringify(value jsontext.Value) string {
 	return b.String()
 }
 
-// jsNode is a parsed JSON value: a scalar's text, or a container's
-// members (keys for an object) in order.
 type jsNode struct {
 	kind   jsontext.Kind
 	scalar string
@@ -454,10 +423,6 @@ func (n *jsNode) write(b *strings.Builder, depth int) {
 	b.WriteString(closing)
 }
 
-// recoverGraphQLEnvelope is Yaak's: the parts of a GraphQL envelope that
-// isn't valid JSON, as Insomnia lets template tags be written straight
-// into one ({"query":"{me{id}}","variables":{"id":{{ _.id }}}}). Members
-// are read as raw text so the tags survive.
 func recoverGraphQLEnvelope(text string) Object {
 	members := readTopLevelMembers(text)
 	if members == nil {
@@ -491,9 +456,6 @@ func parseJSONString(raw string) (string, bool) {
 
 func jsSpace(r rune) bool { return unicode.IsSpace(r) || r == '\ufeff' }
 
-// readTopLevelMembers is the raw text of each member of the outermost
-// object, values unparsed, or nil unless the object is well-formed enough
-// to walk.
 func readTopLevelMembers(text string) map[string]string {
 	t := []rune(strings.TrimFunc(text, jsSpace))
 	if len(t) == 0 || t[0] != '{' {
@@ -558,8 +520,6 @@ func scanJSONString(t []rune, start int) (int, bool) {
 	return 0, false
 }
 
-// scanJSONValue is the offset just past the value at start, nesting
-// tracked so template tags come back whole, the value not validated.
 func scanJSONValue(t []rune, start int) (int, bool) {
 	depth := 0
 	for i := start; i < len(t); i++ {
@@ -574,7 +534,6 @@ func scanJSONValue(t []rune, start int) (int, bool) {
 			depth++
 		case c == '}' || c == ']':
 			if depth == 0 {
-				// The member ended with the enclosing object.
 				return i, true
 			}
 			depth--
@@ -591,7 +550,6 @@ func scanJSONValue(t []rune, start int) (int, bool) {
 func insomniaEnvironmentVariables(data any) []any {
 	vars := []any{}
 	m, _ := data.(map[string]any)
-	// Object.entries keeps the insertion order the document has.
 	for _, name := range orderedKeys(m) {
 		vars = append(vars, Object{"enabled": true, "name": name, "value": jsString(m[name])})
 	}
@@ -767,7 +725,6 @@ func cmpOr(a, b string) string {
 	return b
 }
 
-// insomniaV5Common is the ID, dates and sort key every v5 resource has.
 func insomniaV5Common(m, r Object, wid string) string {
 	id, _ := insomniaMeta(r, "id", "_id")
 	created, _ := insomniaMeta(r, "created", "created")
@@ -841,11 +798,6 @@ func insomniaV5Environment(e Object, wid string, base bool) Object {
 	return m
 }
 
-// --- Template syntax (Yaak's templates.ts) ---
-
-// Convert only syntax with a native equivalent. Filters, expressions and
-// third-party tags stay as written rather than importing something that
-// looks valid but means something different.
 var (
 	insomniaIdentifier = regexp.MustCompile(`^[\p{L}\p{N}_][\p{L}\p{N}_.-]*$`)
 	insomniaVariable   = regexp.MustCompile(`{{\s*([\s\S]*?)\s*}}`)
@@ -871,7 +823,6 @@ func convertInsomniaTemplates(r *insomniaResources) {
 	}
 }
 
-// convertTemplateSyntax is Yaak's convertTemplateSyntax on every string of value.
 func convertTemplateSyntax(value any, requestIDs map[string]bool) any {
 	switch v := value.(type) {
 	case string:
@@ -911,13 +862,10 @@ func convertTemplateSyntax(value any, requestIDs map[string]bool) any {
 	return value
 }
 
-// insomniaArgument is a template string argument as Yaak's importer
-// writes it, base64.
 func insomniaArgument(value string) string {
 	return "b64'" + base64.RawURLEncoding.EncodeToString([]byte(value)) + "'"
 }
 
-// decodeInsomniaArgument reads Insomnia's b64::… encoded arguments.
 func decodeInsomniaArgument(value string) (string, bool) {
 	if !strings.HasPrefix(value, "b64::") {
 		return value, true
@@ -934,8 +882,6 @@ func decodeInsomniaArgument(value string) (string, bool) {
 	return string(decoded), true
 }
 
-// parseInsomniaArgs reads literal arguments only, never evaluating
-// Nunjucks or skipping unexpected tokens.
 func parseInsomniaArgs(input string) ([]string, bool) {
 	args := []string{}
 	offset := 0
@@ -1013,10 +959,8 @@ func convertInsomniaTag(name, input string, requestIDs map[string]bool) (string,
 	case "response":
 		return convertInsomniaResponse(args, requestIDs)
 	case "timestamp":
-		// The legacy tag takes no arguments and returns milliseconds.
 		return "timestamp.unixMillis()", len(args) == 0
 	case "uuid":
-		// Version 4 is listed first, so a bare tag generates one.
 		if len(args) == 0 {
 			return "uuid.v4()", true
 		}
@@ -1026,9 +970,6 @@ func convertInsomniaTag(name, input string, requestIDs map[string]bool) (string,
 	}
 	return "", false
 }
-
-// Insomnia's dropdown arguments fall back to the first option of their
-// list when a tag leaves them out, so each converter defaults to that.
 
 func convertInsomniaNow(args []string) (string, bool) {
 	if len(args) > 2 {
@@ -1042,8 +983,6 @@ func convertInsomniaNow(args []string) (string, bool) {
 	case "unix", "seconds", "s":
 		return "timestamp.unix()", true
 	case "custom":
-		// The format passes through untranslated: Insomnia formats with
-		// date-fns today, as Yaak does, but older versions used Moment.
 		return "timestamp.format(format=" + insomniaArgument(argOr(args, 1, "")) + ")", true
 	}
 	return "", false
@@ -1052,15 +991,13 @@ func convertInsomniaNow(args []string) (string, bool) {
 var insomniaBase64Encodings = map[string]string{
 	"normal": "base64",
 	"url":    "base64url",
-	// Insomnia's hex mode has no Yaak equivalent, so plain base64.
-	"hex": "base64",
+	"hex":    "base64",
 }
 
 func convertInsomniaBase64(args []string) (string, bool) {
 	if len(args) < 2 || len(args) > 3 {
 		return "", false
 	}
-	// Exports from before the Kind argument pass (action, value).
 	_, named := insomniaBase64Encodings[args[1]]
 	legacy := len(args) == 2 && !named
 	kind, value := args[1], argOr(args, 2, "")
@@ -1075,7 +1012,6 @@ func convertInsomniaBase64(args []string) (string, bool) {
 	case "encode":
 		return "base64.encode(encoding='" + encoding + "', value=" + insomniaArgument(value) + ")", true
 	case "decode":
-		// Yaak's decoder reads both alphabets.
 		return "base64.decode(value=" + insomniaArgument(value) + ")", true
 	}
 	return "", false
@@ -1086,7 +1022,6 @@ func convertInsomniaHash(args []string) (string, bool) {
 		return "", false
 	}
 	algorithm := strings.ToLower(argOr(args, 0, "md5"))
-	// Insomnia falls back to SHA-256 for algorithms outside its list.
 	if !slices.Contains([]string{"md5", "sha1", "sha256", "sha512"}, algorithm) {
 		algorithm = "sha256"
 	}
@@ -1101,7 +1036,6 @@ func convertInsomniaCookie(args []string) (string, bool) {
 	if len(args) != 2 || args[1] == "" {
 		return "", false
 	}
-	// Insomnia matches cookies against a URL, Yaak filters the jar by domain.
 	domain := strings.TrimSpace(args[0])
 	if u, err := url.Parse(domain); err == nil && u.Scheme != "" && u.Host != "" && !strings.ContainsAny(u.Host, " ${}[]") {
 		domain = strings.ToLower(u.Hostname())
@@ -1118,7 +1052,6 @@ func convertInsomniaPrompt(args []string) (string, bool) {
 		return "", false
 	}
 	title, label, defaultValue, storageKey, mask := argOr(args, 0, ""), argOr(args, 1, ""), argOr(args, 2, ""), argOr(args, 3, ""), argOr(args, 4, "false")
-	// Insomnia shows the label above the input, else the title.
 	if title == "" && label == "" {
 		return "", false
 	}
@@ -1128,8 +1061,6 @@ func convertInsomniaPrompt(args []string) (string, bool) {
 	parts := []string{"label=" + insomniaArgument(label)}
 	masked := mask == "true"
 	if storageKey != "" && !masked {
-		// Insomnia keeps a stored value until the app closes; Yaak's
-		// nearest is forever, in the workspace. Masked values stay unstored.
 		parts = append(parts, "store='forever'", "namespace="+insomniaArgument("${[ctx.workspace()]}"), "key="+insomniaArgument(storageKey))
 	}
 	if title != "" {
@@ -1156,7 +1087,6 @@ func convertInsomniaResponse(args []string, requestIDs map[string]bool) (string,
 	if !ok || !insomniaDigits.MatchString(maxAge) {
 		return "", false
 	}
-	// Insomnia treats zero as already expired; Yaak uses zero for never.
 	if converted == "ttl" {
 		if n, _ := strconv.ParseFloat(maxAge, 64); n == 0 {
 			return "", false
@@ -1167,8 +1097,6 @@ func convertInsomniaResponse(args []string, requestIDs map[string]bool) (string,
 	case "raw":
 		return "response.body.raw(" + common + ")", true
 	case "body":
-		// Insomnia returns a scalar for one match and an array for several,
-		// which Yaak's modes can't express, so only definite paths convert.
 		path := strings.TrimSpace(filter)
 		if !insomniaPathFilter.MatchString(path) {
 			return "", false
@@ -1179,21 +1107,14 @@ func convertInsomniaResponse(args []string, requestIDs map[string]bool) (string,
 			return "response.header(" + common + ", header=" + insomniaArgument(strings.TrimSpace(filter)) + ")", true
 		}
 	}
-	// Yaak has no response URL function.
 	return "", false
 }
 
-// insomniaOrder records the key order of each object parseOrderedDocument
-// made, by the map's identity, for orderedKeys: Object.entries keeps the
-// document's order, which Go maps don't. One import uses it at a time,
-// clearing it after, so no address is reused while it is read.
 var insomniaOrder struct {
 	sync.Mutex
 	keys map[uintptr][]string
 }
 
-// importInsomnia parses an Insomnia document and converts it, nil when it is
-// neither version.
 func importInsomnia(data []byte) ([]Object, error) {
 	insomniaOrder.Lock()
 	defer insomniaOrder.Unlock()
@@ -1206,19 +1127,17 @@ func importInsomnia(data []byte) ([]Object, error) {
 	return parseInsomniaImport(root), nil
 }
 
-// parseOrderedDocument reads JSON or YAML as JSON.parse or YAML.parse
-// would, remembering each object's key order. insomniaOrder is held.
 func parseOrderedDocument(data []byte) (Object, error) {
 	var node yaml.Node
 	if err := yaml.Unmarshal(data, &node); err != nil {
 		return nil, err
 	}
 	if len(node.Content) == 0 {
-		return nil, errors.New("empty document")
+		return nil, errors.New(locales.EmptyDocument())
 	}
 	root, _ := orderedValue(node.Content[0]).(map[string]any)
 	if root == nil {
-		return nil, errors.New("not an object")
+		return nil, errors.New(locales.NotAnObject())
 	}
 	return root, nil
 }
@@ -1261,8 +1180,6 @@ func orderedValue(n *yaml.Node) any {
 	return v
 }
 
-// orderedKeys are m's keys in the order its document wrote them, else
-// sorted. insomniaOrder is held.
 func orderedKeys(m map[string]any) []string {
 	keys, ok := insomniaOrder.keys[reflect.ValueOf(m).Pointer()]
 	if ok && len(keys) == len(m) {

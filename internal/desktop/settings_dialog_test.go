@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/yeekui"
 )
 
-func TestSettingsDialogTabsInYaakOrder(t *testing.T) {
+func TestSettingsDialogTabsInOrder(t *testing.T) {
 	a, _ := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
 	tt := ui.NewTester(a.View, 1360, 860)
@@ -74,7 +74,6 @@ func TestInterfaceZoomHotkeys(t *testing.T) {
 		t.Fatal(got)
 	}
 	after, _ := tt.Find("Settings")
-	// The gear sits at the right edge, which a zoom brings nearer in DIPs.
 	if after.X >= before.X {
 		t.Fatal(before, after)
 	}
@@ -103,8 +102,6 @@ func TestClicksLandUnderZoom(t *testing.T) {
 	}
 }
 
-// On a layout without Latin letters, as Cyrillic, a shortcut is recorded
-// as the key at that place, and that key runs it, as ⌘S does on ⌘Ы.
 func TestShortcutsOnNonLatinLayouts(t *testing.T) {
 	a, _ := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
@@ -131,8 +128,6 @@ func TestShortcutsOnNonLatinLayouts(t *testing.T) {
 	}
 }
 
-// Yaak's font settings choose from the system's fonts, the monospaced
-// ones for the editor, and System default saves no font.
 func TestSettingsFontSelects(t *testing.T) {
 	a, _ := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
@@ -151,7 +146,7 @@ func TestSettingsFontSelects(t *testing.T) {
 	}
 	tt.Frame()
 	snapshot(t, tt, "font_select")
-	if !tt.HasText(systemDefaultFont) || tt.HasText(sans) {
+	if !tt.HasText(systemDefaultFont()) || tt.HasText(sans) {
 		t.Fatal("editor fonts", tt.Texts())
 	}
 	if err := tt.Click(mono); err != nil {
@@ -174,7 +169,7 @@ func TestSettingsFontSelects(t *testing.T) {
 	if err := tt.Click("Editor font setting"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click(systemDefaultFont); err != nil {
+	if err := tt.Click(systemDefaultFont()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

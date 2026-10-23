@@ -13,12 +13,7 @@ type curlCapture struct {
 	Header            http.Header
 }
 
-// TestCurlExportMatchesYaakScenarios ports the cases in Yaak's
-// plugins/action-copy-curl tests. Yeek's command format differs on purpose
-// (one line, --url, --data-raw, --form-string, request settings), so each
-// case runs the copied command through sh and curl and checks what the
-// server receives.
-func TestCurlExportMatchesYaakScenarios(t *testing.T) {
+func TestCurlExportScenarios(t *testing.T) {
 	received := make(chan curlCapture, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -156,7 +151,6 @@ func TestCurlExportMatchesYaakScenarios(t *testing.T) {
 	}
 }
 
-// Yaak's digest and AWS cases check the flags, which curl then acts on.
 func TestCurlExportDigestAndAWSFlags(t *testing.T) {
 	e := testEngine(t)
 	w := saveTest(t, e, Object{"model": "workspace"})
@@ -169,7 +163,7 @@ func TestCurlExportDigestAndAWSFlags(t *testing.T) {
 		{Object{"accessKeyId": "ak", "secretAccessKey": "sk", "sessionToken": "", "region": "us-east-1", "service": "s3"}, "awsv4", []string{"--aws-sigv4 'aws:amz:us-east-1:s3'", "--user 'ak:sk'"}},
 		{Object{"accessKeyId": "ak", "secretAccessKey": "sk", "sessionToken": "st", "region": "us-east-1", "service": "s3"}, "awsv4", []string{"--aws-sigv4 'aws:amz:us-east-1:s3'", "--user 'ak:sk'", "--header 'X-Amz-Security-Token: st'"}},
 	} {
-		r := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "method": "GET", "url": "https://yaak.app", "authenticationType": c.kind, "authentication": c.auth})
+		r := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "method": "GET", "url": "https://api.example.com", "authenticationType": c.kind, "authentication": c.auth})
 		command, err := e.Curl(t.Context(), str(r, "id"), "")
 		if err != nil {
 			t.Fatal(err)

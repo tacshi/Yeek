@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// Ported from Yaak's requestBodyConversion.test.ts. JSON.stringify(v, null, 2)
-// results are written out, in the order JavaScript keeps their members.
-
 func TestConvertRequestBody(t *testing.T) {
 	form := func(rows ...Object) Object {
 		list := []any{}
@@ -72,19 +69,19 @@ func TestConvertRequestBody(t *testing.T) {
 		{
 			name: "preserves JSON text that is not a GraphQL envelope",
 			from: "application/json", to: "graphql",
-			body: Object{"text": `{"name":"Yaak"}`},
-			want: Object{"text": `{"name":"Yaak"}`},
+			body: Object{"text": `{"name":"Yeek"}`},
+			want: Object{"text": `{"name":"Yeek"}`},
 		},
 		{
 			name: "preserves text when converting to binary cannot build a file body",
 			from: "application/json", to: "binary",
-			body: Object{"text": `{ "name": "Yaak" }`},
-			want: Object{"text": `{ "name": "Yaak" }`},
+			body: Object{"text": `{ "name": "Yeek" }`},
+			want: Object{"text": `{ "name": "Yeek" }`},
 		},
 		{
 			name: "clears body when converting to no body",
 			from: "application/json", to: "",
-			body: Object{"text": `{ "name": "Yaak" }`},
+			body: Object{"text": `{ "name": "Yeek" }`},
 			want: Object{},
 		},
 	} {

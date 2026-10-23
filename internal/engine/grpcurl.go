@@ -9,11 +9,8 @@ import (
 	"strings"
 )
 
-// grpcurlNewline continues a grpcurl command on the next line.
 const grpcurlNewline = "\\\n "
 
-// Grpcurl is Yaak's Copy as gRPCurl: a grpcurl command for the gRPC
-// request as it would be sent, with its proto files and import paths.
 func (e *Engine) Grpcurl(ctx context.Context, id, environment string, protoFiles []string) (string, error) {
 	model, err := e.Store.Get(ctx, id)
 	if err != nil {
@@ -113,7 +110,6 @@ func grpcurl(request Object, allProtoFiles []string) string {
 	return strings.Join(xs, " ")
 }
 
-// parentProtoDir is the nearest directory named proto around a file.
 func parentProtoDir(file string) string {
 	dir, err := filepath.Abs(file)
 	if err != nil {
@@ -131,7 +127,6 @@ func parentProtoDir(file string) string {
 	}
 }
 
-// encodeURIComponent is JavaScript's, which Yaak's plugins use.
 func encodeURIComponent(s string) string {
 	return strings.NewReplacer("+", "%20", "%21", "!", "%27", "'", "%28", "(", "%29", ")", "%2A", "*").Replace(url.QueryEscape(s))
 }

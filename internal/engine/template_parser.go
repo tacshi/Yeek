@@ -3,32 +3,26 @@ package engine
 import (
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"yeek/locales"
 )
 
-// This file ports Yaak's yaak-templates parser and renderer
-// (crates/yaak-templates/src/{parser,renderer}.rs).
-
-// maxTemplateDepth is Yaak's MAX_DEPTH.
 const maxTemplateDepth = 50
 
-var errTemplateStackExceeded = errors.New("template nesting is too deep")
+var errTemplateStackExceeded error = &localizedError{locales.TemplateNestingIsTooDeep}
 
 type templateRunner func(string, map[string]string) (string, error)
 
-// templateValue is Yaak's Val: a string, variable, boolean, null or function.
 type templateValue struct {
 	kind, text string
 	args       map[string]templateValue
-	// order keeps the arguments as written, like Yaak's Vec<FnArg>.
-	order []string
+	order      []string
 }
 
-// templateToken is raw text, or a tag when tag is set.
 type templateToken struct {
 	raw string
 	tag *templateValue
@@ -41,9 +35,6 @@ type templateParser struct {
 	text   strings.Builder
 }
 
-// parseTemplate splits text into raw text and tags. Like Yaak, \${[ is a
-// literal "${[", a double backslash stays as written, and a tag that
-// doesn't parse is kept as text.
 func parseTemplate(text string) ([]templateToken, error) {
 	p := &templateParser{chars: []rune(text)}
 	for p.pos < len(p.chars) {
@@ -168,8 +159,6 @@ func (p *templateParser) function() (*templateValue, error) {
 			return nil, nil
 		}
 	}
-	// Yaak accepts arguments that run to the end of the text unclosed; the
-	// tag's missing "]}" then turns it back into text.
 	return fn, nil
 }
 
@@ -183,16 +172,12 @@ func (p *templateParser) scan(valid func(r rune, first bool) bool) string {
 	return string(p.chars[start:p.pos])
 }
 
-// ident is a variable or argument name: a letter, digit or underscore, then
-// those plus - and . too.
 func (p *templateParser) ident() string {
 	return p.scan(func(r rune, first bool) bool {
 		return isAlnum(r) || r == '_' || !first && (r == '-' || r == '.')
 	})
 }
 
-// str reads '...' or b64'...' (URL-safe base64 without padding). Yeek also
-// reads "...", which it wrote before matching Yaak's quoting.
 func (p *templateParser) str() (string, bool, error) {
 	start := p.pos
 	quote, b64 := '\'', false
@@ -211,7 +196,6 @@ func (p *templateParser) str() (string, bool, error) {
 		p.pos++
 		if r == '\\' && p.pos < len(p.chars) {
 			if quote == '"' {
-				// Yeek's old double-quoted strings used Go escapes.
 				rest := string(p.chars[p.pos-1:])
 				decoded, _, tail, err := strconv.UnquoteChar(rest, '"')
 				if err != nil {
@@ -231,10 +215,10 @@ func (p *templateParser) str() (string, bool, error) {
 			}
 			decoded, err := base64.RawURLEncoding.DecodeString(text.String())
 			if err != nil {
-				return "", false, fmt.Errorf("Failed to decode string %s", text.String()) //nolint:staticcheck // Yaak's message, shown as it is
+				return "", false, errors.New(locales.FailedToDecodeStringString(text.String())) //nolint:staticcheck
 			}
 			if !utf8.Valid(decoded) {
-				return "", false, fmt.Errorf("Failed to decode utf8 string %s", text.String()) //nolint:staticcheck // Yaak's message, shown as it is
+				return "", false, errors.New(locales.FailedToDecodeUtf8StringString(text.String())) //nolint:staticcheck
 			}
 			return string(decoded), true, nil
 		}
@@ -244,8 +228,6 @@ func (p *templateParser) str() (string, bool, error) {
 	return "", false, nil
 }
 
-// formatTemplateString is Yaak's Val::Str display: single quotes, or b64
-// when the text holds control characters a one-line tag can't.
 func formatTemplateString(text string) string {
 	if strings.IndexFunc(text, unicode.IsControl) >= 0 {
 		return "b64'" + base64.RawURLEncoding.EncodeToString([]byte(text)) + "'"
@@ -257,7 +239,6 @@ func renderText(text string, vars map[string]string, stack map[string]bool, dept
 	return renderWith(text, vars, stack, depth, nil)
 }
 
-// renderWith is Yaak's parse_and_render.
 func renderWith(text string, vars map[string]string, stack map[string]bool, depth int, run templateRunner) (string, error) {
 	tokens, err := parseTemplate(text)
 	if err != nil {
@@ -282,8 +263,6 @@ func renderWith(text string, vars map[string]string, stack map[string]bool, dept
 	return result.String(), nil
 }
 
-// evalTemplate is Yaak's render_value: strings, variable values and
-// function results are themselves rendered as templates.
 func evalTemplate(value templateValue, vars map[string]string, stack map[string]bool, depth int, run templateRunner) (string, error) {
 	if depth > maxTemplateDepth {
 		return "", errTemplateStackExceeded
@@ -321,17 +300,15 @@ func evalTemplate(value templateValue, vars map[string]string, stack map[string]
 			text, ok = vars[name]
 		}
 		if !ok {
-			return "", fmt.Errorf("variable %q is not defined", name)
+			return "", errors.New(locales.VariableNameIsNotDefined(strconv.Quote(name)))
 		}
-		// Yaak lets a self-reference run into its depth limit; naming the
-		// variable is a clearer error.
 		if stack[name] {
-			return "", fmt.Errorf("variable %q refers to itself", name)
+			return "", errors.New(locales.VariableNameRefersToItself(strconv.Quote(name)))
 		}
 		stack[name] = true
 		defer delete(stack, name)
 		return renderWith(text, vars, stack, depth, run)
 	default:
-		return "", errors.New("unknown template value")
+		return "", errors.New(locales.UnknownTemplateValue())
 	}
 }

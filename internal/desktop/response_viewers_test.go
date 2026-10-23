@@ -36,8 +36,6 @@ func viewerApp(t *testing.T, contentType, body string, extra engine.Object) (*Ap
 	return a, d, ui.NewTester(a.View, 1360, 860)
 }
 
-// previewRecorder stands in for a window's web view: it keeps the URLs
-// previews load.
 type previewRecorder struct {
 	view *mygo.WebView
 	urls []string
@@ -53,7 +51,6 @@ func fakePreview(a *App) *previewRecorder {
 	return r
 }
 
-// fetchPreview gets a preview URL as the web view would.
 func fetchPreview(t *testing.T, url string, header ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, url, nil)
@@ -65,8 +62,6 @@ func fetchPreview(t *testing.T, url string, header ...string) *httptest.Response
 	return w
 }
 
-// settledImage draws the view once what moves in it has come to rest, as
-// a dialog fading in: a Tester's clock moves only when the test moves it.
 func settledImage(tt *ui.Tester) *image.RGBA {
 	tt.Advance(500 * time.Millisecond)
 	return tt.Image()
@@ -158,7 +153,6 @@ func TestResponseHeadersTab(t *testing.T) {
 	})
 	d.ResponseTab = 2
 	tt.Frame()
-	// Response headers start open, request headers and info closed, as in Yaak.
 	if !tt.HasText("Info") || !tt.HasText("Request Headers") || !tt.HasText("Response Headers") || !tt.HasText("fixture") || tt.HasText("Yeek") || tt.HasText("93.184.216.34:443") {
 		t.Fatalf("initial sections: %v", tt.Texts())
 	}
@@ -238,13 +232,11 @@ func TestResponseWebPreviews(t *testing.T) {
 			}
 			want := tc.body
 			if tc.name == "html" {
-				// As Yaak's WebPageViewer: a base for relative URLs.
 				want = strings.Replace(tc.body, "<head>", `<head><base href="https://example.com/docs/page"/>`, 1)
 			}
 			if body.Body.String() != want {
 				t.Fatalf("body = %q", body.Body)
 			}
-			// Another frame keeps the page; the same preview loads once.
 			tt.Frame()
 			if len(r.urls) != 1 {
 				t.Fatalf("reloaded: %v", r.urls)
@@ -265,12 +257,10 @@ func TestResponsePreviewRawAndRanges(t *testing.T) {
 	a, _, tt := viewerApp(t, "video/mp4", "0123456789", nil)
 	r := fakePreview(a)
 	tt.Frame()
-	// A video element seeks with ranges.
 	part := fetchPreview(t, r.urls[0]+"body", "Range", "bytes=2-5")
 	if part.Code != http.StatusPartialContent || part.Body.String() != "2345" {
 		t.Fatalf("range: %d %q", part.Code, part.Body)
 	}
-	// Another response's preview, or none, is not served.
 	token := strings.TrimSuffix(strings.TrimPrefix(r.urls[0], "yeek-preview://"), "/")
 	if fetchPreview(t, "yeek-preview://"+strings.Repeat("0", len(token))+"/body").Code != http.StatusNotFound {
 		t.Fatal("unknown token served")
@@ -336,7 +326,6 @@ func TestPDFPreviewServesPDFJS(t *testing.T) {
 		if w.Code != 200 || !strings.HasPrefix(w.Header().Get("Content-Type"), tc.kind) || !strings.Contains(w.Body.String(), tc.contains) {
 			t.Fatalf("%s: %d %q", tc.path, w.Code, w.Header().Get("Content-Type"))
 		}
-		// The viewer's sandboxed frame loads them across origins.
 		if w.Header().Get("Access-Control-Allow-Origin") != "*" {
 			t.Fatalf("%s: no CORS", tc.path)
 		}
@@ -348,7 +337,6 @@ func TestPDFPreviewServesPDFJS(t *testing.T) {
 		t.Fatal("the viewer can't read the body")
 	}
 
-	// Other previews don't serve the viewer.
 	b, _, tt := viewerApp(t, "audio/mpeg", "ID3", nil)
 	other := fakePreview(b)
 	tt.Frame()

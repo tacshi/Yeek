@@ -9,37 +9,28 @@ import (
 	"github.com/dlclark/regexp2/v2"
 )
 
-// JavaScript regular expressions, translated for regexp2: Yaak's
-// crates/yaak-filter/src/jsonpath/regex.rs, which translates them for
-// fancy-regex. regexp2 counts in runes; JavaScript in UTF-16 code units.
-
 const (
-	jsWhitespace = `\t\n\x0B\x0C\r \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF`
-	// JavaScript's \b and \B only count ASCII word characters.
+	jsWhitespace      = `\t\n\x0B\x0C\r \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF`
 	wordBoundary      = `(?:(?<=[0-9A-Za-z_])(?![0-9A-Za-z_])|(?<![0-9A-Za-z_])(?=[0-9A-Za-z_]))`
 	notWordBoundary   = `(?:(?<=[0-9A-Za-z_])(?=[0-9A-Za-z_])|(?<![0-9A-Za-z_])(?![0-9A-Za-z_]))`
 	notLineTerminator = `[^\n\r\u2028\u2029]`
-	// With the m flag, ^ and $ also match beside any line terminator.
-	lineStart = `(?:^|(?<=[\n\r\u2028\u2029]))`
-	lineEnd   = `(?=[\n\r\u2028\u2029]|\z)`
-	// regexTimeout bounds a pathological pattern, as fancy-regex's
-	// backtracking limit does.
-	regexTimeout = 2 * time.Second
+	lineStart         = `(?:^|(?<=[\n\r\u2028\u2029]))`
+	lineEnd           = `(?=[\n\r\u2028\u2029]|\z)`
+	regexTimeout      = 2 * time.Second
 )
 
 type jsRegex struct {
 	source, flags string
 	re            *regexp2.Regexp
 	global        bool
-	// lastIndex is in UTF-16 code units, as JavaScript counts it.
-	lastIndex int
+	lastIndex     int
 }
 
 func newJSRegex(source, flags string) (*jsRegex, error) {
 	seen := ""
 	for _, flag := range flags {
 		if strings.ContainsRune(seen, flag) || !strings.ContainsRune("dgimsuvy", flag) {
-			return nil, fmt.Errorf("Invalid flags supplied to RegExp constructor '%s'", flags) //nolint:staticcheck // JavaScript's message
+			return nil, fmt.Errorf("Invalid flags supplied to RegExp constructor '%s'", flags) //nolint:staticcheck
 		}
 		if flag == 'v' || flag == 'y' {
 			return nil, fmt.Errorf("the regular expression flag %c is not supported", flag)
@@ -56,7 +47,7 @@ func newJSRegex(source, flags string) (*jsRegex, error) {
 	}
 	re, err := regexp2.Compile(translated, options)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid regular expression: /%s/%s: %w", source, flags, err) //nolint:staticcheck // JavaScript's message
+		return nil, fmt.Errorf("Invalid regular expression: /%s/%s: %w", source, flags, err) //nolint:staticcheck
 	}
 	re.MatchTimeout = regexTimeout
 	if source == "" {
@@ -65,8 +56,6 @@ func newJSRegex(source, flags string) (*jsRegex, error) {
 	return &jsRegex{source: source, flags: flags, re: re, global: strings.ContainsRune(flags, 'g')}, nil
 }
 
-// iRegexp is an RFC 9535 match() or search() pattern, or nil when it is
-// not one this engine reads.
 func iRegexp(pattern string, whole bool) *jsRegex {
 	if whole {
 		pattern = "^(?:" + pattern + ")$"
@@ -152,8 +141,6 @@ func (r *jsRegex) matchString(text string) (jsValue, error) {
 	}}, nil
 }
 
-// split is String.prototype.split with a regular expression separator,
-// captures included.
 func (r *jsRegex) split(text string, limit uint64) ([]jsValue, error) {
 	var parts []jsValue
 	if limit == 0 {
@@ -237,11 +224,6 @@ func runeToUTF16(runes []rune, index int) int {
 	return units
 }
 
-// translateRegex rewrites a JavaScript pattern into regexp2 syntax with
-// JavaScript's meaning for ., \d, \w, \s, \b, ^ and $, and the characters
-// JavaScript takes literally (], { and } outside a quantifier, [ inside a
-// class). Named groups become numbered ones, as regexp2 would number them
-// after the unnamed groups where JavaScript numbers all groups in order.
 func translateRegex(source string, dotAll, multiline bool) (string, error) {
 	chars := []rune(source)
 	groups := regexGroupNames(chars)
@@ -254,7 +236,7 @@ func translateRegex(source string, dotAll, multiline bool) (string, error) {
 		switch {
 		case c == '\\':
 			if i >= len(chars) {
-				return "", fmt.Errorf("Invalid regular expression: \\ at end of pattern") //nolint:staticcheck // JavaScript's message
+				return "", fmt.Errorf("Invalid regular expression: \\ at end of pattern") //nolint:staticcheck
 			}
 			e := chars[i]
 			i++
@@ -302,10 +284,10 @@ func translateRegex(source string, dotAll, multiline bool) (string, error) {
 			case e == 'u' && i < len(chars) && chars[i] == '{':
 				end := indexRune(chars, i, '}')
 				if end < 0 {
-					return "", fmt.Errorf("Invalid regular expression: invalid Unicode escape") //nolint:staticcheck // JavaScript's message
+					return "", fmt.Errorf("Invalid regular expression: invalid Unicode escape") //nolint:staticcheck
 				}
 				if !hexRun(chars, i+1, end-i-1) || end == i+1 {
-					return "", fmt.Errorf("Invalid regular expression: invalid Unicode escape") //nolint:staticcheck // JavaScript's message
+					return "", fmt.Errorf("Invalid regular expression: invalid Unicode escape") //nolint:staticcheck
 				}
 				writeRegexRune(&out, rune(hexValue(chars[i+1:end])))
 				i = end + 1
@@ -387,13 +369,11 @@ func translateRegex(source string, dotAll, multiline bool) (string, error) {
 		case c == '$' && !inClass && multiline:
 			out.WriteString(lineEnd)
 		case c == '$' && !inClass:
-			// regexp2's $ also matches before a final newline.
 			out.WriteString(`\z`)
 		case c == '(' && !inClass && runeAt(chars, i) == '?' && runeAt(chars, i+1) == '<' && !isLookbehind(runeAt(chars, i+2)):
-			// A named group, numbered in order like the rest.
 			end := indexRune(chars, i, '>')
 			if end < 0 {
-				return "", fmt.Errorf("Invalid regular expression: /%s/: Invalid capture group name", source) //nolint:staticcheck // JavaScript's message
+				return "", fmt.Errorf("Invalid regular expression: /%s/: Invalid capture group name", source) //nolint:staticcheck
 			}
 			out.WriteByte('(')
 			i = end + 1
@@ -404,8 +384,6 @@ func translateRegex(source string, dotAll, multiline bool) (string, error) {
 	return out.String(), nil
 }
 
-// regexGroupNames numbers the named groups of a pattern as JavaScript
-// does, counting every capturing group in order.
 func regexGroupNames(chars []rune) map[string]int {
 	names := map[string]int{}
 	count, inClass := 0, false
@@ -432,7 +410,6 @@ func regexGroupNames(chars []rune) map[string]int {
 	return names
 }
 
-// runeAt is the character at i, or 0 past the end.
 func runeAt(chars []rune, i int) rune {
 	if i < len(chars) {
 		return chars[i]
@@ -440,8 +417,6 @@ func runeAt(chars []rune, i int) rune {
 	return 0
 }
 
-// isLookbehind reports whether c, after (?<, makes a lookbehind rather
-// than a named group.
 func isLookbehind(c rune) bool { return c == '=' || c == '!' }
 
 func classOr(inClass bool, body string) string {
@@ -451,8 +426,6 @@ func classOr(inClass bool, body string) string {
 	return "[" + body + "]"
 }
 
-// writeRegexRune writes a character a pattern escaped, so it means only
-// itself, in a class or out of one.
 func writeRegexRune(out *strings.Builder, r rune) {
 	if r > 0xFFFF {
 		out.WriteRune(r)
@@ -507,8 +480,6 @@ func indexRune(chars []rune, from int, c rune) int {
 	return -1
 }
 
-// quantifierLen is the length of n}, n,} or n,m} after a {, or 0 when
-// JavaScript reads the brace literally.
 func quantifierLen(rest []rune) int {
 	digits := func(from int) int {
 		n := 0

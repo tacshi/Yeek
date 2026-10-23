@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/yeekui"
 )
 
-func TestExtractRepoNameMatchesYaak(t *testing.T) {
+func TestExtractRepoName(t *testing.T) {
 	for url, want := range map[string]string{
 		"https://github.com/user/repo.git": "repo",
 		"git@github.com:user/repo.git":     "repo",
@@ -23,8 +23,6 @@ func TestExtractRepoNameMatchesYaak(t *testing.T) {
 	}
 }
 
-// Yaak's CloneGitRepositoryDialog: the directory follows the URL until
-// typed, a subdirectory can hold the workspace, and the clone opens it.
 func TestCloneGitRepositoryDialog(t *testing.T) {
 	a, _ := cookieApp(t)
 	tt := ui.NewTester(a.View, 1360, 860)
@@ -41,8 +39,8 @@ func TestCloneGitRepositoryDialog(t *testing.T) {
 	if f.directory() != "/projects/api" {
 		t.Fatal(f.directory())
 	}
-	f.hasSubdirectory, f.subdirectory = true, "yaak"
-	if f.workspaceDirectory() != "/projects/api/yaak" {
+	f.hasSubdirectory, f.subdirectory = true, "workspace"
+	if f.workspaceDirectory() != "/projects/api/workspace" {
 		t.Fatal(f.workspaceDirectory())
 	}
 	f.hasOverride, f.override = true, "/elsewhere"
@@ -54,7 +52,7 @@ func TestCloneGitRepositoryDialog(t *testing.T) {
 		t.Skip("git not installed")
 	}
 	source := t.TempDir()
-	_ = os.WriteFile(filepath.Join(source, "yaak.wk_cloned.yaml"), []byte("model: workspace\nid: wk_cloned\nname: Cloned API\n"), 0600)
+	_ = os.WriteFile(filepath.Join(source, "yeek.wk_cloned.yaml"), []byte("model: workspace\nid: wk_cloned\nname: Cloned API\n"), 0600)
 	for _, args := range [][]string{{"init", "-q"}, {"add", "."}, {"-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "-m", "first"}} {
 		if out, err := exec.Command("git", append([]string{"-C", source}, args...)...).CombinedOutput(); err != nil { // #nosec G204 -- git with the test's own arguments.
 			t.Fatal(string(out))

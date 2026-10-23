@@ -11,26 +11,21 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/chacha20poly1305"
+
+	"yeek/locales"
 )
 
 const encryptionTag = "yA4k3nC\x01"
 
 var keyEncoding = base32.NewEncoding("0123456789ABCDEFGHJKMNPQRSTVWXYZ").WithPadding(base32.NoPadding)
 
-// SecretStore keeps secrets in the system's credential store, by service
-// and account, as the app provides it (mygo.Secrets), so that the engine
-// needs no UI. Get fails with ErrSecretNotFound for a secret not stored.
 type SecretStore interface {
 	Get(service, account string) (string, error)
 	Set(service, account, value string) error
 }
 
-// ErrSecretNotFound is what a SecretStore's Get fails with when it has no
-// secret for the service and account.
-var ErrSecretNotFound = errors.New("secret not found in the OS keychain")
+var ErrSecretNotFound error = &localizedError{locales.SecretNotFoundInTheOS}
 
-// The service and account of the key that encrypts workspace keys, which
-// is Yeek's own secret, unlike those the keychain template function reads.
 const (
 	EncryptionKeyService = "app.yeek.desktop.EncryptionKey"
 	EncryptionKeyAccount = "encryption-key"
@@ -55,7 +50,7 @@ func decryptBytes(key, data []byte) ([]byte, error) {
 	}
 	prefix := len(encryptionTag)
 	if len(data) < prefix+cipher.NonceSize()+cipher.Overhead() || !bytes.Equal(data[:prefix], []byte(encryptionTag)) {
-		return nil, errors.New("invalid encrypted value")
+		return nil, errors.New(locales.InvalidEncryptedValue())
 	}
 	return cipher.Open(nil, data[prefix:prefix+cipher.NonceSize()], data[prefix+cipher.NonceSize():], nil)
 }
@@ -66,7 +61,7 @@ func (e *Engine) masterEncryptionKey() ([]byte, error) {
 		return bytes.Clone(e.masterKey), nil
 	}
 	if e.Secrets == nil {
-		return nil, errors.New("no OS keychain")
+		return nil, errors.New(locales.NoOSKeychain())
 	}
 	value, err := e.Secrets.Get(EncryptionKeyService, EncryptionKeyAccount)
 	var key []byte
@@ -76,14 +71,14 @@ func (e *Engine) masterEncryptionKey() ([]byte, error) {
 			return nil, err
 		}
 		if err = e.Secrets.Set(EncryptionKeyService, EncryptionKeyAccount, "YKM_"+keyEncoding.EncodeToString(key)); err != nil {
-			return nil, fmt.Errorf("save key in OS keychain: %w", err)
+			return nil, fmt.Errorf("%s: %w", locales.SaveKeyInOSKeychain(), err)
 		}
 	} else if err != nil {
-		return nil, fmt.Errorf("read OS keychain: %w", err)
+		return nil, fmt.Errorf("%s: %w", locales.ReadOSKeychain(), err)
 	} else {
 		key, err = keyEncoding.DecodeString(strings.TrimPrefix(value, "YKM_"))
 		if err != nil || len(key) != 32 {
-			return nil, errors.New("invalid keychain encryption key")
+			return nil, errors.New(locales.InvalidKeychainEncryptionKey())
 		}
 	}
 	e.masterKey = bytes.Clone(key)
@@ -95,7 +90,7 @@ func (e *Engine) workspaceKey(ctx context.Context, workspace string) ([]byte, er
 		return nil, err
 	}
 	if len(metas) == 0 || str(obj(metas[0], "encryptionKey"), "encryptedKey") == "" {
-		return nil, errors.New("set up this workspace’s encryption key first")
+		return nil, errors.New(locales.SetUpThisWorkspacesEncryptionKey())
 	}
 	master, err := e.masterEncryptionKey()
 	if err != nil {
@@ -123,7 +118,7 @@ func parseHumanKey(value string) ([]byte, error) {
 	value = strings.NewReplacer("O", "0", "I", "1", "L", "1").Replace(value)
 	key, err := keyEncoding.DecodeString(value)
 	if err != nil || len(key) != 32 {
-		return nil, errors.New("invalid workspace encryption key")
+		return nil, errors.New(locales.InvalidWorkspaceEncryptionKey())
 	}
 	return key, nil
 }
@@ -145,7 +140,7 @@ func (e *Engine) setWorkspaceKey(ctx context.Context, workspace string, key []by
 			return err
 		}
 		if _, err = decryptBytes(key, data); err != nil {
-			return errors.New("the encryption key does not match this workspace")
+			return errors.New(locales.TheEncryptionKeyDoesNotMatch())
 		}
 	}
 	if err = e.Store.EnsureWorkspace(ctx, workspace); err != nil {
@@ -168,7 +163,7 @@ func (e *Engine) setWorkspaceKey(ctx context.Context, workspace string, key []by
 		return err
 	}
 	if len(metas) != 1 {
-		return errors.New("workspace metadata is missing")
+		return errors.New(locales.WorkspaceMetadataIsMissing())
 	}
 	w["encryptionKeyChallenge"] = base64.StdEncoding.EncodeToString(challenge)
 	meta := metas[0]
@@ -221,7 +216,7 @@ func (e *Engine) DecryptValue(ctx context.Context, workspace, value string) (str
 	}
 	value, ok := strings.CutPrefix(value, "YENC_")
 	if !ok {
-		return "", errors.New("secure value is not encrypted")
+		return "", errors.New(locales.SecureValueIsNotEncrypted())
 	}
 	data, err := base64.StdEncoding.DecodeString(value)
 	if err != nil {

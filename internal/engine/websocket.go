@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"yeek/locales"
 )
 
 type websocketSession struct {
@@ -52,7 +54,7 @@ func (e *Engine) ConnectWebSocket(ctx context.Context, id string, opts SendOptio
 		target.Scheme = "wss"
 	case "ws", "wss":
 	default:
-		return nil, errors.New("WebSocket URL must begin with ws:// or wss://")
+		return nil, errors.New(locales.WebSocketURLMustBeginWithWs())
 	}
 	model, err := e.Save(ctx, Object{"model": "websocket_connection", "workspaceId": str(request, "workspaceId"), "requestId": id, "url": target.String()})
 	if err != nil {
@@ -185,7 +187,7 @@ func (e *Engine) SendWebSocket(ctx context.Context, connectionID, message string
 	session := e.websockets[connectionID]
 	e.mu.Unlock()
 	if session == nil {
-		return errors.New("connect the WebSocket first")
+		return errors.New(locales.ConnectTheWebSocketFirst())
 	}
 	data := []byte(message)
 	typ := websocket.MessageText
@@ -193,7 +195,7 @@ func (e *Engine) SendWebSocket(ctx context.Context, connectionID, message string
 		var err error
 		data, err = base64.StdEncoding.DecodeString(strings.TrimSpace(message))
 		if err != nil {
-			return fmt.Errorf("binary message must be base64: %w", err)
+			return fmt.Errorf("%s: %w", locales.BinaryMessageMustBeBase64(), err)
 		}
 		typ = websocket.MessageBinary
 	}
@@ -221,7 +223,7 @@ func (e *Engine) PingWebSocket(ctx context.Context, id string) error {
 	session := e.websockets[id]
 	e.mu.Unlock()
 	if session == nil {
-		return errors.New("WebSocket is not connected")
+		return errors.New(locales.WebSocketIsNotConnected())
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

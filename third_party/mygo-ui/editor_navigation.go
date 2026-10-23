@@ -398,8 +398,6 @@ func (ed *editor) command(c *context, name string) {
 			}
 		}
 		if s != "" {
-			// A code editor tells its state what was pasted and whether it
-			// replaced the whole text, as Yaak's onPasteOverwrite needs.
 			overwrote := ed.buf.n == 0 || a == 0 && b == ed.buf.n
 			ed.insert(s)
 			if ed.codeState != nil {

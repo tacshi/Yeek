@@ -4,42 +4,35 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 )
 
-// toastItem is one of Yaak's toasts.
 type toastItem struct {
 	id, message, color string
 	shown              time.Time
-	timeout            time.Duration // zero stays until dismissed
-	held               bool          // touched, so it no longer hides itself
-	// title, when set, is a bold line over the message, which is then subtle.
-	title string
-	// actions are buttons under the message, as Yaak's toast action.
-	actions []toastAction
+	timeout            time.Duration
+	held               bool
+	title              string
+	actions            []toastAction
 }
 
-// toastAction is a button of a toast; choosing it hides the toast.
 type toastAction struct {
 	label string
 	run   func()
 }
 
-// toast shows a message in the bottom-right corner for five seconds, as Yaak's showToast does.
 func (a *App) toast(message string) { a.showToast("", message, "success", 5*time.Second) }
 
-// showToastAction is showToast with a button that runs action.
 func (a *App) showToastAction(id, message, color string, timeout time.Duration, label string, action func()) {
 	a.showToastActions(id, "", message, color, timeout, toastAction{label, action})
 }
 
-// showToastActions is showToast with a title and buttons.
 func (a *App) showToastActions(id, title, message, color string, timeout time.Duration, actions ...toastAction) {
 	a.showToast(id, message, color, timeout)
 	last := &a.toasts[len(a.toasts)-1]
 	last.title, last.actions = title, actions
 }
 
-// showToast replaces any toast with the same id.
 func (a *App) showToast(id, message, color string, timeout time.Duration) {
 	if id != "" {
 		a.hideToast(id)
@@ -59,8 +52,6 @@ func (a *App) hideToast(id string) {
 	}
 }
 
-// toastMotion is Yaak's Toast: in 200 ms it comes in from the right, 10%
-// of its width away, and goes out all of its width to the right, fading.
 var toastMotion = ui.ElementTransition{
 	Duration: 200 * time.Millisecond,
 	Colors:   true,
@@ -69,15 +60,12 @@ var toastMotion = ui.ElementTransition{
 }
 
 func (a *App) toastsView(c *ui.Context, p colors) {
-	// The list stays while it's empty, so the last toast goes out as the
-	// others do.
 	now := c.Now()
 	for i := range a.toasts {
 		if a.toasts[i].shown.IsZero() {
 			a.toasts[i].shown = now
 		}
 	}
-	// Hide the ones whose time is up; ask for a frame when the next one is due.
 	kept := a.toasts[:0]
 	var next time.Duration
 	for _, t := range a.toasts {
@@ -98,7 +86,6 @@ func (a *App) toastsView(c *ui.Context, p colors) {
 	}
 	dismissed := ""
 	defer func() {
-		// Removed after drawing, so the list is not changed while it is drawn.
 		if dismissed != "" {
 			a.hideToast(dismissed)
 		}
@@ -107,7 +94,6 @@ func (a *App) toastsView(c *ui.Context, p colors) {
 		ui.Column(c).Key("toasts").Absolute().Right(0).Bottom(0).Children(func() {
 			for i := range a.toasts {
 				t := &a.toasts[i]
-				// Yaak's m-2 around each toast.
 				slot := ui.Box(c).Key(t.id).Padding(8, 8, 0, 8).Transition(toastMotion)
 				if i == len(a.toasts)-1 {
 					slot.Padding(8)
@@ -152,12 +138,10 @@ func (a *App) toastCard(c *ui.Context, p colors, t *toastItem, dismissed *string
 				})
 			}
 		})
-		if smallIconButton(c, "close", "Dismiss").Absolute().Top(8).Right(8).Opacity(.6).Clicked() {
+		if smallIconButton(c, "close", locales.Dismiss()).Absolute().Top(8).Right(8).Opacity(.6).Clicked() {
 			*dismissed = t.id
 		}
 		if t.timeout > 0 && !t.held {
-			// Yaak's countdown: a bar along the bottom that empties and
-			// fades to 20%, painted without building the view.
 			shown, timeout, color := t.shown, t.timeout, p.border
 			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(3).Draw(func(pt *ui.Painter, r ui.Rect) {
 				done := min(max(float32(pt.Now().Sub(shown))/float32(timeout), 0), 1)

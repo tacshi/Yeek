@@ -15,7 +15,6 @@ import (
 	"yeek/internal/mcp"
 )
 
-// bearer adds the MCP server's token to each request.
 type bearer struct{ token string }
 
 func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -35,9 +34,6 @@ func waitFor(t *testing.T, what string, ok func() bool) {
 	}
 }
 
-// The Agents tab turns the server on, shows its token and how to connect
-// an agent, and the server answers tools as the window showing the
-// workspace: Yaak's SettingsAgents and mcp_ext, with its CLI test's sends.
 func TestAgentsSettingsServeTheOpenWorkspace(t *testing.T) {
 	a, e := cookieApp(t)
 	received := make(chan http.Header, 4)
@@ -74,7 +70,7 @@ func TestAgentsSettingsServeTheOpenWorkspace(t *testing.T) {
 	if err := tt.Click("Agents"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Turn on the MCP server above to connect this way.") || tt.HasText("Token") {
+	if !tt.HasText("Turn on the MCP server above to connect this way.") || tt.HasText("Token") || tt.HasText("Codex") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("MCP server enabled"); err != nil {
@@ -141,8 +137,6 @@ func TestAgentsSettingsServeTheOpenWorkspace(t *testing.T) {
 		}
 	}
 
-	// A request an agent creates is saved in the workspace, which windows
-	// show as the engine reports it.
 	var created map[string]any
 	_ = json.Unmarshal([]byte(text("create_http_request", map[string]any{"url": "https://example.com/new", "name": "From agent"})), &created)
 	if m, err := e.Store.Get(t.Context(), created["id"].(string)); err != nil || s(m, "workspaceId") != a.workspace || s(m, "name") != "From agent" {
@@ -156,7 +150,6 @@ func TestAgentsSettingsServeTheOpenWorkspace(t *testing.T) {
 	}
 }
 
-// Connect an agent's snippets, as Yaak's agentSetup.test.ts has them.
 func TestAppAgentSetup(t *testing.T) {
 	url, token := "http://127.0.0.1:64343/mcp", "abc" // #nosec G101 -- a placeholder token for the snippets.
 	for client, want := range map[string]agentSetup{

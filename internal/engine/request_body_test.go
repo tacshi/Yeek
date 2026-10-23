@@ -239,10 +239,7 @@ func TestJSONCommentsAndGraphQLGETOnWire(t *testing.T) {
 	if err := json.Unmarshal([]byte(str(got, "variables")), &parsed); err != nil || number(parsed, "id") != 1 {
 		t.Fatal(got, err)
 	}
-	// Yaak's maybe_strip_json_comments: a block comment goes with nothing in
-	// its place, so 1/**/2 sends as 12, valid JSON; text still invalid once
-	// stripped is sent as it was.
 	if FixJSONBody("1/**/2") != "12" || FixJSONBody(`{"invalid": }`) != `{"invalid": }` || FixJSONBody(`{"a": 1 /* open`) != `{"a": 1 /* open` {
-		t.Fatal("comments stripped unlike Yaak")
+		t.Fatal("comments stripped")
 	}
 }

@@ -9,32 +9,18 @@ import (
 	"github.com/dlclark/regexp2/v2"
 )
 
-// Path strings into the steps the engine traces: jsonpath-plus's
-// toPathArray, after lifting out what this engine reads differently.
-// Yaak's crates/yaak-filter/src/jsonpath/path.rs.
-
 type locKind uint8
 
 const (
 	locStr locKind = iota
-	// locPart is a part of a , union or a script's result, which take none
-	// of the RFC 9535 additions.
 	locPart
 	locNum
-	// locOther is a script result that is neither a string nor a number,
-	// by its string form.
 	locOther
-	// locArrayKey is a script's array result, which jsonpath-plus follows
-	// only if its string form is a key.
 	locArrayKey
-	// locNames are quoted names: always literal keys.
 	locNames
-	// locFilter is an RFC 9535 filter written without parentheses.
 	locFilter
 )
 
-// loc is one step of a path. jsonpath-plus decides what a step means
-// while tracing, so most steps stay text until then.
 type loc struct {
 	kind  locKind
 	s     string
@@ -58,7 +44,6 @@ var (
 	subxStep     = regexp.MustCompile(`#([0-9]+)`)
 )
 
-// replaceGo replaces every match of re, giving rep the match and its groups.
 func replaceGo(re *regexp.Regexp, text string, rep func(groups []string) string) string {
 	var out strings.Builder
 	last := 0
@@ -139,9 +124,6 @@ func parsePath(path string) ([]loc, error) {
 	return locs, nil
 }
 
-// literalKeys are the keys of a complete literal path containing [", which
-// the old plugin walked by own property instead of handing to
-// jsonpath-plus (so $["s"].length is 0 for an empty string).
 func literalKeys(path string) ([]string, bool) {
 	if !strings.Contains(path, `["`) {
 		return nil, false
@@ -228,9 +210,6 @@ func placeholderIndex(part string) (int, bool) {
 	return int(n), err == nil
 }
 
-// liftPath lifts out quoted names (["a.b"], ['a', 'b']) and RFC 9535
-// filters without parentheses ([?@.a > 1]), leaving placeholders
-// jsonpath-plus's normalization passes through as single steps.
 func liftPath(path string) (string, []loc) {
 	chars := []rune(path)
 	var out strings.Builder
@@ -275,8 +254,6 @@ func liftPath(path string) (string, []loc) {
 	return out.String(), lifted
 }
 
-// quotedNames reads "a" or 'a', "b" up to the closing ], and the index
-// after it.
 func quotedNames(chars []rune, i int) ([]string, int, bool) {
 	blank := func() {
 		for i < len(chars) && isBlank(chars[i]) {

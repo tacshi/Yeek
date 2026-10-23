@@ -6,25 +6,20 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 )
 
-// pathListItem is a card of Yaak's PathList.
 type pathListItem struct {
 	path, icon string
-	// subtitle replaces the parent-path line under the name.
-	subtitle func()
-	failed   bool
+	subtitle   func()
+	failed     bool
 }
 
-// pathListAdd is an item of the add row's menu.
 type pathListAdd struct {
 	label    string
 	onSelect func()
 }
 
-// pathList is Yaak's PathList: selected files, folders or URLs as cards,
-// each removable, then extra rows (an inline input), then a dashed add
-// row that opens a menu.
 func pathList(c *ui.Context, p colors, items []pathListItem, onRemove func(string), add []pathListAdd, addLabel, addHint string, hovering, disabled bool, extra func()) ui.Element {
 	list := ui.Column(c).FillWidth().Gap(6).Padding(6).Margin(-6).Radius(8)
 	if hovering {
@@ -52,7 +47,7 @@ func pathList(c *ui.Context, p colors, items []pathListItem, onRemove func(strin
 						}
 					})
 				})
-				if smallIconButton(c, "trash", "Remove "+name).TextColor(p.muted).Disabled(disabled).Shrink(0).Clicked() {
+				if smallIconButton(c, "trash", locales.RemoveName(name)).TextColor(p.muted).Disabled(disabled).Shrink(0).Clicked() {
 					onRemove(item.path)
 				}
 			})
@@ -71,7 +66,7 @@ func pathList(c *ui.Context, p colors, items []pathListItem, onRemove func(strin
 		row.Children(func() {
 			icon(c, "plus").FontSize(13).TextColor(p.subtle)
 			if hovering {
-				ui.Text(c, "Drop to add").FontSize(13).TextColor(p.muted)
+				ui.Text(c, locales.DropToAdd()).FontSize(13).TextColor(p.muted)
 				return
 			}
 			ui.Text(c, addLabel).FontSize(13).TextColor(p.muted)
@@ -93,8 +88,6 @@ func pathList(c *ui.Context, p colors, items []pathListItem, onRemove func(strin
 
 var urlScheme = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*://`)
 
-// splitPath is Yaak's: the last segment as the name and what comes before
-// it, shortened, as the parent.
 func splitPath(path string) (name, parent string) {
 	if urlScheme.MatchString(path) {
 		u, err := url.Parse(path)

@@ -1,35 +1,26 @@
 package desktop
 
 import (
-	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// A gRPC message is completed and checked against its method's input, as
-// Yaak's codemirror-json-schema does: property names in an object, and the
-// values of enums and booleans.
-
-// jsonFrame is an object or array open at the caret: the entry it holds
-// in its parent (a key, or "[]" for an array's item), and for an object
-// the key last read and whether a key or a value comes next.
 type jsonFrame struct {
 	object    bool
 	entry     string
 	key       string
 	keys      []string
 	expectKey bool
-	afterKey  bool // a key was read; its colon and value come next
+	afterKey  bool
 }
 
-// jsonCaret is where the caret is in a JSON text.
 type jsonCaret struct {
-	frames []jsonFrame
-	// key is set when a property name is typed at the caret, which then
-	// replaces from up to to, quoted when quoted.
+	frames             []jsonFrame
 	key, value, quoted bool
 	from, to           int
 	prefix             string
@@ -39,7 +30,6 @@ func isJSONWord(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || strings.ContainsRune("_.+-$", r)
 }
 
-// scanJSONCaret reads the text up to the caret.
 func scanJSONCaret(r []rune, caret int) (jsonCaret, bool) {
 	var stack []jsonFrame
 	push := func(object bool) {
@@ -89,7 +79,6 @@ func scanJSONCaret(r []rune, caret int) (jsonCaret, bool) {
 				i++
 			}
 			if i >= caret || i >= len(r) {
-				// The caret is in this string.
 				end := min(i+1, len(r))
 				c := jsonCaret{frames: stack, quoted: true, from: start, to: end, prefix: string(r[start+1 : min(caret, len(r))])}
 				f := top()
@@ -133,21 +122,16 @@ func scanJSONCaret(r []rune, caret int) (jsonCaret, bool) {
 	return c, c.key || c.value
 }
 
-// jsonPlace is what the innermost container at the caret is: an object
-// of a message (message), an array of a repeated field's items, or an
-// object of a map's values (field).
 type jsonPlace struct {
 	message *engine.GRPCMessage
 	field   *engine.GRPCField
 }
 
-// jsonContainer follows the containers open at the caret from the root
-// message; ok is false where the schema does not reach.
 func jsonContainer(root *engine.GRPCMessage, frames []jsonFrame) (jsonPlace, bool) {
 	place := jsonPlace{message: root}
 	for _, f := range frames[1:] {
 		var field *engine.GRPCField
-		item := place.message == nil // in an array, or a map's object
+		item := place.message == nil
 		if item {
 			field = place.field
 		} else if field = place.message.Field(f.entry); field == nil {
@@ -167,7 +151,6 @@ func jsonContainer(root *engine.GRPCMessage, frames []jsonFrame) (jsonPlace, boo
 	return place, true
 }
 
-// jsonSchemaOptions are the property names or values that fit at the caret.
 func jsonSchemaOptions(root *engine.GRPCMessage, source string, caret int) []templateOption {
 	r := []rune(source)
 	at, ok := scanJSONCaret(r, caret)
@@ -188,9 +171,8 @@ func jsonSchemaOptions(root *engine.GRPCMessage, source string, caret int) []tem
 	}
 	if at.key {
 		if place.message == nil {
-			return nil // a map's keys are the user's
+			return nil
 		}
-		// A colon follows the name unless one is there already.
 		colon := ": "
 		for i := at.to; i < len(r); i++ {
 			if !unicode.IsSpace(r[i]) {
@@ -208,7 +190,6 @@ func jsonSchemaOptions(root *engine.GRPCMessage, source string, caret int) []tem
 		}
 		return options
 	}
-	// A value: of the object's field, or an item of the array or map.
 	field := place.field
 	if place.message != nil {
 		if field = place.message.Field(top.key); field == nil || field.Repeated || field.Map {
@@ -230,7 +211,6 @@ func jsonSchemaOptions(root *engine.GRPCMessage, source string, caret int) []tem
 	return options
 }
 
-// fieldType names a field's type, as the completion shows it.
 func fieldType(f engine.GRPCField) string {
 	name := f.Kind
 	if f.Message != nil {
@@ -245,9 +225,8 @@ func fieldType(f engine.GRPCField) string {
 	return name
 }
 
-// jsonValue is a value of a JSON text, where it is in runes.
 type jsonValue struct {
-	kind       string // object, array, string, number, true, false, null, tag
+	kind       string
 	start, end int
 	members    []jsonMember
 	items      []*jsonValue
@@ -259,8 +238,6 @@ type jsonMember struct {
 	value            *jsonValue
 }
 
-// jsonParser reads what it can of a JSON text, leaving syntax errors to
-// the editor.
 type jsonParser struct {
 	r []rune
 	i int
@@ -344,7 +321,6 @@ func (p *jsonParser) value(depth int) *jsonValue {
 		}
 		return &jsonValue{kind: "string", start: start, end: p.i}
 	case ch == '$' && p.i+2 < len(p.r) && string(p.r[p.i:p.i+3]) == "${[":
-		// A template tag stands for any value.
 		for p.i+1 < len(p.r) && string(p.r[p.i:p.i+2]) != "]}" {
 			p.i++
 		}
@@ -382,14 +358,11 @@ func (p *jsonParser) string() (string, bool) {
 	return b.String(), true
 }
 
-// jsonProblem is where a message does not fit its schema.
 type jsonProblem struct {
 	start, end int
 	message    string
 }
 
-// checkJSONMessage lists the fields a message does not have, and the
-// values of the wrong kind.
 func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 	p := &jsonParser{r: []rune(source)}
 	n := p.value(0)
@@ -402,14 +375,14 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 	object = func(m *engine.GRPCMessage, n *jsonValue) {
 		if n.kind != "object" {
 			if n.kind != "null" && n.kind != "tag" {
-				problems = append(problems, jsonProblem{n.start, n.end, "Expected object"})
+				problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedObject()})
 			}
 			return
 		}
 		for _, member := range n.members {
 			field := m.Field(member.key)
 			if field == nil {
-				problems = append(problems, jsonProblem{member.keyStart, member.keyEnd, fmt.Sprintf("Property %q is not expected", member.key)})
+				problems = append(problems, jsonProblem{member.keyStart, member.keyEnd, locales.PropertyNameIsNotExpected(strconv.Quote(member.key))})
 				continue
 			}
 			value(field, member.value, false)
@@ -421,7 +394,7 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 		}
 		if f.Repeated && !item {
 			if n.kind != "array" {
-				problems = append(problems, jsonProblem{n.start, n.end, "Expected array"})
+				problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedArray()})
 				return
 			}
 			for _, it := range n.items {
@@ -431,7 +404,7 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 		}
 		if f.Map && !item {
 			if n.kind != "object" {
-				problems = append(problems, jsonProblem{n.start, n.end, "Expected object"})
+				problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedObject()})
 				return
 			}
 			for _, member := range n.members {
@@ -450,7 +423,7 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 		case "enum":
 			ok = n.kind == "number" || n.kind == "string" && slices.Contains(f.Enum, strings.Trim(string(p.r[n.start:n.end]), `"`))
 			if !ok && n.kind == "string" {
-				problems = append(problems, jsonProblem{n.start, n.end, "Expected one of " + strings.Join(f.Enum, ", ")})
+				problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedOneOfValues(strings.Join(f.Enum, ", "))})
 				return
 			}
 		case "object":
@@ -460,7 +433,7 @@ func checkJSONMessage(root *engine.GRPCMessage, source string) []jsonProblem {
 			return
 		}
 		if !ok {
-			problems = append(problems, jsonProblem{n.start, n.end, "Expected " + f.Kind})
+			problems = append(problems, jsonProblem{n.start, n.end, locales.ExpectedKind(f.Kind)})
 		}
 	}
 	object(root, n)

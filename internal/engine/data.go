@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"yeek/locales"
 )
 
 var resourceKinds = map[string]string{"workspaces": "workspace", "environments": "environment", "folders": "folder", "httpRequests": "http_request", "grpcRequests": "grpc_request", "websocketRequests": "websocket_request"}
@@ -42,7 +44,7 @@ func ParseImport(data []byte) ([]Object, error) {
 	var root Object
 	if err := json.Unmarshal(data, &root); err != nil {
 		if err = yaml.Unmarshal(data, &root); err != nil {
-			return nil, unsupportedImport{fmt.Errorf("read collection: %w", err)}
+			return nil, unsupportedImport{fmt.Errorf("%s: %w", locales.ReadCollection(), err)}
 		}
 	}
 	if resources := obj(root, "resources"); len(resources) > 0 {
@@ -59,7 +61,6 @@ func ParseImport(data []byte) ([]Object, error) {
 			return result, nil
 		}
 	}
-	// Insomnia: a v5 collection, or a v4 export's list of resources.
 	_, v5 := root["collection"].([]any)
 	_, v4 := root["resources"].([]any)
 	if v5 || v4 {
@@ -87,7 +88,7 @@ func ParseImport(data []byte) ([]Object, error) {
 	if str(root, "model") != "" {
 		return []Object{root}, nil
 	}
-	return nil, unsupportedImport{errors.New("choose a Yeek, Yaak, Postman, Insomnia, or OpenAPI collection, or paste a cURL command")}
+	return nil, unsupportedImport{errors.New(locales.ChooseAYeekPostmanInsomniaOr())}
 }
 func migrateNativeImport(resources Object) {
 	if requests, exists := resources["requests"]; exists && resources["httpRequests"] == nil {
@@ -104,7 +105,7 @@ func migrateNativeImport(resources Object) {
 				environment["parentModel"], environment["parentId"] = "environment", nil
 			}
 		}
-		resources["environments"] = append(array(resources, "environments"), Object{"model": "environment", "id": stableImportID("environment", "yaak-base:"+id), "workspaceId": id, "parentModel": "workspace", "parentId": id, "name": "Global Variables", "variables": variables})
+		resources["environments"] = append(array(resources, "environments"), Object{"model": "environment", "id": stableImportID("environment", legacyBaseEnvironmentSeed+id), "workspaceId": id, "parentModel": "workspace", "parentId": id, "name": "Global Variables", "variables": variables})
 		delete(workspace, "variables")
 	}
 	for _, environment := range objects(array(resources, "environments")) {
@@ -137,8 +138,6 @@ func MergeModel(base, patch Object) Object {
 	return result
 }
 
-// unsupportedImport is an error for text no importer reads, which Yaak's
-// import dialog reports as "Not a supported format".
 type unsupportedImport struct{ error }
 
 func (e unsupportedImport) Unwrap() error { return e.error }

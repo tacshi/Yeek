@@ -55,7 +55,6 @@ func TestPasteURLWithQueryMovesParams(t *testing.T) {
 	if len(got) != 3 || got[0] != "q=yeek" || got[1] != "page=2" || got[2] != "q=again" {
 		t.Fatalf("params = %v", got)
 	}
-	// A paste into part of the URL is just text.
 	tt.SetClipboard("?x=1")
 	tt.Command("paste")
 	tt.Frame()

@@ -1,10 +1,6 @@
-// Yaak's PdfViewer: react-pdf's Document with a Page per page, each as wide
-// as the viewer, its text selectable and its links working. This page runs
-// in a sandboxed frame, so the PDF and PDF.js reach nothing of Yeek's.
 import "./pdfjs/polyfills.js";
 import * as pdfjs from "./pdfjs/build/pdf.min.mjs";
 
-// The worker loads the polyfills first: it has its own globals.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs/worker.mjs", import.meta.url).href;
 
 const root = document.getElementById("document");
@@ -17,9 +13,6 @@ function message(text) {
   root.append(div);
 }
 
-// react-pdf's LinkService, without a pdf_viewer: external links open in a
-// new window, which Yeek opens in the browser, and destinations scroll
-// their page into view.
 const linkService = {
   externalLinkEnabled: true,
   eventBus: { dispatch() {}, on() {}, off() {} },
@@ -70,7 +63,6 @@ let width = 0;
 let generation = 0;
 
 async function renderPage(page, element, scale, run) {
-  // Page and Canvas: drawn at the device's pixel ratio, shown at the scale.
   const viewport = page.getViewport({ scale });
   const ratio = window.devicePixelRatio || 1;
   const canvas = document.createElement("canvas");
@@ -129,8 +121,6 @@ async function renderPage(page, element, scale, run) {
   });
 }
 
-// Each page is as wide as the viewer (react-pdf's width), laid out again
-// when the viewer's width changes.
 async function renderAll() {
   const run = ++generation;
   for (let i = 0; i < doc.numPages; i++) {
@@ -157,7 +147,6 @@ async function main() {
       cMapUrl: new URL("pdfjs/cmaps/", import.meta.url).href,
       cMapPacked: true,
       standardFontDataUrl: new URL("pdfjs/standard_fonts/", import.meta.url).href,
-      // The body is one local response: no ranges or streaming.
       disableRange: true,
       disableStream: true,
     }).promise;

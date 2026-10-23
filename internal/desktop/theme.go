@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type colors struct{ background, sidebar, header, response, border, text, muted, subtle, accent, green, orange, blue, red, notice ui.Color }
@@ -70,7 +71,6 @@ func (a *App) theme(c *ui.Context) colors {
 	return p
 }
 
-// methodColor follows Yaak's HttpMethodTag colors.
 func methodColor(method string, p colors) ui.Color {
 	switch strings.ToUpper(method) {
 	case "GET":
@@ -92,7 +92,6 @@ func methodColor(method string, p colors) ui.Color {
 
 var shortMethods = map[string]string{"GET": "GET", "PUT": "PUT", "POST": "POST", "PATCH": "PTCH", "DELETE": "DELE", "OPTIONS": "OPTN", "HEAD": "HEAD", "QUERY": "QURY", "GRAPHQL": "GQL", "GRPC": "GRPC", "WEBSOCKET": "WS"}
 
-// shortMethod is Yaak's four-column sidebar method label.
 func shortMethod(method string) string {
 	method = strings.ToUpper(method)
 	label, ok := shortMethods[method]
@@ -102,7 +101,6 @@ func shortMethod(method string) string {
 	return fmt.Sprintf("%-4s", label)
 }
 
-// requestMethod is the method label Yaak shows for any request model.
 func requestMethod(m engine.Object) string {
 	switch {
 	case s(m, "model") == "grpc_request":
@@ -115,7 +113,6 @@ func requestMethod(m engine.Object) string {
 	return strings.ToUpper(s(m, "method"))
 }
 
-// statusColor and statusLabel follow Yaak's HttpStatusTag.
 func statusColor(response engine.Object, p colors) ui.Color {
 	status := n(response, "status")
 	switch {
@@ -140,12 +137,12 @@ func statusLabel(response engine.Object, short bool) string {
 		if short {
 			return "CONN"
 		}
-		return "CONNECTING"
+		return locales.CONNECTING()
 	case n(response, "status") < 100:
 		if short {
 			return "ERR"
 		}
-		return "ERROR"
+		return locales.ERROR()
 	case short:
 		return fmt.Sprintf("%.0f", n(response, "status"))
 	}
@@ -211,8 +208,6 @@ var iconPaths = map[string]string{
 	"sun":         `<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>`,
 	"moon":        `<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>`,
 	"branch":      `<circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 6v12M18 8c0 6-12 4-12 10"/>`,
-	// Lucide's file, box, folder-input, import, folder-code and minus, for
-	// the import and proto file lists.
 	"file":        `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>`,
 	"box":         `<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>`,
 	"folderInput": `<path d="M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1"/><path d="M2 13h10"/><path d="m9 16 3-3-3-3"/>`,
@@ -222,10 +217,9 @@ var iconPaths = map[string]string{
 	"variable":    `<path d="M8 21s-4-3-4-9 4-9 4-9"/><path d="M16 3s4 3 4 9-4 9-4 9"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>`,
 	"house":       `<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`,
 	"file_code":   `<path d="M10 12.5 8 15l2 2.5"/><path d="m14 12.5 2 2.5-2 2.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/>`,
-	// Lucide's lock, lock-open and refresh-cw, for the template preview.
-	"lock":     `<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,
-	"lockOpen": `<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`,
-	"refresh":  `<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>`,
+	"lock":        `<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`,
+	"lockOpen":    `<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`,
+	"refresh":     `<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>`,
 }
 var icons = func() map[string]*ui.SVG {
 	m := map[string]*ui.SVG{}
@@ -237,11 +231,10 @@ var icons = func() map[string]*ui.SVG {
 
 func icon(c *ui.Context, name string) ui.Element { return ui.Icon(c, icons[name]).FontSize(16) }
 
-// chevronToggle is the borderless disclosure arrow used by trees.
 func chevronToggle(c *ui.Context, p colors, open bool, name string) ui.Element {
-	glyph, label := "chevron", "Expand "+name
+	glyph, label := "chevron", locales.ExpandName(name)
 	if open {
-		glyph, label = "down", "Collapse "+name
+		glyph, label = "down", locales.CollapseName(name)
 	}
 	button := ui.ButtonBase(c).Label(label).Size(20, 20).Radius(4).Justify(ui.Center)
 	if button.Hovered() {
@@ -251,12 +244,10 @@ func chevronToggle(c *ui.Context, p colors, open bool, name string) ui.Element {
 	return button
 }
 
-// iconButton is a 28×28 toolbar button holding a 16px icon.
 func iconButton(c *ui.Context, name, label string) ui.Element {
 	return sizedIconButton(c, name, label, 28, 16)
 }
 
-// smallIconButton is a 22×22 button holding a 14px icon, for actions inside rows and fields.
 func smallIconButton(c *ui.Context, name, label string) ui.Element {
 	return sizedIconButton(c, name, label, 22, 14)
 }

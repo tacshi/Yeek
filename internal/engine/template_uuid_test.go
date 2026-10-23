@@ -24,7 +24,6 @@ func TestUUIDTemplateFunctions(t *testing.T) {
 			t.Errorf("%s = %q %v", name, got, err)
 		}
 	}
-	// A v6 UUID sorts by its time, which is its leading hex digits.
 	at := time.Date(2025, 5, 28, 11, 15, 0, 0, time.UTC)
 	early, _ := templateFunction("uuid.v6", map[string]string{"timestamp": "2025-05-28T11:15:00Z"})
 	late := timeUUID(6, at.Add(time.Second))

@@ -34,7 +34,7 @@ func TestEnvironmentEditorFeatures(t *testing.T) {
 			t.Fatalf("missing %q: %v", text, tt.Texts())
 		}
 	}
-	dots := "••••••••••••" // the twelve characters of "plain-secret", masked
+	dots := "••••••••••••"
 	if !tt.HasText(dots) {
 		t.Fatal("value not masked before Show Values")
 	}
@@ -46,7 +46,6 @@ func TestEnvironmentEditorFeatures(t *testing.T) {
 		t.Fatal("Show Values did not reveal values")
 	}
 
-	// Sharable toggles to Private and saves.
 	if err := tt.Click("Sharable"); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +54,6 @@ func TestEnvironmentEditorFeatures(t *testing.T) {
 		t.Fatal("environment still sharable")
 	}
 
-	// The context menu offers Yaak's actions.
 	if err := tt.RightClick("Staging"); err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +70,6 @@ func TestEnvironmentEditorFeatures(t *testing.T) {
 		t.Fatalf("duplicate: %d sub-environments", len(subs))
 	}
 
-	// A new sub-environment from the base environment's button.
 	a.openEnvironmentsAt(s(base, "id"))
 	tt.Frame()
 	if err := tt.Click("Add Sub-Environment"); err != nil {
@@ -94,7 +91,6 @@ func TestEnvironmentEditorFeatures(t *testing.T) {
 		t.Fatalf("created %v in dialog %s", created, a.dialog)
 	}
 
-	// The active environment's color tints the header and marks its button.
 	a.dialogOpen = false
 	a.environment = s(staging, "id")
 	tt.Frame()
@@ -120,8 +116,6 @@ func TestEnvironmentColors(t *testing.T) {
 	}
 }
 
-// Yaak's EnvironmentEditDialog with one base environment: the base offers a
-// sub-environment, which opens selected without becoming active (#714).
 func TestBaseEnvironmentMenuAndNewSubEnvironment(t *testing.T) {
 	a, _ := cookieApp(t)
 	base, _ := a.environmentsBreakdown()
@@ -147,9 +141,6 @@ func TestBaseEnvironmentMenuAndNewSubEnvironment(t *testing.T) {
 	}
 }
 
-// With several base environments Yaak shows only them, each with a
-// warning, asks for all but one to be deleted, and offers no
-// sub-environment.
 func TestMultipleBaseEnvironments(t *testing.T) {
 	a, e := cookieApp(t)
 	base, _ := a.environmentsBreakdown()

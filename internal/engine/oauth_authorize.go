@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"yeek/locales"
 )
 
 func oauthRandom() string {
@@ -33,7 +35,7 @@ func oauthPKCE(auth Object) (string, string, string, error) {
 		valid := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("-._~", r)
 		return !valid
 	}) {
-		return "", "", "", errors.New("PKCE verifier must contain 43–128 letters, digits, or -._~")
+		return "", "", "", errors.New(locales.PKCEVerifierMustContain43128())
 	}
 	method := cmp.Or(str(auth, "pkceChallengeMethod"), "S256")
 	switch method {
@@ -43,16 +45,16 @@ func oauthPKCE(auth Object) (string, string, string, error) {
 		hash := sha256.Sum256([]byte(verifier))
 		return verifier, base64.RawURLEncoding.EncodeToString(hash[:]), method, nil
 	default:
-		return "", "", "", errors.New("PKCE method must be S256 or plain")
+		return "", "", "", errors.New(locales.PKCEMethodMustBeS256Or())
 	}
 }
 func validateOAuthRedirect(raw string) (*url.URL, error) {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme == "" || u.User != nil || u.Fragment != "" || slices.Contains([]string{"javascript", "data", "file", "about"}, strings.ToLower(u.Scheme)) {
-		return nil, errors.New("enter an absolute OAuth redirect URI without credentials or a fragment")
+		return nil, errors.New(locales.EnterAnAbsoluteOAuthRedirectURI())
 	}
 	if (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() == "" {
-		return nil, errors.New("HTTP redirect URIs require a hostname")
+		return nil, errors.New(locales.HTTPRedirectURIsRequireAHostname())
 	}
 	return u, nil
 }
@@ -71,7 +73,7 @@ func BuildOAuthAuthorization(auth Object, redirect, contextID string) (OAuthAuth
 	if grant == "implicit" {
 		responseType = str(auth, "responseType")
 		if !slices.Contains([]string{"token", "id_token", "id_token token", "token id_token"}, responseType) {
-			return OAuthAuthorization{}, "", errors.New("choose a supported implicit response type")
+			return OAuthAuthorization{}, "", errors.New(locales.ChooseASupportedImplicitResponseType())
 		}
 	}
 	q.Set("response_type", responseType)
@@ -101,7 +103,7 @@ func BuildOAuthAuthorization(auth Object, redirect, contextID string) (OAuthAuth
 	}
 	pairs, err := parseOAuthPairs(auth["authorizationParams"])
 	if err != nil {
-		return OAuthAuthorization{}, "", fmt.Errorf("authorization parameters: %w", err)
+		return OAuthAuthorization{}, "", fmt.Errorf("%s: %w", locales.AuthorizationParameters(), err)
 	}
 	seen := map[string]bool{}
 	for _, pair := range pairs {
@@ -113,13 +115,13 @@ func BuildOAuthAuthorization(auth Object, redirect, contextID string) (OAuthAuth
 	}
 	q.Set("redirect_uri", redirect)
 	if q.Get("state") == "" || len(q["state"]) != 1 {
-		return OAuthAuthorization{}, "", errors.New("authorization requires one nonempty state value")
+		return OAuthAuthorization{}, "", errors.New(locales.AuthorizationRequiresOneNonemptyStateValue())
 	}
 	if q.Get("response_type") != responseType {
-		return OAuthAuthorization{}, "", errors.New("set response type with the OAuth grant controls")
+		return OAuthAuthorization{}, "", errors.New(locales.SetResponseTypeWithTheOAuth())
 	}
 	if strings.Contains(responseType, "id_token") && (q.Get("nonce") == "" || len(q["nonce"]) != 1) {
-		return OAuthAuthorization{}, "", errors.New("ID token authorization requires one nonempty nonce")
+		return OAuthAuthorization{}, "", errors.New(locales.IDTokenAuthorizationRequiresOneNonempty())
 	}
 	endpoint.RawQuery = q.Encode()
 	return OAuthAuthorization{URL: endpoint.String(), RedirectURI: redirect, State: q.Get("state"), Nonce: q.Get("nonce"), GrantType: grant, TokenName: str(auth, "tokenName"), ContextID: contextID}, verifier, nil
@@ -164,46 +166,46 @@ func OAuthCallbackMatches(raw, redirect string) bool {
 }
 func ParseOAuthCallback(raw string, authorization OAuthAuthorization) (Object, error) {
 	if len(raw) > 2<<20 {
-		return nil, errors.New("OAuth callback exceeds 2 MiB")
+		return nil, errors.New(locales.OAuthCallbackExceeds2MiB())
 	}
 	if !OAuthCallbackMatches(raw, authorization.RedirectURI) {
-		return nil, errors.New("OAuth callback does not match the redirect URI")
+		return nil, errors.New(locales.OAuthCallbackDoesNotMatchThe())
 	}
 	u, _ := url.Parse(raw)
 	values := u.Query()
 	if u.Fragment != "" {
 		fragment, err := url.ParseQuery(u.Fragment)
 		if err != nil {
-			return nil, errors.New("invalid OAuth callback fragment")
+			return nil, errors.New(locales.InvalidOAuthCallbackFragment())
 		}
 		for key, entries := range fragment {
 			if _, exists := values[key]; exists {
-				return nil, fmt.Errorf("OAuth callback repeats %s", key)
+				return nil, errors.New(locales.OAuthCallbackRepeatsKey(key))
 			}
 			values[key] = entries
 		}
 	}
 	for _, key := range []string{"state", "code", "access_token", "id_token", "error"} {
 		if len(values[key]) > 1 {
-			return nil, fmt.Errorf("OAuth callback repeats %s", key)
+			return nil, errors.New(locales.OAuthCallbackRepeatsKey(key))
 		}
 	}
 	if subtle.ConstantTimeCompare([]byte(values.Get("state")), []byte(authorization.State)) != 1 {
-		return nil, errors.New("OAuth callback state does not match")
+		return nil, errors.New(locales.OAuthCallbackStateDoesNotMatch())
 	}
 	if code := values.Get("error"); code != "" {
-		return nil, fmt.Errorf("authorization declined: %s %s", oauthErrorText(code), oauthErrorText(values.Get("error_description")))
+		return nil, errors.New(locales.AuthorizationDeclinedErrorDescription(oauthErrorText(code), oauthErrorText(values.Get("error_description"))))
 	}
 	if authorization.GrantType == "authorization_code" && values.Get("code") == "" {
-		return nil, errors.New("OAuth callback is missing an authorization code")
+		return nil, errors.New(locales.OAuthCallbackIsMissingAnAuthorization())
 	}
 	if authorization.GrantType == "implicit" && values.Get(authorization.TokenName) == "" {
-		return nil, fmt.Errorf("OAuth callback is missing %s", authorization.TokenName)
+		return nil, errors.New(locales.OAuthCallbackIsMissingTokenName(authorization.TokenName))
 	}
 	if authorization.Nonce != "" && values.Get("id_token") != "" {
 		claims := oauthJWTClaims(values.Get("id_token"))
 		if subtle.ConstantTimeCompare([]byte(str(claims, "nonce")), []byte(authorization.Nonce)) != 1 {
-			return nil, errors.New("ID token nonce does not match this authorization")
+			return nil, errors.New(locales.IDTokenNonceDoesNotMatch())
 		}
 	}
 	result := Object{}
@@ -234,12 +236,12 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 		return result, redirect, verifier, err
 	}
 	if options.OpenExternal == nil {
-		return nil, "", "", errors.New("fetch the token from an OAuth sign-in window first")
+		return nil, "", "", errors.New(locales.FetchTheTokenFromAnOAuth())
 	}
 	if redirect == "" {
 		port := cmp.Or(str(auth, "callbackPort"), "9461")
 		if number, err := strconv.Atoi(port); err != nil || number < 0 || number > 65535 {
-			return nil, "", "", errors.New("callback port must be between 0 and 65535")
+			return nil, "", "", errors.New(locales.CallbackPortMustBeBetween0())
 		}
 		redirect = "http://127.0.0.1:" + port + "/callback"
 	}
@@ -250,7 +252,7 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 	host := callback.Hostname()
 	ip := net.ParseIP(host)
 	if callback.Scheme != "http" || host != "localhost" && (ip == nil || !ip.IsLoopback()) {
-		return nil, "", "", errors.New("system-browser callbacks must use HTTP on a loopback address")
+		return nil, "", "", errors.New(locales.SystemBrowserCallbacksMustUseHTTP())
 	}
 	bindHost := host
 	if bindHost == "localhost" {
@@ -258,7 +260,7 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 	}
 	listener, err := net.Listen("tcp", net.JoinHostPort(bindHost, cmp.Or(callback.Port(), "80")))
 	if err != nil {
-		return nil, "", "", fmt.Errorf("start OAuth callback listener: %w", err)
+		return nil, "", "", fmt.Errorf("%s: %w", locales.StartOAuthCallbackListener(), err)
 	}
 	defer func() { _ = listener.Close() }()
 	if callback.Port() == "0" {
@@ -321,7 +323,7 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 			return
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodPost {
-			http.Error(w, "Use GET or POST", http.StatusMethodNotAllowed)
+			http.Error(w, locales.UseGETOrPOST(), http.StatusMethodNotAllowed)
 			return
 		}
 		actual := callback.Clone()
@@ -329,7 +331,7 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 		if r.Method == http.MethodPost {
 			r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 			if err := r.ParseForm(); err != nil {
-				http.Error(w, "Invalid callback form", http.StatusBadRequest)
+				http.Error(w, locales.InvalidCallbackForm(), http.StatusBadRequest)
 				return
 			}
 			values := actual.Query()
@@ -340,13 +342,11 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 		}
 		values := actual.Query()
 		if values.Get("code") == "" && values.Get(authorization.TokenName) == "" && values.Get("error") == "" {
-			// RFC 9110 preserves the original fragment when Location has none.
-			// This delivers implicit tokens to the app without a JavaScript relay.
 			http.Redirect(w, r, returnURI, http.StatusFound)
 			return
 		}
 		if values.Get("state") != authorization.State {
-			http.Error(w, "OAuth state does not match", http.StatusBadRequest)
+			http.Error(w, locales.OAuthStateDoesNotMatch(), http.StatusBadRequest)
 			return
 		}
 		select {
@@ -354,7 +354,7 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 		default:
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = io.WriteString(w, "Authorization received. Return to Yeek.")
+		_, _ = io.WriteString(w, locales.AuthorizationReceivedReturnToYeek())
 	})
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener); close(done) }()
@@ -365,7 +365,7 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 	select {
 	case err := <-done:
 		if err == nil || errors.Is(err, http.ErrServerClosed) {
-			err = errors.New("OAuth callback listener closed")
+			err = errors.New(locales.OAuthCallbackListenerClosed())
 		}
 		return nil, "", "", err
 	case raw := <-received:
@@ -376,7 +376,6 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 	}
 }
 
-// HandleOAuthCallback handles only an active one-time app callback route.
 func (e *Engine) HandleOAuthCallback(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "yeek" || u.Host != "oauth" {

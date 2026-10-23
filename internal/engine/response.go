@@ -53,8 +53,6 @@ func ParseSSE(text string) []SSEEvent {
 	return result
 }
 
-// FilterResponse filters a body by what it looks like: XPath for markup,
-// JSONPath for anything else.
 func FilterResponse(content, expression string) (string, error) {
 	contentType := "application/json"
 	if strings.HasPrefix(strings.TrimSpace(content), "<") {
@@ -63,8 +61,6 @@ func FilterResponse(content, expression string) (string, error) {
 	return FilterBody(content, expression, contentType)
 }
 
-// FilterBody is Yaak's response filter: XPath for XML and HTML bodies,
-// JSONPath for the rest, and the body itself for no expression.
 func FilterBody(content, expression, contentType string) (string, error) {
 	if strings.TrimSpace(expression) == "" {
 		return content, nil

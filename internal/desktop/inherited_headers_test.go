@@ -33,7 +33,6 @@ func TestHeadersTabShowsInheritedHeaders(t *testing.T) {
 	a.openRequest(s(req, "id"))
 	a.drafts[a.active].Tab = 2
 	tt := ui.NewTester(a.View, 1360, 860)
-	// User-Agent is overridden by the request, so two inherited headers show.
 	if !tt.HasText("Inherited") || !tt.HasText("X-Team") || !tt.HasText("search") || tt.HasText("Yeek") {
 		t.Fatal(tt.Texts())
 	}

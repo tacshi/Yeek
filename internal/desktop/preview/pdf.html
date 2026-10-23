@@ -7,7 +7,6 @@
 <style>
   html, body { margin: 0; height: 100%; background: transparent; }
   body { font: 13px -apple-system, system-ui, sans-serif; color: var(--text, #141922); }
-  /* PdfViewer: a scrolling column of pages, each with room below it. */
   #document { width: 100%; height: 100%; overflow-y: auto; }
   .react-pdf__Page {
     position: relative;
@@ -22,11 +21,9 @@
     --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
   }
   .react-pdf__message { padding: 0; }
-  /* PdfViewer.css */
   #document * { user-select: text; }
 </style>
 <script>
-  // The text color of Yeek's theme, as the page around react-pdf's messages has.
   const color = new URLSearchParams(location.search).get("color");
   if (color && /^#[0-9a-f]{6}$/i.test(color)) document.documentElement.style.setProperty("--text", color);
 </script>

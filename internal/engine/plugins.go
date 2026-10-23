@@ -22,6 +22,8 @@ import (
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
 	api "yeek/plugin"
+
+	"yeek/locales"
 )
 
 type PluginInfo struct {
@@ -42,7 +44,7 @@ func pluginSymbols() interp.Exports {
 func loadGoPlugin(ctx context.Context, path string) (definition api.Definition, err error) {
 	defer func() {
 		if failure := recover(); failure != nil {
-			err = fmt.Errorf("plugin initialization failed: %v", failure)
+			err = errors.New(locales.PluginInitializationFailedFailure(fmt.Sprint(failure)))
 		}
 	}()
 	source, err := os.ReadFile(path) // #nosec G304 -- plugin source is explicitly selected in the local plugin manager.
@@ -67,14 +69,14 @@ func loadGoPlugin(ctx context.Context, path string) (definition api.Definition, 
 	}
 	value, err := vm.Eval(syntax.Name.Name + ".Plugin")
 	if err != nil {
-		return definition, errors.New("export a Plugin variable of type plugin.Definition")
+		return definition, errors.New(locales.ExportAPluginVariableOfType())
 	}
 	definition, ok := value.Interface().(api.Definition)
 	if !ok {
-		return definition, errors.New("plugin must have type plugin.Definition")
+		return definition, errors.New(locales.PluginMustHaveTypePluginDefinition())
 	}
 	if definition.Name == "" {
-		return definition, errors.New("plugin needs a name")
+		return definition, errors.New(locales.PluginNeedsAName())
 	}
 	return definition, nil
 }
@@ -122,7 +124,7 @@ func (e *Engine) InstallPlugin(ctx context.Context, path string) (PluginInfo, er
 		return PluginInfo{}, err
 	}
 	if filepath.Ext(path) != ".go" {
-		return PluginInfo{}, errors.New("choose a Go source file")
+		return PluginInfo{}, errors.New(locales.ChooseAGoSourceFile())
 	}
 	definition, err := loadGoPlugin(ctx, path)
 	if err != nil {
@@ -182,7 +184,7 @@ func pluginCall(p *loadedPlugin, fn func() error) (err error) {
 	defer p.mu.Unlock()
 	defer func() {
 		if failure := recover(); failure != nil {
-			err = fmt.Errorf("plugin %s failed: %v", p.info.Name, failure)
+			err = errors.New(locales.PluginNameFailedFailure(p.info.Name, fmt.Sprint(failure)))
 		}
 	}()
 	return fn()
@@ -195,7 +197,7 @@ func (e *Engine) pluginTemplate(ctx context.Context, name string, args map[strin
 		for _, f := range p.definition.Templates {
 			if f.Name == name {
 				if f.Run == nil {
-					return "", errors.New("template function has no implementation")
+					return "", errors.New(locales.TemplateFunctionHasNoImplementation())
 				}
 				var result string
 				err := pluginCall(p, func() error {
@@ -207,7 +209,7 @@ func (e *Engine) pluginTemplate(ctx context.Context, name string, args map[strin
 			}
 		}
 	}
-	return "", fmt.Errorf("unknown template function %q", name)
+	return "", unknownFunctionError{name}
 }
 func (e *Engine) PluginAuthentication() []api.Authentication {
 	result := []api.Authentication{}
@@ -228,7 +230,7 @@ func (e *Engine) pluginAuth(ctx context.Context, name string, args Object, req *
 				continue
 			}
 			if auth.Apply == nil {
-				return true, errors.New("authentication plugin has no implementation")
+				return true, errors.New(locales.AuthenticationPluginHasNoImplementation())
 			}
 			values := map[string]string{}
 			for k, v := range args {
@@ -317,7 +319,7 @@ func (e *Engine) RunPluginAction(ctx context.Context, name, workspace, request s
 			}
 		}
 	}
-	return errors.New("plugin action is unavailable")
+	return errors.New(locales.PluginActionIsUnavailable())
 }
 
 func (e *Engine) pluginImport(ctx context.Context, content string) ([]Object, error) {
@@ -338,7 +340,7 @@ func (e *Engine) pluginImport(ctx context.Context, content string) ([]Object, er
 			return result, nil
 		}
 	}
-	return nil, errors.New("no importer recognized this collection")
+	return nil, errors.New(locales.NoImporterRecognizedThisCollection())
 }
 func (e *Engine) PluginFilterNames() []string {
 	names := []string{}
@@ -364,7 +366,7 @@ func (e *Engine) Filter(ctx context.Context, content, expression, contentType, p
 			return result, err
 		}
 	}
-	return "", errors.New("response filter is unavailable")
+	return "", errors.New(locales.ResponseFilterIsUnavailable())
 }
 func (e *Engine) PluginThemes() []api.Theme {
 	result := []api.Theme{}

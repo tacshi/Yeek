@@ -2,8 +2,6 @@ package filter
 
 import "testing"
 
-// TemplateJSONPath follows Yaak's filterJSONPath: JSON.stringify keeps the
-// document's key order, and strings, numbers and booleans print as String().
 func TestTemplateJSONPath(t *testing.T) {
 	body := `{"items":[{"z":1,"a":"x"},{"z":2.50,"a":true}]}`
 	for _, c := range []struct {

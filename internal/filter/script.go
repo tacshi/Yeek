@@ -7,11 +7,6 @@ import (
 	"strings"
 )
 
-// jsonpath-plus's safe evaluator: jsep's grammar (with its regex plugin,
-// typeof, void, undefined) and Safe-Script's semantics, minus what it would
-// let a filter do beyond reading the document. Yaak's
-// crates/yaak-filter/src/jsonpath/script.rs.
-
 const maxScriptDepth = 100
 
 type exprKind uint8
@@ -29,14 +24,12 @@ const (
 )
 
 type expr struct {
-	kind    exprKind
-	literal jsValue
-	name    string
-	// computed is a member's computed property; name its named one.
+	kind     exprKind
+	literal  jsValue
+	name     string
 	computed *expr
 	op       string
 	args     []*expr
-	// rfcArgs are an RFC function's arguments: a value, or a query.
 	function rfcFunction
 	rfcArgs  []scriptRFCArg
 }
@@ -46,7 +39,6 @@ type scriptRFCArg struct {
 	nodes *query
 }
 
-// binaryOps are matched longest first; a nil precedence is unsupported.
 var binaryOps = []struct {
 	text       string
 	precedence int
@@ -137,8 +129,6 @@ func (p *scriptParser) enter() error {
 	return nil
 }
 
-// expressions reads expressions separated by ; or , until the end, or
-// until the character until (0 for none).
 func (p *scriptParser) expressions(until rune) ([]*expr, error) {
 	var nodes []*expr
 	for !p.atEnd() {
@@ -703,8 +693,6 @@ func (p *scriptParser) group() (*expr, error) {
 	return nil, errors.New("sequence expressions (a, b) are not supported")
 }
 
-// substituteScript is jsonpath-plus's textual substitution of @ forms
-// before jsep sees the code.
 func substituteScript(code string) string {
 	code = strings.ReplaceAll(code, "@parentProperty", "_$_parentProperty")
 	code = strings.ReplaceAll(code, "@parent", "_$_parent")

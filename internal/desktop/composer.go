@@ -2,7 +2,6 @@ package desktop
 
 import (
 	"encoding/json/v2"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type multipartPartEditor struct {
@@ -29,8 +29,6 @@ func (a *App) formatRequestBody(d *Draft) {
 		text, label = d.Query, "GraphQL query"
 		formatted, err = engine.FormatGraphQL(text)
 	} else if text != "" {
-		// Yaak's tryFormatJson: format_json, which keeps keys in order,
-		// numbers' digits, comments and template tags.
 		formatted = engine.FormatJSON(text, "  ")
 	} else {
 		formatted = text
@@ -55,7 +53,7 @@ func (a *App) openMultipartPart(rowID string) {
 	for _, row := range d.Form {
 		if row.ID == rowID {
 			a.partEditor = &multipartPartEditor{requestID: d.ID, rowID: row.ID, filename: row.Filename, contentType: row.ContentType, value: row.Value, file: row.FileMode}
-			a.prompt("multipart_part", "Multipart Field", "", "")
+			a.prompt("multipart_part", locales.MultipartField(), "", "")
 			return
 		}
 	}
@@ -78,13 +76,13 @@ func (a *App) saveMultipartPart() {
 	}
 	d := a.drafts[state.requestID]
 	if d == nil {
-		state.error = "The request was closed. Reopen it to edit this field."
+		state.error = locales.TheRequestWasClosedReopenIt()
 		return
 	}
 	for i := range d.Form {
 		if d.Form[i].ID == state.rowID {
 			if d.Form[i].FileMode != state.file {
-				state.error = "The field type changed. Reopen its options."
+				state.error = locales.TheFieldTypeChangedReopenIts()
 				return
 			}
 			d.Form[i].Filename, d.Form[i].ContentType = state.filename, strings.TrimSpace(state.contentType)
@@ -97,7 +95,7 @@ func (a *App) saveMultipartPart() {
 			return
 		}
 	}
-	state.error = "The field was removed."
+	state.error = locales.TheFieldWasRemoved()
 }
 func (a *App) multipartPartDialog(c *ui.Context, p colors) {
 	state := a.partEditor
@@ -106,13 +104,13 @@ func (a *App) multipartPartDialog(c *ui.Context, p colors) {
 	}
 	ui.Column(c).Padding(20).Gap(14).Children(func() {
 		if state.file {
-			ui.Text(c, "Filename").FontSize(12).TextColor(p.muted)
-			a.templateInput(c, p, &state.filename, state.rowID+":filename", "Multipart filename", "Use source filename", false).FillWidth()
+			ui.Text(c, locales.Filename()).FontSize(12).TextColor(p.muted)
+			a.templateInput(c, p, &state.filename, state.rowID+":filename", locales.MultipartFilename(), locales.UseSourceFilename(), false).FillWidth()
 		}
 		ui.Text(c, "Content-Type").FontSize(12).TextColor(p.muted)
-		a.templateInput(c, p, &state.contentType, state.rowID+":contentType", "Multipart Content-Type", "Automatic", false).FillWidth()
+		a.templateInput(c, p, &state.contentType, state.rowID+":contentType", locales.MultipartContentType(), locales.Automatic(), false).FillWidth()
 		if !state.file {
-			ui.Text(c, "Value").FontSize(12).TextColor(p.muted)
+			ui.Text(c, locales.ValueTitle()).FontSize(12).TextColor(p.muted)
 			language := "text"
 			if strings.Contains(state.contentType, "json") {
 				language = "json"
@@ -125,10 +123,10 @@ func (a *App) multipartPartDialog(c *ui.Context, p colors) {
 			ui.Text(c, state.error).TextColor(p.red).MaxLines(3)
 		}
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
+			if ui.Button(c, locales.Cancel()).Clicked() {
 				a.dialogOpen = false
 			}
-			if ui.PrimaryButton(c, "Save Field").Clicked() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
+			if ui.PrimaryButton(c, locales.SaveField()).Clicked() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
 				a.saveMultipartPart()
 			}
 		})
@@ -136,15 +134,15 @@ func (a *App) multipartPartDialog(c *ui.Context, p colors) {
 }
 func (a *App) customMethodDialog(c *ui.Context, p colors) {
 	ui.Column(c).Padding(20).Gap(14).Children(func() {
-		input := ui.TextInput(c, &a.dialogValue).Label("Custom HTTP method").Placeholder("PROPFIND").Font("monospace").FillWidth().AutoFocus()
+		input := ui.TextInput(c, &a.dialogValue).Label(locales.CustomHTTPMethod()).Placeholder("PROPFIND").Font("monospace").FillWidth().AutoFocus()
 		if a.methodError != "" {
 			ui.Text(c, a.methodError).TextColor(p.red).MaxLines(2)
 		}
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
+			if ui.Button(c, locales.Cancel()).Clicked() {
 				a.dialogOpen = false
 			}
-			if ui.PrimaryButton(c, "Save Method").Disabled(strings.TrimSpace(a.dialogValue) == "").Clicked() || input.Submitted() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
+			if ui.PrimaryButton(c, locales.SaveMethod()).Disabled(strings.TrimSpace(a.dialogValue) == "").Clicked() || input.Submitted() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
 				a.saveCustomMethod()
 			}
 		})
@@ -173,8 +171,7 @@ func (a *App) changeBodyType(d *Draft, kind string) {
 	body := engine.ConvertRequestBody(d.bodyObject(), d.BodyType, kind)
 	if kind == "graphql" || kind == "multipart/form-data" || d.BodyType == "" && strings.EqualFold(d.Method, "GET") && kind != "" && kind != "binary" {
 		if !strings.EqualFold(d.Method, "POST") {
-			// Yaak's "switched-method" toast.
-			a.showToast("switched-method", "Request method switched to POST", "info", 5*time.Second)
+			a.showToast("switched-method", locales.RequestMethodSwitchedToPOST(), "info", 5*time.Second)
 		}
 		d.Method = "POST"
 	}
@@ -259,13 +256,13 @@ func (a *App) changeFormKind(rows *[]KV, id string, file bool, dirty *bool) {
 func (a *App) binaryBodyEditor(c *ui.Context, p colors, d *Draft) {
 	ui.Column(c).Padding(14).Gap(12).Children(func() {
 		ui.Row(c).Gap(8).Children(func() {
-			if a.templateInput(c, p, &d.FilePath, d.ID+":bodyFile", "Request body file", "File path", false).Grow(1).MinWidth(0).Changed() {
+			if a.templateInput(c, p, &d.FilePath, d.ID+":bodyFile", locales.RequestBodyFile(), locales.FilePath(), false).Grow(1).MinWidth(0).Changed() {
 				d.Dirty = true
 			}
-			if ui.Button(c, "Choose File…").Clicked() {
+			if ui.Button(c, locales.ChooseFileEllipsisTitle()).Clicked() {
 				a.chooseBodyFile(d)
 			}
-			if d.FilePath != "" && smallIconButton(c, "close", "Clear body file").Clicked() {
+			if d.FilePath != "" && smallIconButton(c, "close", locales.ClearBodyFile()).Clicked() {
 				a.deferUntilInputs(func() { d.FilePath = ""; d.Dirty = true })
 			}
 		})
@@ -279,12 +276,12 @@ func (a *App) binaryBodyEditor(c *ui.Context, p colors, d *Draft) {
 			return
 		}
 		ui.Column(c).Padding(12).Gap(10).Border(1, p.border).Radius(5).Children(func() {
-			ui.Text(c, "Set Content-Type to "+contentType+"?").FontSize(12)
+			ui.Text(c, locales.SetContentTypeToContentType(contentType)).FontSize(12)
 			ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-				if ui.Button(c, "Ignore").Clicked() {
+				if ui.Button(c, locales.Ignore()).Clicked() {
 					a.ignoreBinaryMIME(d)
 				}
-				if ui.PrimaryButton(c, "Set Header").Clicked() {
+				if ui.PrimaryButton(c, locales.SetHeader()).Clicked() {
 					a.setBinaryMIME(d)
 				}
 			})
@@ -335,21 +332,22 @@ func (a *App) setBinaryMIME(d *Draft) {
 }
 func (a *App) multipartValue(c *ui.Context, p colors, rows *[]KV, i int, dirty *bool) {
 	row := &(*rows)[i]
-	kind := "Text"
+	kinds := []string{locales.Text(), locales.File()}
+	kind := kinds[0]
 	if row.FileMode {
-		kind = "File"
+		kind = kinds[1]
 	}
-	if ui.Select(c, &kind, []string{"Text", "File"}).Label(fmt.Sprintf("Field type %d", i+1)).Width(76).MinWidth(0).Changed() {
-		a.changeFormKind(rows, row.ID, kind == "File", dirty)
+	if ui.Select(c, &kind, kinds).Label(locales.FieldTypeIndex(i + 1)).Width(76).MinWidth(0).Changed() {
+		a.changeFormKind(rows, row.ID, kind == kinds[1], dirty)
 	}
-	value, label, placeholder := &row.Value, fmt.Sprintf("Name value %d", i+1), "Value"
+	value, label, placeholder := &row.Value, locales.NameValueIndex(i+1), locales.ValueTitle()
 	if row.FileMode {
-		value, label, placeholder = &row.File, fmt.Sprintf("File path %d", i+1), "Choose a file"
+		value, label, placeholder = &row.File, locales.FilePathIndex(i+1), locales.ChooseAFile()
 	}
 	if a.templateInput(c, p, value, row.ID+":value", label, placeholder, false).Grow(1).MinWidth(0).Height(32).Background(p.background).Border(1, p.border).Radius(4).Changed() {
 		*dirty = true
 	}
-	if row.FileMode && smallIconButton(c, "folder", fmt.Sprintf("Choose file for field %d", i+1)).Clicked() {
+	if row.FileMode && smallIconButton(c, "folder", locales.ChooseFileForFieldIndex(i+1)).Clicked() {
 		a.pickFormFile(rows, row.ID, dirty)
 	} else if !row.FileMode {
 		ui.Box(c).Width(28).Height(28)

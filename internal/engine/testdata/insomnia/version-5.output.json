@@ -33,7 +33,7 @@
           {
             "enabled": true,
             "name": "BASE_URL",
-            "value": "https://api.yaak.app"
+            "value": "https://api.example.app"
           }
         ],
         "workspaceId": "GENERATE_ID::wrk_c1eacfa750a04f3ea9985ef28043fa53"
@@ -52,7 +52,7 @@
           {
             "enabled": true,
             "name": "BASE_URL",
-            "value": "https://api.staging.yaak.app"
+            "value": "https://api.staging.example.app"
           }
         ],
         "workspaceId": "GENERATE_ID::wrk_c1eacfa750a04f3ea9985ef28043fa53"

@@ -2,27 +2,21 @@ package engine
 
 import "testing"
 
-// Ported from Yaak's crates/yaak/src/import_templates.rs tests (#693).
-func TestRemapTemplateTextMatchesYaak(t *testing.T) {
+func TestRemapTemplateText(t *testing.T) {
 	ids := map[string]string{"req_old": "rq_new"}
 	for _, c := range []struct{ text, want string }{
-		// Only known request arguments, written as literals.
 		{"${[ response.header(request='req_old', header='req_old') ]}", "${[ response.header(request='rq_new', header='req_old') ]}"},
 		{"req_old", "req_old"},
 		{"${[ custom(request='req_old') ]}", "${[ custom(request='req_old') ]}"},
 		{"${[ response.header(request=req_old) ]}", "${[ response.header(request=req_old) ]}"},
 		{"${[ response.header(request='req_missing') ]}", "${[ response.header(request='req_missing') ]}"},
 		{"${[ response.header(request='req_old' ]}", "${[ response.header(request='req_old' ]}"},
-		// Encoded, nested and escaped tags, the text around them unchanged.
 		{`café \${[ response.header(request='req_old') ]} ${[ json.jsonpath(input=response.body.raw(request=b64'cmVxX29sZA')) ]} end`,
 			`café \${[ response.header(request='req_old') ]} ${[ json.jsonpath(input=response.body.raw(request='rq_new')) ]} end`},
-		// The other arguments stay as written.
 		{"${[ response.header(request='req_old', header='X-Api-Key') ]}", "${[ response.header(request='rq_new', header='X-Api-Key') ]}"},
 		{"${[ response.body.path(request='req_old', path='$.token', behavior='never') ]}", "${[ response.body.path(request='rq_new', path='$.token', behavior='never') ]}"},
-		// An unconverted Insomnia tag naming the request is plain text.
 		{"{% response 'raw', 'req_old', '', 'never', 60 %}", "{% response 'raw', 'req_old', '', 'never', 60 %}"},
 		{"${[ response.body.path(request='req_old', path='$.a') ]} and {% response 'raw', 'req_old' %}", "${[ response.body.path(request='rq_new', path='$.a') ]} and {% response 'raw', 'req_old' %}"},
-		// The request functions name theirs requestId.
 		{"${[ request.header(requestId='req_old', header='A') ]}", "${[ request.header(requestId='rq_new', header='A') ]}"},
 	} {
 		if got := remapTemplateText(c.text, ids); got != c.want {

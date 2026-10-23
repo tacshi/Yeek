@@ -16,6 +16,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"yeek/locales"
 )
 
 func IsFileFormField(field Object) bool {
@@ -33,23 +35,23 @@ func GuessContentType(path string) string {
 }
 func ValidateHTTPMethod(method string) error {
 	if method == "" {
-		return errors.New("enter an HTTP method")
+		return errors.New(locales.EnterAnHTTPMethod())
 	}
 	if _, err := http.NewRequest(method, "http://localhost", nil); err != nil {
-		return errors.New("HTTP method must be a token without spaces or control characters")
+		return errors.New(locales.HTTPMethodMustBeAToken())
 	}
 	return nil
 }
 func ValidateMultipartMetadata(filename, contentType string) error {
 	if strings.ContainsAny(filename, "\r\n\x00") {
-		return errors.New("filename cannot contain a line break or NUL")
+		return errors.New(locales.FilenameCannotContainALineBreak())
 	}
 	if strings.ContainsAny(contentType, "\r\n\x00") {
-		return errors.New("Content-Type cannot contain a line break or NUL")
+		return errors.New(locales.ContentTypeCannotContainALine())
 	}
 	if contentType != "" {
 		if _, _, err := mime.ParseMediaType(contentType); err != nil {
-			return errors.New("enter a valid Content-Type, such as application/json")
+			return errors.New(locales.EnterAValidContentTypeSuch())
 		}
 	}
 	return nil
@@ -61,14 +63,14 @@ func requestBody(m Object) ([]byte, string, error) {
 }
 func openRequestFile(path string) (*os.File, error) {
 	if strings.TrimSpace(path) == "" {
-		return nil, errors.New("choose a file before sending")
+		return nil, errors.New(locales.ChooseAFileBeforeSending())
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("open request file: %w", err)
+		return nil, fmt.Errorf("%s: %w", locales.OpenRequestFile(), err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("choose a regular file for the request body")
+		return nil, errors.New(locales.ChooseARegularFileForThe())
 	}
 	file, err := os.Open(path) // #nosec G304 -- the desktop user explicitly configures request upload paths.
 	if err != nil {
@@ -80,7 +82,7 @@ func openRequestFile(path string) (*os.File, error) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, errors.New("request file is no longer a regular file")
+		return nil, errors.New(locales.RequestFileIsNoLongerA())
 	}
 	return file, nil
 }
@@ -127,8 +129,6 @@ func writeRequestBody(ctx context.Context, out io.Writer, m Object) (string, err
 		if strings.EqualFold(str(m, "method"), "GET") {
 			return "", nil
 		}
-		// Written by hand so keys keep Yaak's order (query, variables,
-		// operationName) and variables keep the order they were typed in.
 		query, err := json.Marshal(str(body, "query"))
 		if err != nil {
 			return "", err
@@ -137,7 +137,7 @@ func writeRequestBody(ctx context.Context, out io.Writer, m Object) (string, err
 		if variables := StripJSONComments(str(body, "variables")); strings.TrimSpace(variables) != "" {
 			value := jsontext.Value(variables)
 			if err := value.Compact(); err != nil {
-				return "", fmt.Errorf("GraphQL variables: %w", err)
+				return "", fmt.Errorf("%s: %w", locales.GraphQLVariables(), err)
 			}
 			payload += `,"variables":` + string(value)
 		}
@@ -167,11 +167,11 @@ func writeMultipart(ctx context.Context, out io.Writer, m Object) (string, error
 		}
 		media, params, err := mime.ParseMediaType(str(h, "value"))
 		if err != nil {
-			return "", fmt.Errorf("multipart Content-Type: %w", err)
+			return "", fmt.Errorf("%s: %w", locales.MultipartContentTypeLower(), err)
 		}
 		if media == "multipart/form-data" && params["boundary"] != "" {
 			if err = writer.SetBoundary(params["boundary"]); err != nil {
-				return "", fmt.Errorf("multipart boundary: %w", err)
+				return "", fmt.Errorf("%s: %w", locales.MultipartBoundary(), err)
 			}
 		}
 		break
@@ -185,7 +185,7 @@ func writeMultipart(ctx context.Context, out io.Writer, m Object) (string, error
 		}
 		name, contentType, filename := str(field, "name"), str(field, "contentType"), str(field, "filename")
 		if strings.ContainsAny(name, "\r\n\x00") {
-			return "", errors.New("multipart field name cannot contain a line break or NUL")
+			return "", errors.New(locales.MultipartFieldNameCannotContainA())
 		}
 		if err := ValidateMultipartMetadata(filename, contentType); err != nil {
 			return "", fmt.Errorf("%s: %w", name, err)
@@ -249,8 +249,6 @@ type preparedBody struct {
 }
 
 func (e *Engine) prepareRequestBody(ctx context.Context, responseID string, model Object) (preparedBody, error) {
-	// A snapshot keeps redirects, authentication retries, and history on the same
-	// bytes even if another program changes an upload file while it is sending.
 	contentType := ""
 	err := e.writeRequestSnapshot(ctx, responseID, func(writer io.Writer) error {
 		var err error

@@ -13,9 +13,9 @@ import (
 	"github.com/egoist/mygo/yeekui"
 	"github.com/egoist/mygo/yeekui/editor"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// syncDir is the active workspace's sync directory.
 func (a *App) syncDir() string {
 	for _, meta := range a.list("workspace_meta") {
 		if s(meta, "workspaceId") == a.workspace {
@@ -25,8 +25,6 @@ func (a *App) syncDir() string {
 	return ""
 }
 
-// keepSyncing syncs the active workspace with its directory while it has
-// one, as Yaak does: once now, then whenever either side changes.
 func (a *App) keepSyncing() {
 	dir, workspace := a.syncDir(), a.workspace
 	if a.testMode || dir+"\x00"+workspace == a.syncing {
@@ -55,13 +53,8 @@ func (a *App) keepSyncing() {
 	})
 }
 
-// maxSyncAttempts is Yaak's MAX_SYNC_ATTEMPTS: files can keep changing
-// under a plan, so stop planning again after a few stale applies.
 const maxSyncAttempts = 3
 
-// syncNow syncs the workspace with its directory without asking, the copy
-// updated last winning a conflict, as Yaak's sync({ force: true }) does
-// after Git changed the files.
 func (a *App) syncNow(workspace, dir string) error {
 	for attempt := 1; ; attempt++ {
 		plan, err := a.Engine.PlanSync(a.ctx, workspace, dir)
@@ -75,23 +68,18 @@ func (a *App) syncNow(workspace, dir string) error {
 	}
 }
 
-// syncReview is the plan the Changes Detected dialog shows.
 type syncReview struct {
 	workspace, dir string
 	plan           []engine.SyncChange
 	attempt        int
-	// shown is false while another dialog is open; the review waits for it.
-	shown bool
+	shown          bool
 }
 
-// incomingSyncChanges are the changes of a plan that change the workspace
-// from its directory, Yaak's db ops.
 func incomingSyncChanges(plan []engine.SyncChange) []engine.SyncChange {
 	var incoming []engine.SyncChange
 	for _, c := range plan {
 		direction := c.Direction
 		if c.Conflict {
-			// As engine.SyncNewest resolves it: the copy updated last wins.
 			direction = "push"
 			if s(c.Remote, "updatedAt") > s(c.Local, "updatedAt") {
 				direction = "pull"
@@ -104,9 +92,6 @@ func incomingSyncChanges(plan []engine.SyncChange) []engine.SyncChange {
 	return incoming
 }
 
-// reviewSync is Yaak's syncWorkspace: changes going out to the directory
-// apply at once, and changes coming in from it are shown in the Changes
-// Detected dialog first.
 func (a *App) reviewSync(workspace, dir string, attempt int) {
 	a.background(func() (func(), error) {
 		plan, err := a.Engine.PlanSync(a.ctx, workspace, dir)
@@ -129,8 +114,6 @@ func (a *App) reviewSync(workspace, dir string, attempt int) {
 	})
 }
 
-// applySync applies a plan, planning (and asking) again when it went
-// stale, up to maxSyncAttempts times.
 func (a *App) applySync(workspace, dir string, plan []engine.SyncChange, attempt int) (func(), error) {
 	err := a.Engine.ApplySync(a.ctx, workspace, dir, plan, engine.SyncNewest)
 	switch {
@@ -151,19 +134,15 @@ func (a *App) showStaleSyncToast() {
 	a.showToast("sync-stale", engine.ErrSyncStale.Error(), "warning", 5*time.Second)
 }
 
-// showSyncReview opens the Changes Detected dialog for the review waiting,
-// unless another dialog is open.
 func (a *App) showSyncReview() {
 	r := a.syncReview
 	if r == nil || r.shown || a.dialogOpen && a.dialog != "commit_sync" {
 		return
 	}
 	r.shown = true
-	a.prompt("commit_sync", "Changes Detected", "", "")
+	a.prompt("commit_sync", locales.ChangesDetected(), "", "")
 }
 
-// hideSyncReview closes the Changes Detected dialog, as Yaak's
-// hideDialog("commit-sync") does.
 func (a *App) hideSyncReview() {
 	a.syncReview = nil
 	if a.dialog == "commit_sync" {
@@ -171,7 +150,6 @@ func (a *App) hideSyncReview() {
 	}
 }
 
-// syncReviewDialog is the Changes Detected dialog of Yaak's syncWorkspace.
 func (a *App) syncReviewDialog(c *ui.Context, p colors) {
 	r := a.syncReview
 	if r == nil {
@@ -184,28 +162,24 @@ func (a *App) syncReviewDialog(c *ui.Context, p colors) {
 	ui.Column(c).Padding(20).Gap(12).MaxHeight(560).Children(func() {
 		if deletingWorkspace {
 			ui.Row(c).Padding(10, 12).Radius(6).Border(1, p.red.Alpha(.35)).Background(p.red.Alpha(.08)).Children(func() {
-				ui.Text(c, "🚨 Changes contain a workspace deletion!").FontWeight(600).TextColor(p.red)
+				ui.Text(c, locales.ChangesContainAWorkspaceDeletion()).FontWeight(600).TextColor(p.red)
 			})
 		}
-		verb := "have"
-		if len(incoming) == 1 {
-			verb = "has"
-		}
-		ui.Text(c, pluralizeCount("file", len(incoming))+" in the directory "+verb+" changed. Do you want to update your workspace?").MaxLines(3)
+		ui.Text(c, locales.FilesChangedInTheDirectory(len(incoming))).MaxLines(3)
 		ui.Column(c).Gap(0).Margin(4, 0).Shrink(1).MinHeight(0).Children(func() {
 			ui.Row(c).Padding(8, 0).Gap(16).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-				ui.Text(c, "Type").TextColor(p.muted).Width(130).SingleLine()
-				ui.Text(c, "Name").TextColor(p.muted).Grow(1).SingleLine()
-				ui.Text(c, "Operation").TextColor(p.muted).SingleLine()
+				ui.Text(c, locales.Type()).TextColor(p.muted).Width(130).SingleLine()
+				ui.Text(c, locales.NameTitle()).TextColor(p.muted).Grow(1).SingleLine()
+				ui.Text(c, locales.Operation()).TextColor(p.muted).SingleLine()
 			})
 			ui.Scroll(c).Shrink(1).MinHeight(0).Children(func() {
 				for _, change := range incoming {
-					model, label, color := change.Remote, "update", p.blue
+					model, label, color := change.Remote, locales.Update(), p.blue
 					switch {
 					case change.Local == nil:
-						label, color = "create", p.green
+						label, color = locales.Create(), p.green
 					case change.Remote == nil:
-						model, label, color = change.Local, "delete", p.red
+						model, label, color = change.Local, locales.DeleteLower(), p.red
 					}
 					ui.Row(c).Key(change.ID).Padding(6, 0).Gap(16).BorderWidth(0, 0, 1, 0).BorderColor(p.border.Alpha(.5)).Children(func() {
 						ui.Text(c, modelTypeLabel(model)).TextColor(p.muted).Width(130).SingleLine()
@@ -217,10 +191,10 @@ func (a *App) syncReviewDialog(c *ui.Context, p colors) {
 			})
 		})
 		ui.Row(c).Justify(ui.End).Gap(8).Padding(4, 0, 0, 0).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
+			if ui.Button(c, locales.Cancel()).Clicked() {
 				a.syncReview, a.dialogOpen = nil, false
 			}
-			if ui.PrimaryButton(c, "Apply Changes").AutoFocus().Clicked() {
+			if ui.PrimaryButton(c, locales.ApplyChanges()).AutoFocus().Clicked() {
 				workspace, dir, plan, attempt := r.workspace, r.dir, r.plan, r.attempt
 				a.background(func() (func(), error) { return a.applySync(workspace, dir, plan, attempt) })
 			}
@@ -228,8 +202,6 @@ func (a *App) syncReviewDialog(c *ui.Context, p colors) {
 	})
 }
 
-// syncModelName is Yaak's resolvedModelNameWithFolders: the model's name
-// after those of the folders it is in.
 func (a *App) syncModelName(m engine.Object) string {
 	names := []string{requestName(m)}
 	seen := map[string]bool{}
@@ -245,8 +217,6 @@ func (a *App) syncModelName(m engine.Object) string {
 	return strings.Join(names, " / ")
 }
 
-// setSyncDir is Yaak's SyncToFilesystemSetting: the workspace syncs with
-// the directory chosen, or stops syncing.
 func (a *App) setSyncDir(workspace, dir string) {
 	var meta engine.Object
 	for _, m := range a.list("workspace_meta") {
@@ -277,7 +247,7 @@ func (a *App) refreshGit() {
 			if dir != a.syncDir() {
 				return
 			}
-			a.gitNoRepo = err != nil && strings.Contains(err.Error(), "not found")
+			a.gitNoRepo = errors.Is(err, engine.ErrRepositoryNotFound) || errors.Is(err, engine.ErrGitNotFound)
 			if err == nil {
 				a.gitInfo = &info
 			} else {
@@ -288,8 +258,6 @@ func (a *App) refreshGit() {
 	})
 }
 
-// hiddenSetup reports whether a setup message was hidden for the
-// workspace, as Yaak keeps them by key.
 func (a *App) hiddenSetup(key string) bool {
 	for _, m := range a.list("key_value") {
 		if s(m, "namespace") == "global" && s(m, "key") == key {
@@ -317,7 +285,6 @@ func (a *App) hideSetup(key string) {
 	})
 }
 
-// gitMenuButton is Yaak's GitMenuButton, the sidebar's footer.
 func gitMenuButton(c *ui.Context, p colors, label string, content func()) ui.Element {
 	button := ui.ButtonBase(c).Label(label).Height(32).Shrink(0).Padding(0, 12).Gap(8).BorderWidth(1, 0, 0, 0).BorderColor(p.border)
 	if button.Hovered() {
@@ -327,7 +294,6 @@ func gitMenuButton(c *ui.Context, p colors, label string, content func()) ui.Ele
 	return button
 }
 
-// gitButton is Yaak's GitDropdown, or its setup messages.
 func (a *App) gitButton(c *ui.Context, p colors) {
 	a.keepSyncing()
 	dir := a.syncDir()
@@ -335,18 +301,18 @@ func (a *App) gitButton(c *ui.Context, p colors) {
 		if a.hiddenSetup("setup_sync") {
 			return
 		}
-		gitMenuButton(c, p, "Setup FS Sync or Git", func() {
+		gitMenuButton(c, p, locales.SetupFSSyncOrGit(), func() {
 			icon(c, "wrench").FontSize(13).TextColor(p.subtle)
-			ui.Text(c, "Setup FS Sync or Git").FontSize(12).TextColor(p.muted).SingleLine().Grow(1)
+			ui.Text(c, locales.SetupFSSyncOrGit()).FontSize(12).TextColor(p.muted).SingleLine().Grow(1)
 		}).Menu(func(m *ui.Menu) {
-			m.Item("When enabled, workspace data syncs to the chosen folder as text files, ideal for backup and Git collaboration.").Disabled(true)
-			if m.Item("Open Workspace Settings").Chosen() {
-				a.prompt("workspace_settings", "Workspace Settings", "", a.workspace)
+			m.Item(locales.WhenEnabledWorkspaceDataSyncsTo()).Disabled(true)
+			if m.Item(locales.OpenWorkspaceSettings()).Chosen() {
+				a.prompt("workspace_settings", locales.WorkspaceSettings(), "", a.workspace)
 				a.modalTab = 1
 			}
 			m.Separator()
-			if m.Item("Hide This Message").Chosen() {
-				a.confirmDialog("Hide Setup Message", "You can configure filesystem sync or Git it in the workspace settings", "Confirm", false, func() { a.hideSetup("setup_sync") })
+			if m.Item(locales.HideThisMessage()).Chosen() {
+				a.confirmDialog(locales.HideSetupMessage(), locales.YouCanConfigureFilesystemSyncOr(), locales.Confirm(), false, func() { a.hideSetup("setup_sync") })
 			}
 		})
 		return
@@ -358,26 +324,26 @@ func (a *App) gitButton(c *ui.Context, p colors) {
 		if a.hiddenSetup("setup_git_repo") {
 			return
 		}
-		gitMenuButton(c, p, "Setup Git", func() {
+		gitMenuButton(c, p, locales.SetupGit(), func() {
 			icon(c, "branch").FontSize(13).TextColor(p.subtle)
-			ui.Text(c, "Setup Git").FontSize(12).TextColor(p.muted).SingleLine().Grow(1)
+			ui.Text(c, locales.SetupGit()).FontSize(12).TextColor(p.muted).SingleLine().Grow(1)
 		}).Menu(func(m *ui.Menu) {
-			m.Item("Initialize local repo to start versioning with Git").Disabled(true)
-			if m.Item("Initialize Git Repo").Chosen() {
+			m.Item(locales.InitializeLocalRepoToStartVersioning()).Disabled(true)
+			if m.Item(locales.InitializeGitRepo()).Chosen() {
 				a.background(func() (func(), error) { return a.refreshGit, a.Engine.GitInit(dir) })
 			}
 			m.Separator()
-			if m.Item("Hide This Message").Chosen() {
-				a.confirmDialog("Hide Git Setup", "You can initialize a git repo outside of Yeek to bring this back", "Confirm", false, func() { a.hideSetup("setup_git_repo") })
+			if m.Item(locales.HideThisMessage()).Chosen() {
+				a.confirmDialog(locales.HideGitSetup(), locales.YouCanInitializeAGitRepo(), locales.Confirm(), false, func() { a.hideSetup("setup_git_repo") })
 			}
 		})
 		return
 	}
 	info := a.gitInfo
 	if info == nil {
-		return // still loading
+		return
 	}
-	gitMenuButton(c, p, "Git: "+info.Head, func() {
+	gitMenuButton(c, p, locales.GitBranch(info.Head), func() {
 		ui.Row(c).Gap(4).Padding(1, 5).Radius(3).Background(p.border.Alpha(.4)).Shrink(1).MinWidth(0).Children(func() {
 			icon(c, "branch").FontSize(11).TextColor(p.subtle)
 			ui.Text(c, info.Head).Font("monospace").FontSize(11).TextColor(p.muted).SingleLine()
@@ -398,70 +364,69 @@ func (a *App) gitButton(c *ui.Context, p colors) {
 	}).Menu(func(m *ui.Menu) { a.gitMenu(m, dir, info) })
 }
 
-// gitMenu is GitDropdown's items.
 func (a *App) gitMenu(m *ui.Menu, dir string, info *engine.GitBranchInfo) {
 	current := info.Head
-	if m.Item("View History...").Chosen() {
-		a.prompt("git_history", "Commit History", "", "")
+	if m.Item(locales.ViewHistoryEllipsis()).Chosen() {
+		a.prompt("git_history", locales.CommitHistory(), "", "")
 	}
-	if m.Item("Manage Remotes...").Chosen() {
+	if m.Item(locales.ManageRemotesEllipsis()).Chosen() {
 		a.openGitRemotes()
 	}
 	m.Separator()
-	if m.Item("New Branch...").Chosen() {
-		a.ask("Create Branch", "", "Create", false, []askInput{{label: "Branch Name"}}, func(v []string) { a.newBranch(v[0], "") })
+	if m.Item(locales.NewBranchEllipsis()).Chosen() {
+		a.ask(locales.CreateBranch(), "", locales.CreateTitle(), false, []askInput{{label: locales.BranchName()}}, func(v []string) { a.newBranch(v[0], "") })
 	}
 	m.Separator()
-	if m.Item("Push").Chosen() {
+	if m.Item(locales.Push()).Chosen() {
 		a.gitPush()
 	}
-	if m.Item("Pull").Chosen() {
+	if m.Item(locales.Pull()).Chosen() {
 		a.gitPull()
 	}
-	if m.Item("Commit...").Chosen() {
+	if m.Item(locales.CommitEllipsis()).Chosen() {
 		a.gitCommitMessage, a.commitCollapsed = "", nil
-		a.prompt("git_commit", "Commit Changes", "", "")
+		a.prompt("git_commit", locales.CommitChanges(), "", "")
 	}
-	if a.gitState != nil && len(a.gitState.Files) > 0 && m.Item("Reset Changes").Chosen() {
-		a.confirmDialog("Reset Changes", "This will discard all uncommitted changes. This cannot be undone.", "Reset", true, func() {
-			a.gitOp("Error resetting changes", func() (string, error) { return "Changes have been reset", a.Engine.GitResetChanges(a.ctx, dir) })
+	if a.gitState != nil && len(a.gitState.Files) > 0 && m.Item(locales.ResetChanges()).Chosen() {
+		a.confirmDialog(locales.ResetChanges(), locales.ThisWillDiscardAllUncommittedChanges(), locales.Reset(), true, func() {
+			a.gitOp(locales.ErrorResettingChanges(), func() (string, error) { return locales.ChangesHaveBeenReset(), a.Engine.GitResetChanges(a.ctx, dir) })
 		})
 	}
 	if len(info.LocalBranches) > 0 {
 		m.Separator()
-		m.Item("Branches").Disabled(true)
+		m.Item(locales.Branches()).Disabled(true)
 	}
 	for _, branch := range info.LocalBranches {
 		here := branch == current
 		label := branch
 		if here {
-			label = "✓ " + branch // a native submenu cannot show a check mark
+			label = "✓ " + branch
 		}
 		m.Submenu(label, func(sub *ui.Menu) {
-			if !here && sub.Item("Checkout").Chosen() {
+			if !here && sub.Item(locales.Checkout()).Chosen() {
 				a.checkout(branch, false)
 			}
-			if !here && sub.Item("Merge into "+current).Chosen() {
-				a.gitOp("Error merging branch", func() (string, error) {
-					return "Merged " + branch + " into " + current, a.Engine.GitMergeBranch(a.ctx, dir, branch)
+			if !here && sub.Item(locales.MergeIntoBranch(current)).Chosen() {
+				a.gitOp(locales.ErrorMergingBranch(), func() (string, error) {
+					return locales.MergedBranchIntoTarget(branch, current), a.Engine.GitMergeBranch(a.ctx, dir, branch)
 				})
 			}
-			if sub.Item("New Branch...").Chosen() {
-				a.ask("New Branch", "Create a new branch from "+branch, "Create", false, []askInput{{label: "Branch Name"}}, func(v []string) { a.newBranch(v[0], branch) })
+			if sub.Item(locales.NewBranchEllipsis()).Chosen() {
+				a.ask(locales.NewBranch(), locales.CreateANewBranchFromBranch(branch), locales.CreateTitle(), false, []askInput{{label: locales.BranchName()}}, func(v []string) { a.newBranch(v[0], branch) })
 			}
-			if sub.Item("Rename...").Chosen() {
-				a.ask("Rename Branch", "", "Rename", false, []askInput{{label: "New Branch Name", value: branch}}, func(v []string) {
+			if sub.Item(locales.RenameEllipsis()).Chosen() {
+				a.ask(locales.RenameBranch(), "", locales.Rename(), false, []askInput{{label: locales.NewBranchName(), value: branch}}, func(v []string) {
 					if name := strings.TrimSpace(v[0]); name != "" && name != branch {
-						a.gitOp("Error renaming branch", func() (string, error) {
-							return "Renamed " + branch + " to " + name, a.Engine.GitRenameBranch(a.ctx, dir, branch, name)
+						a.gitOp(locales.ErrorRenamingBranch(), func() (string, error) {
+							return locales.RenamedBranchToName(branch, name), a.Engine.GitRenameBranch(a.ctx, dir, branch, name)
 						})
 					}
 				})
 			}
 			if !here {
 				sub.Separator()
-				if sub.Item("Delete").Chosen() {
-					a.confirmDialog("Delete Branch", "Permanently delete "+branch+"?", "Delete", true, func() { a.deleteBranch(branch, false) })
+				if sub.Item(locales.Delete()).Chosen() {
+					a.confirmDialog(locales.DeleteBranch(), locales.PermanentlyDeleteBranch(branch), locales.Delete(), true, func() { a.deleteBranch(branch, false) })
 				}
 			}
 		})
@@ -471,13 +436,13 @@ func (a *App) gitMenu(m *ui.Menu, dir string, info *engine.GitBranchInfo) {
 			continue
 		}
 		m.Submenu(branch, func(sub *ui.Menu) {
-			if sub.Item("Checkout").Chosen() {
+			if sub.Item(locales.Checkout()).Chosen() {
 				a.checkout(branch, false)
 			}
-			if sub.Item("Delete").Chosen() {
-				a.confirmDialog("Delete Remote Branch", "Permanently delete "+branch+" from the remote?", "Delete", true, func() {
-					a.gitOp("Error deleting remote branch", func() (string, error) {
-						return "Deleted remote branch " + branch, a.Engine.GitDeleteRemoteBranch(a.ctx, dir, branch)
+			if sub.Item(locales.Delete()).Chosen() {
+				a.confirmDialog(locales.DeleteRemoteBranch(), locales.PermanentlyDeleteBranchFromTheRemote(branch), locales.Delete(), true, func() {
+					a.gitOp(locales.ErrorDeletingRemoteBranch(), func() (string, error) {
+						return locales.DeletedRemoteBranchBranch(branch), a.Engine.GitDeleteRemoteBranch(a.ctx, dir, branch)
 					})
 				})
 			}
@@ -485,8 +450,6 @@ func (a *App) gitMenu(m *ui.Menu, dir string, info *engine.GitBranchInfo) {
 	}
 }
 
-// gitOp runs a Git operation, then shows how it went, and syncs the
-// workspace with what it changed on disk.
 func (a *App) gitOp(failure string, op func() (string, error)) {
 	workspace, dir := a.workspace, a.syncDir()
 	a.background(func() (func(), error) {
@@ -496,7 +459,7 @@ func (a *App) gitOp(failure string, op func() (string, error)) {
 		}
 		return func() {
 			if err != nil {
-				a.showToast("", failure+": "+err.Error(), "danger", 0)
+				a.showToast("", locales.FailureError(failure, err.Error()), "danger", 0)
 			} else if message != "" {
 				a.showToast("", message, "success", 5*time.Second)
 			}
@@ -516,11 +479,11 @@ func (a *App) checkout(branch string, force bool) {
 		return func() {
 			switch {
 			case err != nil && !force:
-				a.confirmDialog("Conflicts Detected", "Your branch has conflicts. Either make a commit or force checkout to discard changes.", "Force Checkout", false, func() { a.checkout(branch, true) })
+				a.confirmDialog(locales.ConflictsDetected(), locales.YourBranchHasConflictsEitherMake(), locales.ForceCheckout(), false, func() { a.checkout(branch, true) })
 			case err != nil:
-				a.showToast("", "Error checking out branch: "+err.Error(), "danger", 0)
+				a.showToast("", locales.ErrorCheckingOutBranchError(err.Error()), "danger", 0)
 			default:
-				a.showToast("git-checkout-success", "Switched branch "+name, "success", 5*time.Second)
+				a.showToast("git-checkout-success", locales.SwitchedBranchBranch(name), "success", 5*time.Second)
 			}
 			a.refreshGit()
 		}, nil
@@ -537,7 +500,7 @@ func (a *App) newBranch(name, base string) {
 		err := a.Engine.GitCreateBranch(a.ctx, dir, name, base)
 		return func() {
 			if err != nil {
-				a.showToast("", "Error creating branch: "+err.Error(), "danger", 0)
+				a.showToast("", locales.ErrorCreatingBranchError(err.Error()), "danger", 0)
 				return
 			}
 			a.checkout(name, false)
@@ -552,11 +515,11 @@ func (a *App) deleteBranch(branch string, force bool) {
 		return func() {
 			switch {
 			case errors.Is(err, engine.ErrNotFullyMerged):
-				a.confirmDialog("Branch not fully merged", "Branch "+branch+" is not fully merged.\n\nDo you want to delete it anyway?", "Confirm", false, func() { a.deleteBranch(branch, true) })
+				a.confirmDialog(locales.BranchNotFullyMerged(), locales.BranchBranchIsNotFullyMerged(branch), locales.Confirm(), false, func() { a.deleteBranch(branch, true) })
 			case err != nil && force:
-				a.showToast("", "Error force deleting branch: "+err.Error(), "danger", 0)
+				a.showToast("", locales.ErrorForceDeletingBranchError(err.Error()), "danger", 0)
 			case err != nil:
-				a.showToast("", "Error deleting branch: "+err.Error(), "danger", 0)
+				a.showToast("", locales.ErrorDeletingBranchError(err.Error()), "danger", 0)
 			}
 			a.refreshGit()
 		}, nil
@@ -572,7 +535,7 @@ func (a *App) gitPush() {
 			case errors.Is(err, engine.ErrNoRemote):
 				a.addGitRemote(a.gitPush)
 			case err != nil:
-				a.showToast("", "Error pushing changes: "+err.Error(), "danger", 0)
+				a.showToast("", locales.ErrorPushingChangesError(err.Error()), "danger", 0)
 			default:
 				a.gitResult(result, a.gitPush)
 			}
@@ -593,7 +556,7 @@ func (a *App) gitPull() {
 			case errors.Is(err, engine.ErrNoRemote):
 				a.addGitRemote(a.gitPull)
 			case err != nil:
-				a.showToast("", "Error pulling changes: "+err.Error(), "danger", 0)
+				a.showToast("", locales.ErrorPullingChangesError(err.Error()), "danger", 0)
 			default:
 				a.gitResult(result, a.gitPull)
 			}
@@ -602,16 +565,13 @@ func (a *App) gitPull() {
 	})
 }
 
-// gitResult is Yaak's handling of a push or pull: credentials are asked
-// for, diverged branches resolved and uncommitted changes reset, then it
-// tries again.
 func (a *App) gitResult(r engine.GitResult, retry func()) {
 	dir := a.syncDir()
 	switch r.Kind {
 	case "success":
 		a.showToast("", r.Message, "success", 5*time.Second)
 	case "up_to_date":
-		a.showToast("", "Already up-to-date", "info", 5*time.Second)
+		a.showToast("", locales.AlreadyUpToDate(), "info", 5*time.Second)
 	case "needs_credentials":
 		a.askCredentials(r.URL, r.Error, func(user, password string) {
 			a.background(func() (func(), error) {
@@ -621,9 +581,9 @@ func (a *App) gitResult(r engine.GitResult, retry func()) {
 	case "diverged":
 		a.diverged = &r
 		a.divergedChoice = ""
-		a.prompt("git_diverged", "Branches Diverged", "", "")
+		a.prompt("git_diverged", locales.BranchesDiverged(), "", "")
 	case "uncommitted_changes":
-		a.confirmDialog("Uncommitted Changes", "You have uncommitted changes. Commit or reset your changes before pulling.", "Reset and Pull", true, func() {
+		a.confirmDialog(locales.UncommittedChanges(), locales.YouHaveUncommittedChangesCommitOr(), locales.ResetAndPull(), true, func() {
 			a.background(func() (func(), error) { return retry, a.Engine.GitResetChanges(a.ctx, dir) })
 		})
 	}
@@ -631,24 +591,22 @@ func (a *App) gitResult(r engine.GitResult, retry func()) {
 
 var githubRemote = regexp.MustCompile(`(?i)github\.com`)
 
-// askCredentials is Yaak's promptCredentials.
 func (a *App) askCredentials(remote, failure string, done func(user, password string)) {
-	user, pass := askInput{label: "Username"}, askInput{label: "Password / Token", description: "Enter your password or access token for this Git server.", password: true}
+	user, pass := askInput{label: locales.Username()}, askInput{label: locales.PasswordToken(), description: locales.EnterYourPasswordOrAccessToken(), password: true}
 	if githubRemote.MatchString(remote) {
-		user = askInput{label: "GitHub Username", description: "Use your GitHub username (not your email)."}
-		pass = askInput{label: "GitHub Personal Access Token", description: "GitHub requires a Personal Access Token (PAT) for write operations over HTTPS. Passwords are not supported.", password: true}
+		user = askInput{label: locales.GitHubUsername(), description: locales.UseYourGitHubUsernameNotYour()}
+		pass = askInput{label: locales.GitHubPersonalAccessToken(), description: locales.GitHubRequiresAPersonalAccessToken(), password: true}
 	}
-	description := "Enter credentials for " + remote
+	description := locales.EnterCredentialsForRemote(remote)
 	if failure != "" {
 		description = failure
 	}
-	a.ask("Credentials Required", description, "Submit", false, []askInput{user, pass}, func(v []string) { done(v[0], v[1]) })
+	a.ask(locales.CredentialsRequired(), description, locales.Submit(), false, []askInput{user, pass}, func(v []string) { done(v[0], v[1]) })
 }
 
-// addGitRemote asks for the origin to push to or pull from, then retries.
 func (a *App) addGitRemote(retry func()) {
 	dir := a.syncDir()
-	a.ask("Add Remote", "", "Add", false, []askInput{{label: "Name", value: "origin"}, {label: "URL"}}, func(v []string) {
+	a.ask(locales.AddRemote(), "", locales.Add(), false, []askInput{{label: locales.NameTitle(), value: "origin"}, {label: "URL"}}, func(v []string) {
 		a.background(func() (func(), error) {
 			err := a.Engine.GitRemote(dir, strings.TrimSpace(v[0]), strings.TrimSpace(v[1]), false)
 			return func() {
@@ -664,7 +622,7 @@ func (a *App) addGitRemote(retry func()) {
 func (a *App) openGitRemotes() {
 	a.gitRemotes = nil
 	a.loadGitRemotes()
-	a.prompt("git_remotes", "Manage Remotes", "", "")
+	a.prompt("git_remotes", locales.ManageRemotes(), "", "")
 }
 
 func (a *App) loadGitRemotes() {
@@ -675,7 +633,6 @@ func (a *App) loadGitRemotes() {
 	})
 }
 
-// gitRemotesDialog is Yaak's GitRemotesDialog.
 func (a *App) gitRemotesDialog(c *ui.Context, p colors) {
 	dir := a.syncDir()
 	ui.Column(c).Padding(16, 20).Gap(10).Children(func() {
@@ -683,30 +640,29 @@ func (a *App) gitRemotesDialog(c *ui.Context, p colors) {
 			ui.Row(c).Key(remote.Name).Gap(10).Padding(6, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 				ui.Text(c, remote.Name).FontWeight(600).FontSize(13).Width(90)
 				ui.Text(c, remote.URL).Font("monospace").FontSize(12).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
-				if smallIconButton(c, "trash", "Remove "+remote.Name).Clicked() {
+				if smallIconButton(c, "trash", locales.RemoveRemote(remote.Name)).Clicked() {
 					name := remote.Name
 					a.background(func() (func(), error) { return a.loadGitRemotes, a.Engine.GitRemote(dir, name, "", true) })
 				}
 			})
 		}
 		if len(a.gitRemotes) == 0 {
-			ui.Text(c, "No remotes").FontSize(13).TextColor(p.muted)
+			ui.Text(c, locales.NoRemotes()).FontSize(13).TextColor(p.muted)
 		}
 		ui.Row(c).Justify(ui.End).Children(func() {
-			if ui.Button(c, "Add Remote").Clicked() {
+			if ui.Button(c, locales.AddRemote()).Clicked() {
 				a.addGitRemote(func() { a.openGitRemotes() })
 			}
 		})
 	})
 }
 
-// gitHistoryDialog is Yaak's HistoryDialog.
 func (a *App) gitHistoryDialog(c *ui.Context, p colors) {
 	ui.Column(c).Height(420).Padding(8, 20, 12, 20).Children(func() {
 		ui.Row(c).Height(30).Gap(12).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-			ui.Text(c, "Message").FontSize(12).FontWeight(600).Grow(1)
-			ui.Text(c, "Author").FontSize(12).FontWeight(600).Width(140)
-			ui.Text(c, "When").FontSize(12).FontWeight(600).Width(110)
+			ui.Text(c, locales.Message()).FontSize(12).FontWeight(600).Grow(1)
+			ui.Text(c, locales.Author()).FontSize(12).FontWeight(600).Width(140)
+			ui.Text(c, locales.When()).FontSize(12).FontWeight(600).Width(110)
 		})
 		ui.Scroll(c).Grow(1).Padding(0, 12, 0, 0).Children(func() {
 			if a.gitState == nil {
@@ -715,49 +671,39 @@ func (a *App) gitHistoryDialog(c *ui.Context, p colors) {
 			for _, commit := range a.gitState.Commits {
 				ui.Row(c).Key(commit.Hash).Height(30).Gap(12).BorderWidth(0, 0, 1, 0).BorderColor(p.border.Alpha(.5)).Children(func() {
 					if commit.Message == "" {
-						ui.Text(c, "No message").Italic().FontSize(12).TextColor(p.muted).Grow(1)
+						ui.Text(c, locales.NoMessage()).Italic().FontSize(12).TextColor(p.muted).Grow(1)
 					} else {
 						ui.Text(c, commit.Message).FontSize(12).SingleLine().Grow(1).MinWidth(0)
 					}
 					author := commit.Author
 					if author == "" {
-						author = "Unknown"
+						author = locales.Unknown()
 					}
-					ui.Text(c, author).FontSize(12).SingleLine().Width(140).Tooltip("Email: " + commit.Email)
-					ui.Text(c, timeAgo(commit.When)+" ago").FontSize(12).TextColor(p.muted).Width(110).Tooltip(commit.When.Format(time.RFC1123))
+					ui.Text(c, author).FontSize(12).SingleLine().Width(140).Tooltip(locales.EmailEmail(commit.Email))
+					ui.Text(c, timeAgo(commit.When)).FontSize(12).TextColor(p.muted).Width(110).Tooltip(commit.When.Format(time.RFC1123))
 				})
 			}
 		})
 	})
 }
 
-// timeAgo is date-fns' formatDistanceToNowStrict.
 func timeAgo(t time.Time) string {
 	d := time.Since(t)
-	unit := func(n int, word string) string {
-		if n == 1 {
-			return "1 " + word
-		}
-		return fmt.Sprintf("%d %ss", n, word)
-	}
 	switch {
 	case d < time.Minute:
-		return unit(int(d.Seconds()), "second")
+		return locales.CountSecondsAgo(int(d.Seconds()))
 	case d < time.Hour:
-		return unit(int(d.Minutes()), "minute")
+		return locales.CountMinutesAgo(int(d.Minutes()))
 	case d < 24*time.Hour:
-		return unit(int(d.Hours()), "hour")
+		return locales.CountHoursAgo(int(d.Hours()))
 	case d < 30*24*time.Hour:
-		return unit(int(d.Hours()/24), "day")
+		return locales.CountDaysAgo(int(d.Hours() / 24))
 	case d < 365*24*time.Hour:
-		return unit(int(d.Hours()/24/30), "month")
+		return locales.CountMonthsAgo(int(d.Hours() / 24 / 30))
 	}
-	return unit(int(d.Hours()/24/365), "year")
+	return locales.CountYearsAgo(int(d.Hours() / 24 / 365))
 }
 
-// gitCommitDialog is Yaak's GitCommitDialog: the changes to stage over
-// the message, and Commit or Commit and Push, beside the diff of the
-// change selected.
 func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 	dir, workspace := a.syncDir(), a.workspace
 	if a.gitState == nil {
@@ -768,11 +714,9 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 		return
 	}
 	if len(a.gitState.Files) == 0 {
-		ui.Column(c).Grow(1).Padding(12, 20, 16, 20).Children(func() { emptyState(c, p, "No changes since last commit") })
+		ui.Column(c).Grow(1).Padding(12, 20, 16, 20).Children(func() { emptyState(c, p, locales.NoChangesSinceLastCommit()) })
 		return
 	}
-	// Yaak's split layouts: the diff takes 60% of the width, the message
-	// 35% of the height beside it.
 	w, h := c.Size()
 	if a.gitCommitSplit == 0 {
 		a.gitCommitSplit = w * .9 * .4
@@ -784,10 +728,9 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 		ui.Scroll(c).Fill().Padding(0, 2, 12, 0).Children(func() {
 			a.commitTreeView(c, p, dir, tree, 0)
 			if len(external) > 0 {
-				// Yaak's Separator with a label.
 				ui.Row(c).Gap(8).Padding(12, 0, 4, 0).AlignItems(ui.Center).Children(func() {
 					ui.Box(c).Height(1).Grow(1).Background(p.border)
-					ui.Text(c, "Other files").FontSize(12).TextColor(p.subtle)
+					ui.Text(c, locales.OtherFiles()).FontSize(12).TextColor(p.subtle)
 					ui.Box(c).Height(1).Grow(1).Background(p.border)
 				})
 				for _, entry := range external {
@@ -798,7 +741,7 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 	}
 	message := func() {
 		ui.Column(c).Fill().Padding(12, 0, 8, 0).Gap(12).Children(func() {
-			ui.TextArea(c, &a.gitCommitMessage).Label("Commit message").Placeholder("Commit message...").Grow(1).MinHeight(0).FillWidth()
+			ui.TextArea(c, &a.gitCommitMessage).Label(locales.CommitMessage()).Placeholder(locales.CommitMessageEllipsis()).Grow(1).MinHeight(0).FillWidth()
 			ui.Row(c).Gap(8).Children(func() {
 				if a.gitInfo != nil {
 					ui.Text(c, a.gitInfo.Head).Font("monospace").FontSize(11).Padding(1, 5).Radius(3).Background(p.border.Alpha(.4))
@@ -815,7 +758,7 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 						}
 						return func() {
 							if err != nil {
-								a.showToast("", "Error committing: "+err.Error(), "danger", 0)
+								a.showToast("", locales.ErrorCommittingError(err.Error()), "danger", 0)
 								return
 							}
 							a.dialogOpen = false
@@ -826,10 +769,10 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 						}, nil
 					})
 				}
-				if ui.Button(c, "Commit").Disabled(!ready).Clicked() {
+				if ui.Button(c, locales.Commit()).Disabled(!ready).Clicked() {
 					commit(false)
 				}
-				if ui.PrimaryButton(c, "Commit and Push").Disabled(!ready).Clicked() {
+				if ui.PrimaryButton(c, locales.CommitAndPush()).Disabled(!ready).Clicked() {
 					commit(true)
 				}
 			})
@@ -848,17 +791,13 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 	})
 }
 
-// gitEntry is Yaak's GitStatusEntry: a file, its status, whether it is
-// staged, and the model it holds, or held.
 type gitEntry struct {
 	path   string
-	status string // untracked, conflict, current, modified, removed, renamed or type_change
+	status string
 	staged bool
 	model  engine.Object
 }
 
-// gitEntryOf is Yaak's git_status_from_raw: the index's status when the
-// change is staged, else the worktree's.
 func gitEntryOf(f engine.GitFile) gitEntry {
 	if f.Staging == "U" || f.Worktree == "U" {
 		return gitEntry{path: f.Path, status: "conflict", staged: true, model: f.Model}
@@ -886,16 +825,11 @@ func gitEntryOf(f engine.GitFile) gitEntry {
 	return gitEntry{path: f.Path, status: worktree, model: f.Model}
 }
 
-// commitNode is Yaak's CommitTreeNode: a model's entry and those of the
-// models in it.
 type commitNode struct {
 	entry    gitEntry
 	children []*commitNode
 }
 
-// commitTree is the tree of Yaak's commit dialog, from the workspace
-// down, and the changed files holding no model: the changes, among the
-// models they are in, which are current where unchanged.
 func (a *App) commitTree() (*commitNode, []gitEntry) {
 	var entries, external []gitEntry
 	changed := map[string]bool{}
@@ -908,13 +842,11 @@ func (a *App) commitTree() (*commitNode, []gitEntry) {
 		changed[s(entry.model, "id")] = true
 		entries = append(entries, entry)
 	}
-	// The unchanged models changes can be in.
 	for id, m := range a.models {
 		if kind := s(m, "model"); !changed[id] && (kind == "workspace" && id == a.workspace || kind == "folder" && s(m, "workspaceId") == a.workspace) {
 			entries = append(entries, gitEntry{status: "current", model: m})
 		}
 	}
-	// In the order of their files, as git's status lists them.
 	slices.SortFunc(entries, func(x, y gitEntry) int { return strings.Compare(s(x.model, "id"), s(y.model, "id")) })
 	var next func(m engine.Object, depth int) *commitNode
 	next = func(m engine.Object, depth int) *commitNode {
@@ -944,8 +876,6 @@ func (a *App) commitTree() (*commitNode, []gitEntry) {
 	return next(ws, 0), external
 }
 
-// checkedStatus is Yaak's nodeCheckedStatus: checked when every change
-// below is staged, mixed when some are.
 func (n *commitNode) checkedStatus() (checked, mixed bool) {
 	var visited, staged, current int
 	var visit func(n *commitNode)
@@ -968,13 +898,10 @@ func (n *commitNode) checkedStatus() (checked, mixed bool) {
 	return false, staged > 0
 }
 
-// relevant reports whether the node or one below it is changed: Yaak's
-// tree shows only those.
 func (n *commitNode) relevant() bool {
 	return n.entry.status != "current" || slices.ContainsFunc(n.children, (*commitNode).relevant)
 }
 
-// commitTreeView is Yaak's CheckboxTree of the commit dialog.
 func (a *App) commitTreeView(c *ui.Context, p colors, dir string, n *commitNode, depth int) {
 	if !n.relevant() {
 		return
@@ -992,11 +919,11 @@ func (a *App) commitTreeView(c *ui.Context, p colors, dir string, n *commitNode,
 		}
 		row.Children(func() {
 			if visibleChildren {
-				glyph, label := "down", "Collapse"
+				glyph, label := "down", locales.CollapseName(name)
 				if collapsed {
-					glyph, label = "chevron", "Expand"
+					glyph, label = "chevron", locales.ExpandName(name)
 				}
-				toggle := ui.ButtonBase(c).Label(label+" "+name).Size(16, 16).Shrink(0).Center()
+				toggle := ui.ButtonBase(c).Label(label).Size(16, 16).Shrink(0).Center()
 				toggle.Children(func() {
 					color := p.subtle
 					if toggle.Hovered() {
@@ -1014,12 +941,12 @@ func (a *App) commitTreeView(c *ui.Context, p colors, dir string, n *commitNode,
 				ui.Box(c).Width(16).Shrink(0)
 			}
 			checked, mixed := n.checkedStatus()
-			title := "Stage change"
+			title := locales.StageChangeName(name)
 			if checked || mixed {
-				title = "Unstage change"
+				title = locales.UnstageChangeName(name)
 			}
 			on := checked
-			if checkbox(c, p, &on, mixed, title+" "+name).Margin(0, 2, 0, 0).Changed() {
+			if checkbox(c, p, &on, mixed, title).Margin(0, 2, 0, 0).Changed() {
 				a.stageCommitNode(dir, n, mixed || !checked)
 			}
 			content := func() {
@@ -1068,15 +995,12 @@ func (a *App) commitTreeView(c *ui.Context, p colors, dir string, n *commitNode,
 		ui.Column(c).Key(key).FillWidth().Children(body)
 		return
 	}
-	// Yaak's pl-4 ml-2 and dashed left border.
 	ui.Row(c).Key(key).FillWidth().Children(func() {
 		ui.Box(c).Width(8).Shrink(0)
 		ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, 16).BorderWidth(0, 0, 0, 1).BorderStyle(ui.BorderDashed).BorderColor(p.border).Children(body)
 	})
 }
 
-// stageCommitNode is Yaak's setCheckedAndChildren: it stages, or
-// unstages, the changes of the node and those below it.
 func (a *App) stageCommitNode(dir string, n *commitNode, staged bool) {
 	var paths []string
 	var visit func(n *commitNode)
@@ -1094,8 +1018,6 @@ func (a *App) stageCommitNode(dir string, n *commitNode, staged bool) {
 	}
 }
 
-// externalCommitRow is Yaak's ExternalTreeNode: a changed file holding
-// no model, by its path in the sync directory.
 func (a *App) externalCommitRow(c *ui.Context, p colors, dir string, entry gitEntry) {
 	display := entry.path
 	if rel := a.gitState.RelaDir; rel != "" {
@@ -1107,11 +1029,11 @@ func (a *App) externalCommitRow(c *ui.Context, p colors, dir string, entry gitEn
 	}
 	row.Children(func() {
 		staged := entry.staged
-		title := "Stage change"
+		title := locales.StageChangeName(display)
 		if staged {
-			title = "Unstage change"
+			title = locales.UnstageChangeName(display)
 		}
-		if checkbox(c, p, &staged, false, title+" "+display).Changed() {
+		if checkbox(c, p, &staged, false, title).Changed() {
 			path := entry.path
 			a.background(func() (func(), error) { return a.refreshGit, a.Engine.GitStage(dir, []string{path}, staged) })
 		}
@@ -1121,7 +1043,26 @@ func (a *App) externalCommitRow(c *ui.Context, p colors, dir string, entry gitEn
 	})
 }
 
-// statusChip is Yaak's Chip of a change's status, in its statusColor.
+func gitStatusLabel(status string) string {
+	switch status {
+	case "untracked":
+		return locales.Untracked()
+	case "conflict":
+		return locales.Conflict()
+	case "current":
+		return locales.Current()
+	case "modified":
+		return locales.Modified()
+	case "removed":
+		return locales.Removed()
+	case "renamed":
+		return locales.Renamed()
+	case "type_change":
+		return locales.TypeChange()
+	}
+	return status
+}
+
 func statusChip(c *ui.Context, p colors, status string) ui.Element {
 	color := p.muted
 	switch status {
@@ -1135,21 +1076,16 @@ func statusChip(c *ui.Context, p colors, status string) ui.Element {
 		color = p.orange
 	}
 	chip := ui.Row(c).Padding(2, 8).Radius(6).Background(color.Alpha(.1)).Border(1, color.Alpha(.1)).Shrink(0)
-	chip.Children(func() { ui.Text(c, status).FontSize(11).FontWeight(500).TextColor(color).SingleLine() })
+	chip.Children(func() { ui.Text(c, gitStatusLabel(status)).FontSize(11).FontWeight(500).TextColor(color).SingleLine() })
 	return chip
 }
 
-// gitDiffPanel is the change the commit dialog's diff panel shows: its
-// model at HEAD and now, as YAML, loaded for the status the dialog shows.
 type gitDiffPanel struct {
-	path string
-	// loaded is the status the texts were loaded for; another reloads them.
+	path   string
 	loaded *engine.GitStatus
 	diff   *editor.DiffState
 }
 
-// gitDiffPanel is Yaak's DiffPanel: the change selected, Discard Changes,
-// and its DiffViewer.
 func (a *App) gitDiffPanel(c *ui.Context, p colors, dir, workspace string) {
 	d := a.gitDiff
 	var file *gitEntry
@@ -1161,7 +1097,7 @@ func (a *App) gitDiffPanel(c *ui.Context, p colors, dir, workspace string) {
 	}
 	if file == nil {
 		a.gitDiff = nil
-		emptyState(c, p, "Select a change to view diff")
+		emptyState(c, p, locales.SelectAChangeToViewDiff())
 		return
 	}
 	if d.loaded != a.gitState {
@@ -1179,8 +1115,8 @@ func (a *App) gitDiffPanel(c *ui.Context, p colors, dir, workspace string) {
 	}
 	ui.Column(c).Fill().Gap(8).Children(func() {
 		ui.Row(c).Gap(8).Padding(0, 4).Children(func() {
-			ui.Text(c, requestName(file.model)+" ("+file.status+")").FontSize(12).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
-			if warningButton(c, p, "Discard Changes").Clicked() {
+			ui.Text(c, locales.NameStatus(requestName(file.model), gitStatusLabel(file.status))).FontSize(12).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
+			if warningButton(c, p, locales.DiscardChanges()).Clicked() {
 				a.discardGitChange(dir, workspace, file.path)
 			}
 		})
@@ -1192,8 +1128,6 @@ func (a *App) gitDiffPanel(c *ui.Context, p colors, dir, workspace string) {
 	})
 }
 
-// setYAMLDiff shows prev and next in d, or in a new diff of YAML when d
-// is nil, keeping where it is scrolled to when only the texts change.
 func setYAMLDiff(d *editor.DiffState, prev, next string) *editor.DiffState {
 	if d == nil {
 		d = &editor.DiffState{Old: editor.NewBuffer(""), New: editor.NewBuffer("")}
@@ -1212,10 +1146,6 @@ func setYAMLDiff(d *editor.DiffState, prev, next string) *editor.DiffState {
 	return d
 }
 
-// gitDiffView is Yaak's DiffViewer, CodeMirror's MergeView of the two
-// texts side by side: YAML, wrapped, read only, line numbers, unchanged
-// lines collapsed but for 2 around changes, and changed lines tinted with
-// no highlight of the words changed in them.
 func (a *App) gitDiffView(c *ui.Context, p colors, d *editor.DiffState) {
 	font := cmp.Or(s(a.settings, "editorFont"), "monospace")
 	size := float32(n(a.settings, "editorFontSize"))
@@ -1226,20 +1156,15 @@ func (a *App) gitDiffView(c *ui.Context, p colors, d *editor.DiffState) {
 	d.Wrap, d.ContextLines, d.Inline = true, 2, editor.DiffInlineNone
 	d.Theme = diffTheme(p)
 	d.RenderSeparator = func(c *ui.Context, sep ui.Element, s *editor.DiffSeparator) {
-		// Yaak's .cm-collapsedLines: a bordered bar on the surface, which a
-		// click expands.
 		sep.Padding(4, 2)
 		sep.Children(func() {
 			bar := ui.ButtonBase(c).Grow(1).AlignSelf(ui.Stretch).Center().Radius(3).Background(p.sidebar).Border(1, p.border).
-				Label(fmt.Sprintf("Expand %d unchanged lines", s.Lines)).Opacity(.8)
+				Label(locales.ExpandCountUnchangedLines(s.Lines)).Opacity(.8)
 			if bar.Hovered() {
 				bar.Opacity(1)
 			}
 			bar.Children(func() {
-				label := fmt.Sprintf("%d unchanged lines", s.Lines)
-				if s.Lines == 1 {
-					label = "1 unchanged line"
-				}
+				label := locales.CountUnchangedLines(s.Lines)
 				ui.Text(c, "⦚ "+label+" ⦚").FontSize(size - 1).TextColor(p.text)
 			})
 			if bar.Clicked() {
@@ -1250,10 +1175,6 @@ func (a *App) gitDiffView(c *ui.Context, p colors, d *editor.DiffState) {
 	editor.DiffView(c, d).Grow(1).MinHeight(0).FillWidth()
 }
 
-// diffTheme colors a diff as Yaak's editors: its syntaxHighlightStyle,
-// and changes in the theme's success and danger colors. Plain YAML values,
-// which the tokenizer makes variables, keep the text's color, as Yaak's
-// YAML content does.
 func diffTheme(p colors) *editor.Theme {
 	t := &editor.Theme{Background: p.background, Text: p.text, LineNumber: p.subtle, ActiveLineNumber: p.muted, Added: p.green, Deleted: p.red, Modified: p.blue}
 	tok := func(color ui.Color, kinds ...editor.TokenKind) {
@@ -1270,15 +1191,12 @@ func diffTheme(p colors) *editor.Theme {
 	return t
 }
 
-// discardGitChange is Yaak's handleDiscardChanges: it asks, discards the
-// change, syncs the workspace from its files, and comes back to the
-// commit dialog.
 func (a *App) discardGitChange(dir, workspace, path string) {
 	back := func() {
 		a.refreshGit()
-		a.prompt("git_commit", "Commit Changes", "", "")
+		a.prompt("git_commit", locales.CommitChanges(), "", "")
 	}
-	a.confirmDialog("Discard Changes", "Do you really want to discard uncommitted changes for the selected item?", "Discard", true, func() {
+	a.confirmDialog(locales.DiscardChanges(), locales.DoYouReallyWantToDiscard(), locales.Discard(), true, func() {
 		a.gitDiff = nil
 		a.background(func() (func(), error) {
 			err := a.Engine.GitRestore(a.ctx, dir, path)
@@ -1291,7 +1209,6 @@ func (a *App) discardGitChange(dir, workspace, path string) {
 	a.asking.cancel = back
 }
 
-// gitDivergedDialog is Yaak's DivergedDialog.
 func (a *App) gitDivergedDialog(c *ui.Context, p colors) {
 	r := a.diverged
 	if r == nil {
@@ -1299,10 +1216,10 @@ func (a *App) gitDivergedDialog(c *ui.Context, p colors) {
 	}
 	dir, workspace := a.syncDir(), a.workspace
 	ui.Column(c).Padding(20).Gap(14).Children(func() {
-		ui.Text(c, "Your local branch has diverged from "+r.Remote+"/"+r.Branch+". How would you like to resolve this?").FontSize(13).MaxLines(4)
+		ui.Text(c, locales.YourLocalBranchHasDivergedFrom(r.Remote, r.Branch)).FontSize(13).MaxLines(4)
 		for _, option := range []struct{ value, label, description string }{
-			{"merge", "Merge Commit", "Combining local and remote changes into a single merge commit"},
-			{"force_reset", "Force Pull", "Discard local commits and reset to match the remote branch"},
+			{"merge", locales.MergeCommit(), locales.CombiningLocalAndRemoteChangesInto()},
+			{"force_reset", locales.ForcePull(), locales.DiscardLocalCommitsAndResetTo()},
 		} {
 			card := ui.ButtonBase(c).Key(option.value).Label(option.label).Padding(10, 12).Gap(4).Radius(6).Border(1, p.border).FillWidth().Column()
 			if a.divergedChoice == option.value {
@@ -1317,10 +1234,10 @@ func (a *App) gitDivergedDialog(c *ui.Context, p colors) {
 			}
 		}
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			if ui.Button(c, "Cancel").Clicked() {
+			if ui.Button(c, locales.Cancel()).Clicked() {
 				a.dialogOpen, a.diverged = false, nil
 			}
-			label := map[string]string{"": "Select an option", "merge": "Merge", "force_reset": "Force Pull"}[a.divergedChoice]
+			label := map[string]string{"": locales.SelectAnOption(), "merge": locales.Merge(), "force_reset": locales.ForcePull()}[a.divergedChoice]
 			resolve := ui.PrimaryButton(c, label).Disabled(a.divergedChoice == "")
 			if a.divergedChoice == "force_reset" {
 				resolve.Background(p.red)
@@ -1341,7 +1258,7 @@ func (a *App) gitDivergedDialog(c *ui.Context, p colors) {
 					}
 					return func() {
 						if err != nil {
-							a.showToast("", "Error pulling changes: "+err.Error(), "danger", 0)
+							a.showToast("", locales.ErrorPullingChangesError(err.Error()), "danger", 0)
 						} else {
 							a.gitResult(result, nil)
 						}
@@ -1353,7 +1270,6 @@ func (a *App) gitDivergedDialog(c *ui.Context, p colors) {
 	})
 }
 
-// warningButton is Yaak's warning-colored border button, 2xs.
 func warningButton(c *ui.Context, p colors, label string) ui.Element {
 	b := ui.ButtonBase(c).Label(label).Height(22).Padding(0, 8).Radius(4).Border(1, p.orange).Center().Shrink(0)
 	if b.Hovered() {
@@ -1363,8 +1279,6 @@ func warningButton(c *ui.Context, p colors, label string) ui.Element {
 	return b
 }
 
-// gitModelPaths returns the paths in the repository of the changed files
-// of models, by their IDs.
 func (a *App) gitModelPaths() map[string]string {
 	paths := map[string]string{}
 	if a.gitState == nil {
@@ -1378,9 +1292,6 @@ func (a *App) gitModelPaths() map[string]string {
 	return paths
 }
 
-// gitTreeMenu adds the git items of Yaak's sidebar context menu: View
-// History of one item, and Restore Changes of those changed, after a
-// separator when separate is set.
 func (a *App) gitTreeMenu(menu *ui.Menu, items []engine.Object, separate bool) {
 	dir, workspace := a.syncDir(), a.workspace
 	if dir == "" || a.gitNoRepo {
@@ -1399,24 +1310,23 @@ func (a *App) gitTreeMenu(menu *ui.Menu, items []engine.Object, separate bool) {
 	if separate {
 		menu.Separator()
 	}
-	if len(items) == 1 && menu.Item("View History").Chosen() {
+	if len(items) == 1 && menu.Item(locales.ViewHistory()).Chosen() {
 		id := s(items[0], "id")
 		path, ok := changed[id]
 		a.background(func() (func(), error) {
 			var err error
 			if !ok {
-				// Yaak's syncPathForModel.
-				path, err = a.Engine.GitRepoPath(dir, "yaak."+id+".yaml")
+				path, err = a.Engine.GitRepoPath(dir, engine.SyncFileName(dir, id))
 			}
 			return func() { a.openFileHistory(dir, path) }, err
 		})
 	}
-	if len(restore) > 0 && menu.Item("Restore Changes").Chosen() {
-		description := "This will discard uncommitted changes for the selected item."
+	if len(restore) > 0 && menu.Item(locales.RestoreChanges()).Chosen() {
+		description := locales.ThisWillDiscardUncommittedChangesFor()
 		if len(restore) > 1 {
-			description = fmt.Sprintf("This will discard uncommitted changes for %d selected items.", len(restore))
+			description = locales.ThisWillDiscardUncommittedChangesForCount(len(restore))
 		}
-		a.confirmDialog("Restore Changes", description, "Restore", true, func() {
+		a.confirmDialog(locales.RestoreChanges(), description, locales.Restore(), true, func() {
 			a.background(func() (func(), error) {
 				for _, path := range restore {
 					if err := a.Engine.GitRestore(a.ctx, dir, path); err != nil {
@@ -1429,23 +1339,20 @@ func (a *App) gitTreeMenu(menu *ui.Menu, items []engine.Object, separate bool) {
 	}
 }
 
-// fileHistory is Yaak's FileHistoryDialog's state: the commits changing a
-// file, the one selected, and its diff.
 type fileHistory struct {
 	dir, path string
 	loading   bool
 	commits   []engine.GitCommit
 	selected  string
-	// diffOf is the commit whose diff was asked for.
-	diffOf string
-	diff   *editor.DiffState
-	split  float32
+	diffOf    string
+	diff      *editor.DiffState
+	split     float32
 }
 
 func (a *App) openFileHistory(dir, path string) {
 	h := &fileHistory{dir: dir, path: path, loading: true}
 	a.fileHistory = h
-	a.prompt("git_file_history", "File History", "", "")
+	a.prompt("git_file_history", locales.FileHistory(), "", "")
 	a.background(func() (func(), error) {
 		commits, err := a.Engine.GitFileLog(a.ctx, dir, path)
 		return func() {
@@ -1457,8 +1364,6 @@ func (a *App) openFileHistory(dir, path string) {
 	})
 }
 
-// fileHistoryDialog is Yaak's FileHistoryDialog: the commits changing a
-// file beside the diff of the one selected, which Restore File restores.
 func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 	h := a.fileHistory
 	if h == nil {
@@ -1467,7 +1372,7 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 	if len(h.commits) == 0 {
 		ui.Column(c).Grow(1).MinHeight(160).Padding(12, 20, 16, 20).Children(func() {
 			if !h.loading {
-				emptyState(c, p, "No history for this file")
+				emptyState(c, p, locales.NoHistoryForThisFile())
 			}
 		})
 		return
@@ -1485,7 +1390,6 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 			}, err
 		})
 	}
-	// Yaak's split layout: the diff takes 60% of the width.
 	if h.split == 0 {
 		w, _ := c.Size()
 		h.split = min(1120, w*.9) * .4
@@ -1500,13 +1404,13 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 		}, func() {
 			ui.Column(c).Fill().MinWidth(0).Padding(0, 16).BorderWidth(0, 0, 0, 1).BorderColor(p.border).Gap(8).Children(func() {
 				if i < 0 {
-					emptyState(c, p, "Select a commit to view diff")
+					emptyState(c, p, locales.SelectACommitToViewDiff())
 					return
 				}
 				commit := h.commits[i]
 				ui.Row(c).Gap(8).Children(func() {
-					ui.Text(c, cmp.Or(commit.Message, "No message")).FontSize(12).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
-					if warningButton(c, p, "Restore File").Clicked() {
+					ui.Text(c, cmp.Or(commit.Message, locales.NoMessage())).FontSize(12).TextColor(p.muted).SingleLine().Grow(1).MinWidth(0)
+					if warningButton(c, p, locales.RestoreFile()).Clicked() {
 						a.restoreFileFromCommit(h, commit.Hash)
 					}
 				})
@@ -1520,9 +1424,8 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 	})
 }
 
-// fileHistoryCommit is Yaak's CommitListItem.
 func (a *App) fileHistoryCommit(c *ui.Context, p colors, h *fileHistory, commit engine.GitCommit) {
-	item := ui.ButtonBase(c).Key(commit.Hash).Label(cmp.Or(commit.Message, "No message")).FillWidth().Padding(6, 8).Radius(3).Column().Gap(1)
+	item := ui.ButtonBase(c).Key(commit.Hash).Label(cmp.Or(commit.Message, locales.NoMessage())).FillWidth().Padding(6, 8).Radius(3).Column().Gap(1)
 	switch {
 	case commit.Hash == h.selected:
 		item.Background(p.border.Alpha(.55))
@@ -1530,9 +1433,9 @@ func (a *App) fileHistoryCommit(c *ui.Context, p colors, h *fileHistory, commit 
 		item.Background(p.border.Alpha(.3))
 	}
 	item.Children(func() {
-		ui.Text(c, cmp.Or(commit.Message, "No message")).FontSize(13).SingleLine().FillWidth()
+		ui.Text(c, cmp.Or(commit.Message, locales.NoMessage())).FontSize(13).SingleLine().FillWidth()
 		ui.Row(c).Gap(4).FillWidth().Children(func() {
-			ui.Text(c, cmp.Or(commit.Author, "Unknown")+" - "+timeAgo(commit.When)+" ago - ").FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
+			ui.Text(c, locales.AuthorWhen(cmp.Or(commit.Author, locales.Unknown()), timeAgo(commit.When))).FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
 			ui.Text(c, commit.Hash[:min(7, len(commit.Hash))]).Font("monospace").FontSize(10).TextColor(p.muted).Shrink(0)
 		})
 	})
@@ -1541,17 +1444,14 @@ func (a *App) fileHistoryCommit(c *ui.Context, p colors, h *fileHistory, commit 
 	}
 }
 
-// restoreFileFromCommit is Yaak's handleRestoreCommit: it asks, restores
-// the file from the commit, syncs the workspace from its files, and comes
-// back to the file's history.
 func (a *App) restoreFileFromCommit(h *fileHistory, hash string) {
 	workspace := a.workspace
 	back := func() {
 		a.refreshGit()
 		a.fileHistory = h
-		a.prompt("git_file_history", "File History", "", "")
+		a.prompt("git_file_history", locales.FileHistory(), "", "")
 	}
-	a.confirmDialog("Restore File", "This will restore the file to the selected commit.", "Restore", false, func() {
+	a.confirmDialog(locales.RestoreFile(), locales.ThisWillRestoreTheFileTo(), locales.Restore(), false, func() {
 		a.background(func() (func(), error) {
 			err := a.Engine.GitRestoreFromCommit(a.ctx, h.dir, hash, h.path)
 			if err == nil {

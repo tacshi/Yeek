@@ -9,32 +9,26 @@ import (
 
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/xpath"
+
+	"yeek/locales"
 )
 
-// XPath 1.0 filtering, as Yaak's crates/yaak-filter/src/xml.rs does it with
-// sxd-xpath, here on antchfx/xpath. One difference: an unprefixed name
-// test such as //entry also matches elements of a default namespace, as
-// antchfx/xpath reads it, where XPath 1.0 finds none.
-
-// FilterXPath is the matched nodes serialized as XML, one per line, or the
-// string form of a number, string, or boolean result.
 func FilterXPath(text, query string) (out string, err error) {
 	if strings.TrimSpace(query) == "" {
-		return "", errors.New("Invalid filter: empty expression") //nolint:staticcheck // Yaak's message, shown as is
+		return "", errors.New(locales.InvalidFilterEmptyExpression())
 	}
 	expression, err := xpath.Compile(query)
 	if err != nil {
-		return "", fmt.Errorf("Invalid filter: %w", err) //nolint:staticcheck // Yaak's message, shown as is
+		return "", fmt.Errorf("%s: %w", locales.InvalidFilter(), err)
 	}
 	doc, err := xmlquery.Parse(strings.NewReader(text))
 	if err != nil {
-		return "", fmt.Errorf("Invalid XML: %w", err) //nolint:staticcheck // Yaak's message, shown as is
+		return "", fmt.Errorf("%s: %w", locales.InvalidXML(), err)
 	}
 	mergeAdjacentText(doc)
 	defer func() {
-		// antchfx/xpath reports some evaluation errors by panicking.
 		if r := recover(); r != nil {
-			out, err = "", fmt.Errorf("Invalid filter: %v", r) //nolint:staticcheck // Yaak's message, shown as is
+			out, err = "", errors.New(locales.InvalidFilterReason(fmt.Sprint(r)))
 		}
 	}()
 	switch v := expression.Evaluate(xmlquery.CreateXPathNavigator(doc)).(type) {
@@ -50,8 +44,6 @@ func FilterXPath(text, query string) (out string, err error) {
 	return "", nil
 }
 
-// mergeAdjacentText joins the text and CDATA nodes the parser splits text
-// into, as XPath sees one text node.
 func mergeAdjacentText(node *xmlquery.Node) {
 	for child := node.FirstChild; child != nil; {
 		next := child.NextSibling
@@ -71,14 +63,11 @@ func mergeAdjacentText(node *xmlquery.Node) {
 	}
 }
 
-// selected is a node of a result: an element or other node, or the
-// attribute of an element at attr.
 type selected struct {
 	node *xmlquery.Node
 	attr int
 }
 
-// serializeNodes writes the nodes selected in document order, one per line.
 func serializeNodes(doc *xmlquery.Node, nodes *xpath.NodeIterator) string {
 	order := map[*xmlquery.Node]int{}
 	var number func(*xmlquery.Node)
@@ -150,8 +139,6 @@ func serializeNode(out *strings.Builder, s selected) {
 	}
 }
 
-// nsScope holds the namespace declarations already written, by prefix
-// ("" is the default namespace).
 type nsScope map[string]string
 
 func qualifiedName(prefix, local string) string {
@@ -165,8 +152,6 @@ func isNamespaceDeclaration(a xmlquery.Attr) bool {
 	return a.Name.Space == "xmlns" || a.Name.Space == "" && a.Name.Local == "xmlns"
 }
 
-// writeElement declares the namespaces an element uses where they are
-// first needed, as xmldom does.
 func writeElement(out *strings.Builder, n *xmlquery.Node, parent nsScope) {
 	scope := nsScope{}
 	for k, v := range parent {

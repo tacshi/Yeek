@@ -7,9 +7,6 @@ import (
 	"testing"
 )
 
-// Ported from Yaak's crates/yaak-filter/tests/json_path.rs, itself from the
-// @yaak/filter-jsonpath plugin's tests.
-
 func decoded(t *testing.T, text string) any {
 	t.Helper()
 	var v any
@@ -19,7 +16,6 @@ func decoded(t *testing.T, text string) any {
 	return v
 }
 
-// matches is the filter's matches, decoded.
 func matches(t *testing.T, doc, path string) any {
 	t.Helper()
 	content, err := FilterJSONPath(doc, path)
@@ -53,8 +49,6 @@ func jsonText(v any) string {
 	return string(data)
 }
 
-// crumb is the path the response breadcrumb builds for a key
-// (segmentsToJsonPath in the client).
 func crumb(key string) string {
 	bare := key != "$" && key != "" && (isASCIILetter(rune(key[0])) || key[0] == '_' || key[0] == '$')
 	for i := 0; bare && i < len(key); i++ {
@@ -188,7 +182,6 @@ func TestDeviationRFCNegativeIndexAndStep(t *testing.T) {
 	assertMatches(t, doc, "$.a[-5]", "[]")
 	assertMatches(t, doc, "$.a[::-1]", "[3,2,1,0]")
 	assertMatches(t, doc, "$.a[3:0:-2]", "[3,1]")
-	// Parts of a union keep jsonpath-plus's reading, so its non-empty results stand.
 	assertMatches(t, doc, "$.a[0,-1]", "[0]")
 }
 

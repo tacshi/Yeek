@@ -66,19 +66,17 @@ func TestResponseEditorCaretAndFoldCursor(t *testing.T) {
 	if !ok {
 		t.Fatal("response editor missing")
 	}
-	// Line 1 opens a fold; its chevron sits 10 points left of the text, in the gutter.
 	lineY := editor.Y + 10 + 12*1.75/2
 	tt.Move(editor.X+28, lineY)
 	if tt.Cursor() != ui.CursorPointer {
 		t.Fatalf("cursor over fold chevron = %v", tt.Cursor())
 	}
-	// Pressing the chevron keeps the pointing hand.
 	tt.Press(editor.X+28, lineY)
 	if tt.Cursor() != ui.CursorPointer {
 		t.Fatalf("cursor pressing fold chevron = %v", tt.Cursor())
 	}
 	tt.Release(editor.X+28, lineY)
-	tt.ClickAt(editor.X+28, lineY) // the press folded the line: unfold it again
+	tt.ClickAt(editor.X+28, lineY)
 	tt.Move(editor.X+140, lineY)
 	if tt.Cursor() != ui.CursorText {
 		t.Fatalf("cursor over text = %v", tt.Cursor())

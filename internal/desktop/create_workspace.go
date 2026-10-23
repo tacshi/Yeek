@@ -9,9 +9,9 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// createWorkspaceForm is Yaak's CreateWorkspaceDialog.
 type createWorkspaceForm struct {
 	name, dir, notEmpty string
 	initGit, encryption bool
@@ -22,14 +22,11 @@ func (a *App) newWorkspace() {
 		return
 	}
 	a.createWorkspace = &createWorkspaceForm{}
-	a.prompt("create_workspace", "Create Workspace", "", "")
+	a.prompt("create_workspace", locales.CreateWorkspace(), "", "")
 }
 
-// encryptionHelp is Yaak's EncryptionHelp.
-const encryptionHelp = "Encrypt passwords, tokens, and other sensitive info when encryption is enabled.\n\nEncrypted data remains secure when syncing to the filesystem or Git, and when exporting or sharing with others."
+var encryptionHelp = locales.EncryptPasswordsTokensAndOtherSensitive
 
-// createWorkspaceDialog is Yaak's CreateWorkspaceDialog: a name, a folder to
-// sync with (Git set up in it, if asked), and encryption to set up after.
 func (a *App) createWorkspaceDialog(c *ui.Context, p colors) {
 	f := a.createWorkspace
 	if f == nil {
@@ -38,60 +35,58 @@ func (a *App) createWorkspaceDialog(c *ui.Context, p colors) {
 	submit := false
 	ui.Column(c).Padding(8, 24, 16, 24).Gap(12).Children(func() {
 		ui.Column(c).FillWidth().Gap(4).Children(func() {
-			ui.Text(c, "Name").FontSize(12).TextColor(p.muted)
-			if ui.TextInput(c, &f.name).Label("Name").AutoFocus().FillWidth().Submitted() {
+			ui.Text(c, locales.NameTitle()).FontSize(12).TextColor(p.muted)
+			if ui.TextInput(c, &f.name).Label(locales.NameTitle()).AutoFocus().FillWidth().Submitted() {
 				submit = true
 			}
 		})
-		// Yaak's SyncToFilesystemSetting, form layout.
 		ui.Column(c).FillWidth().Gap(12).Margin(8, 0).Children(func() {
 			if f.notEmpty != "" {
 				ui.Column(c).FillWidth().Padding(10, 12).Gap(6).Radius(6).Border(1, p.notice.Alpha(.5)).Background(p.notice.Alpha(.08)).Children(func() {
-					ui.Text(c, "Directory is not empty. Do you want to open it instead?").FontSize(13)
-					if ui.Button(c, "Open Workspace").FontSize(11).Padding(2, 8).TextColor(p.notice).Border(1, p.notice.Alpha(.6)).AlignSelf(ui.Start).Clicked() {
+					ui.Text(c, locales.DirectoryIsNotEmptyDoYou()).FontSize(13)
+					if ui.Button(c, locales.OpenWorkspace()).FontSize(11).Padding(2, 8).TextColor(p.notice).Border(1, p.notice.Alpha(.6)).AlignSelf(ui.Start).Clicked() {
 						a.openSyncDirWorkspace(f.notEmpty)
 						a.dialogOpen = false
 					}
 				})
 			}
-			// Yaak's SelectFile with its label.
 			ui.Column(c).FillWidth().Gap(4).Children(func() {
 				ui.Row(c).Gap(4).Children(func() {
-					ui.Text(c, "Local directory sync").FontSize(12).TextColor(p.muted)
-					icon(c, "info").FontSize(11).TextColor(p.subtle).Tooltip("Sync data to a folder for backup and Git integration.")
+					ui.Text(c, locales.LocalDirectorySync()).FontSize(12).TextColor(p.muted)
+					icon(c, "info").FontSize(11).TextColor(p.subtle).Tooltip(locales.SyncDataToAFolderFor())
 				})
 				ui.Row(c).FillWidth().Gap(6).Children(func() {
-					label := "Select Directory"
+					label := locales.SelectDirectory()
 					if f.dir != "" {
-						label = "Change Directory"
+						label = locales.ChangeDirectoryTitle()
 					}
 					if ui.Button(c, label).FontSize(11).Padding(2, 8).Clicked() {
 						a.chooseNewWorkspaceDir(f)
 					}
 					if f.dir != "" {
-						if smallIconButton(c, "close", "Unset Directory").Clicked() {
+						if smallIconButton(c, "close", locales.UnsetDirectory()).Clicked() {
 							f.dir = ""
 						}
 						ui.Text(c, f.dir).Font("monospace").FontSize(11).SingleLine().MinWidth(0)
 					} else {
-						ui.Text(c, "No directory selected").FontSize(13).MinWidth(0)
+						ui.Text(c, locales.NoDirectorySelected()).FontSize(13).MinWidth(0)
 					}
 				})
 			})
 			if f.dir != "" {
-				ui.Checkbox(c, &f.initGit, "Initialize Git Repo").FontSize(13)
+				ui.Checkbox(c, &f.initGit, locales.InitializeGitRepo()).FontSize(13)
 			}
 		})
 		ui.Column(c).Gap(4).Children(func() {
 			ui.Row(c).Gap(4).Children(func() {
-				ui.Text(c, "Workspace encryption").FontSize(12).TextColor(p.muted)
-				icon(c, "info").FontSize(11).TextColor(p.subtle).Tooltip(encryptionHelp)
+				ui.Text(c, locales.WorkspaceEncryption()).FontSize(12).TextColor(p.muted)
+				icon(c, "info").FontSize(11).TextColor(p.subtle).Tooltip(encryptionHelp())
 			})
-			ui.Checkbox(c, &f.encryption, "Enable Encryption").FontSize(13)
+			ui.Checkbox(c, &f.encryption, locales.EnableEncryption()).FontSize(13)
 		})
 	})
 	dialogFooter(c, p, nil, func() {
-		if ui.PrimaryButton(c, "Create Workspace").Disabled(strings.TrimSpace(f.name) == "").Clicked() {
+		if ui.PrimaryButton(c, locales.CreateWorkspace()).Disabled(strings.TrimSpace(f.name) == "").Clicked() {
 			submit = true
 		}
 	})
@@ -100,11 +95,9 @@ func (a *App) createWorkspaceDialog(c *ui.Context, p colors) {
 	}
 }
 
-// chooseNewWorkspaceDir is Yaak's handleFilePathChange: a directory with
-// files in it is offered to open instead.
 func (a *App) chooseNewWorkspaceDir(f *createWorkspaceForm) {
 	a.background(func() (func(), error) {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Select Folder", Directory: true})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.SelectFolder(), Directory: true})
 		if err != nil || len(paths) == 0 {
 			return nil, err
 		}
@@ -123,14 +116,8 @@ func (a *App) setNewWorkspaceDir(f *createWorkspaceForm, path string) {
 	f.notEmpty, f.dir = "", path
 }
 
-// osFiles are the files the system writes into folders of its own accord:
-// Finder's view settings and localized names, and Explorer's thumbnail
-// cache and folder settings.
 var osFiles = map[string]bool{".DS_Store": true, ".localized": true, "Thumbs.db": true, "desktop.ini": true}
 
-// dirNotEmpty reports whether a folder holds anything but osFiles, as Yaak
-// asks before syncing a workspace with it: a folder that looks empty in
-// Finder, which wrote its .DS_Store there, is empty.
 func dirNotEmpty(path string) (bool, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
@@ -178,17 +165,15 @@ func (a *App) submitNewWorkspace(f *createWorkspaceForm) {
 			a.applyModel(meta)
 			a.switchWorkspace(id)
 			if gitErr != nil {
-				a.showToast("git-init-error", "Error initializing Git: "+gitErr.Error(), "danger", 0)
+				a.showToast("git-init-error", locales.ErrorInitializingGitError(gitErr.Error()), "danger", 0)
 			}
 			if encryption {
-				a.prompt("workspace_encryption", "Workspace Encryption", "", id)
+				a.prompt("workspace_encryption", locales.WorkspaceEncryptionTitle(), "", id)
 			}
 		}, nil
 	})
 }
 
-// workspaceEncryptionDialog is Yaak's setupOrConfigureEncryption dialog:
-// the workspace's encryption setting, then Done.
 func (a *App) workspaceEncryptionDialog(c *ui.Context, p colors) {
 	workspace := a.models[a.dialogID]
 	if workspace == nil {
@@ -200,7 +185,7 @@ func (a *App) workspaceEncryptionDialog(c *ui.Context, p colors) {
 	ui.Column(c).Padding(8, 24, 16, 24).Gap(12).Children(func() {
 		a.workspaceEncryptionSetting(c, p, workspace)
 		ui.Row(c).Justify(ui.End).Children(func() {
-			if ui.PrimaryButton(c, "Done").Clicked() {
+			if ui.PrimaryButton(c, locales.Done()).Clicked() {
 				a.dialogOpen = false
 				a.finishEncryptionGate()
 			}
@@ -208,8 +193,6 @@ func (a *App) workspaceEncryptionDialog(c *ui.Context, p colors) {
 	})
 }
 
-// encryptionGate is what Yaak's withEncryptionEnabled runs once encryption
-// is set up, and the dialog it came from.
 type encryptionGate struct {
 	workspace                string
 	then                     func()
@@ -217,21 +200,17 @@ type encryptionGate struct {
 	dialogOpen               bool
 }
 
-// encryptionDialogs are the dialogs of setting encryption up.
 var encryptionDialogs = []string{"workspace_encryption", "set_encryption_key", "encryption_key"}
 
-// withEncryptionEnabled is Yaak's: then runs now if this machine has the
-// workspace's key, or else once Workspace Encryption has set it up.
 func (a *App) withEncryptionEnabled(workspace string, then func()) {
 	if a.workspaceKeySet(workspace) {
 		then()
 		return
 	}
 	a.encryptionGate = &encryptionGate{workspace: workspace, then: then, dialog: a.dialog, title: a.dialogTitle, value: a.dialogValue, id: a.dialogID, dialogOpen: a.dialogOpen}
-	a.prompt("workspace_encryption", "Workspace Encryption", "", workspace)
+	a.prompt("workspace_encryption", locales.WorkspaceEncryptionTitle(), "", workspace)
 }
 
-// workspaceKeySet is Yaak's workspaceMeta.encryptionKey != null.
 func (a *App) workspaceKeySet(workspace string) bool {
 	for _, meta := range a.list("workspace_meta") {
 		if s(meta, "workspaceId") == workspace && meta["encryptionKey"] != nil {
@@ -241,8 +220,6 @@ func (a *App) workspaceKeySet(workspace string) bool {
 	return false
 }
 
-// finishEncryptionGate goes back to the dialog the gate came from, then
-// runs what waited if encryption is now set up.
 func (a *App) finishEncryptionGate() {
 	g := a.encryptionGate
 	if g == nil {
@@ -259,9 +236,6 @@ func (a *App) finishEncryptionGate() {
 	}
 }
 
-// checkEncryptionGate gives up a gate whose dialogs closed, going back to
-// the dialog it came from without running what waited, as closing Yaak's
-// Workspace Encryption dialog does.
 func (a *App) checkEncryptionGate() {
 	g := a.encryptionGate
 	if g == nil || a.dialogOpen && slices.Contains(encryptionDialogs, a.dialog) {

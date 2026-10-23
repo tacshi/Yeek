@@ -2,11 +2,14 @@ package engine
 
 import (
 	"encoding/json/v2"
-	"fmt"
+	"errors"
 	"maps"
+	"strconv"
 	"strings"
 	"time"
 	"uuid"
+
+	"yeek/locales"
 )
 
 type Object = map[string]any
@@ -69,7 +72,7 @@ var prefixes = map[string]string{
 
 func defaultModel(kind string) (Object, error) {
 	if _, ok := prefixes[kind]; !ok {
-		return nil, fmt.Errorf("unknown model %q", kind)
+		return nil, errors.New(locales.UnknownModelKind(strconv.Quote(kind)))
 	}
 	m := Object{"model": kind, "id": "", "createdAt": now(), "updatedAt": now()}
 	inherit := func() {
@@ -90,7 +93,7 @@ func defaultModel(kind string) (Object, error) {
 	}
 	switch kind {
 	case "settings":
-		maps.Copy(m, Object{"id": "default", "appearance": "system", "clientCertificates": []any{}, "coloredMethods": false, "editorFont": nil, "editorFontSize": 12, "editorKeymap": "default", "editorSoftWrap": true, "hideWindowControls": false, "useNativeTitlebar": false, "interfaceFont": nil, "interfaceFontSize": 14, "interfaceScale": 1, "openWorkspaceNewWindow": nil, "proxy": nil, "themeDark": "yaak-dark", "themeLight": "yaak-light", "updateChannel": "stable", "hideLicenseBadge": true, "promptFeedback": false, "autoupdate": true, "autoDownloadUpdates": true, "checkNotifications": false, "mcpServerEnabled": false, "hotkeys": Object{}})
+		maps.Copy(m, Object{"id": "default", "appearance": "system", "clientCertificates": []any{}, "coloredMethods": false, "editorFont": nil, "editorFontSize": 12, "editorKeymap": "default", "editorSoftWrap": true, "hideWindowControls": false, "useNativeTitlebar": false, "interfaceFont": nil, "interfaceFontSize": 14, "interfaceScale": 1, "openWorkspaceNewWindow": nil, "proxy": nil, "themeDark": "yeek-dark", "themeLight": "yeek-light", "updateChannel": "stable", "hideLicenseBadge": true, "promptFeedback": false, "autoupdate": true, "autoDownloadUpdates": true, "checkNotifications": false, "mcpServerEnabled": false, "hotkeys": Object{}})
 	case "workspace":
 		maps.Copy(m, Object{"name": "My Workspace", "description": "", "authentication": Object{}, "authenticationType": nil, "headers": []any{}, "encryptionKeyChallenge": nil, "settingValidateCertificates": true, "settingFollowRedirects": true, "settingRequestTimeout": 0, "settingRequestMessageSize": 64 * 1024 * 1024, "settingDnsOverrides": []any{}, "settingSendCookies": true, "settingStoreCookies": true, "settingHttpVersion": "auto"})
 	case "folder":

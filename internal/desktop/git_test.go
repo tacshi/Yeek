@@ -67,8 +67,6 @@ func TestGitFooterSetupAndCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	// Yaak's commit tree: the workspace over its folder and requests, each
-	// new, with a stray file under Other files.
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("notes"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -80,8 +78,6 @@ func TestGitFooterSetupAndCommit(t *testing.T) {
 			t.Fatalf("tree lacks %q: %v", want, tt.Texts())
 		}
 	}
-	// A folder's box stages what is in it; the folder's itself is then
-	// checked, and the workspace's mixed.
 	if err := tt.Click("Stage change Folder"); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +91,6 @@ func TestGitFooterSetupAndCommit(t *testing.T) {
 		t.Fatal("workspace not mixed", checked, mixed)
 	}
 	snapshot(t, tt, "git_commit_tree")
-	// Collapsing the folder hides what is in it.
 	if err := tt.Click("Collapse Folder"); err != nil {
 		t.Fatal(err)
 	}
@@ -105,8 +100,6 @@ func TestGitFooterSetupAndCommit(t *testing.T) {
 	if err := tt.Click("Expand Folder"); err != nil {
 		t.Fatal(err)
 	}
-	// The workspace's box, mixed, stages everything of the workspace; the
-	// stray file stays as it was.
 	if err := tt.Click("Unstage change " + workspaceName); err != nil {
 		t.Fatal(err)
 	}
@@ -136,8 +129,6 @@ func TestGitFooterSetupAndCommit(t *testing.T) {
 		t.Fatal("workspace not synced to the directory", entries)
 	}
 
-	// Yaak's diff panel: a change selected shows its model before and
-	// after, and Discard Changes puts it back.
 	var file string
 	for _, entry := range entries {
 		data, _ := os.ReadFile(filepath.Join(dir, entry.Name())) // #nosec G304 -- a file of the test's directory.
@@ -199,8 +190,6 @@ func TestGitFooterSetupAndCommit(t *testing.T) {
 		t.Fatal(a.dialog, a.gitState.Files, tt.Texts())
 	}
 
-	// Yaak's File History, from the sidebar: the commits changing the
-	// file, the diff of the one selected, and Restore File.
 	a.dialogOpen = false
 	data, _ := os.ReadFile(filepath.Join(dir, file)) // #nosec G304 -- a file of the test's directory.
 	if err := os.WriteFile(filepath.Join(dir, file), []byte(strings.Replace(string(data), "name: Alpha", "name: Delta", 1)), 0o600); err != nil {
@@ -215,8 +204,6 @@ func TestGitFooterSetupAndCommit(t *testing.T) {
 	if err := a.syncNow(a.workspace, dir); err != nil {
 		t.Fatal(err)
 	}
-	// The app's subscription to the engine's changes, which the test does
-	// not start.
 	reload := func() {
 		all, err := a.Engine.Store.List(t.Context(), "", "")
 		if err != nil {
@@ -267,7 +254,6 @@ func TestGitFooterSetupAndCommit(t *testing.T) {
 	if a.dialog != "git_file_history" || !a.dialogOpen || !tt.HasText("Restore File") {
 		t.Fatal("not back in the history", a.dialog)
 	}
-	// The restored change can be restored away from the sidebar.
 	a.dialogOpen = false
 	reload()
 	a.refreshGit()

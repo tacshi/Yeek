@@ -2,9 +2,7 @@ package engine
 
 import "testing"
 
-// Ported from Yaak's crates/yaak-templates/src/strip_json_comments.rs tests,
-// with #710's quote-aware template tags.
-func TestStripJSONCommentsMatchesYaak(t *testing.T) {
+func TestStripJSONComments(t *testing.T) {
 	for _, c := range []struct{ name, input, want string }{
 		{"test_no_comments", `{
   "foo": "bar",
@@ -95,7 +93,6 @@ func TestStripJSONCommentsMatchesYaak(t *testing.T) {
 }
 
 func TestFixJSONBodyStripsOnlyToValidJSON(t *testing.T) {
-	// Yaak's maybe_strip_json_comments: the stripped text when it parses.
 	if got := FixJSONBody("{\r\n  \"a\": 1, // one\r\n}"); got != "{\n  \"a\": 1\n}" {
 		t.Errorf("%q", got)
 	}

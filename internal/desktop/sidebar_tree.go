@@ -2,17 +2,14 @@ package desktop
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// treeState is the sidebar's selection, as Yaak's Tree keeps it: the
-// selected ids, the anchor Shift extends from, and the row last selected,
-// which has the keyboard focus. renaming is the row edited in place.
 type treeState struct {
 	selected            []string
 	anchor, last        string
@@ -22,7 +19,6 @@ type treeState struct {
 	renameFrames        int
 }
 
-// treeDrag is the sidebar rows a drag moves.
 type treeDrag struct{ ids []string }
 
 type treeRow struct {
@@ -30,8 +26,6 @@ type treeRow struct {
 	depth int
 }
 
-// visibleTree lists the sidebar's rows in order, as the filter and the
-// open folders show them.
 func (a *App) visibleTree() []treeRow {
 	var rows []treeRow
 	var walk func(parent string, depth int)
@@ -67,14 +61,13 @@ func (a *App) requestTree(c *ui.Context, p colors) bool {
 	}
 	if len(rows) == 0 && a.search == "" {
 		ui.Column(c).Padding(18, 12).Gap(12).Children(func() {
-			ui.Text(c, "No requests yet").TextColor(p.muted).FontSize(12)
-			if ui.Button(c, "New HTTP Request").Clicked() {
+			ui.Text(c, locales.NoRequestsYet()).TextColor(p.muted).FontSize(12)
+			if ui.Button(c, locales.NewHTTPRequest()).Clicked() {
 				a.addRequest("http_request", "")
 			}
 		})
 		return false
 	}
-	// Dropping past the last row moves to the end of the workspace.
 	end := ui.Box(c).Key("tree-end").Grow(1).MinHeight(32).FillWidth()
 	if _, over := ui.DragOver[treeDrag](end); over {
 		end.Children(func() { ui.Box(c).Height(2).FillWidth().Background(p.accent) })
@@ -116,8 +109,6 @@ func (a *App) treeRow(c *ui.Context, p colors, r treeRow, rows []treeRow) {
 	if row.Focused() {
 		a.sidebarFocused, t.focused = true, true
 	}
-	// Where a drag would drop: before the row, or after it, which for a
-	// folder is its first child.
 	side := 0
 	if _, over := ui.DragOver[treeDrag](row); over {
 		side = dropSide(row)
@@ -140,7 +131,7 @@ func (a *App) treeRow(c *ui.Context, p colors, r treeRow, rows []treeRow) {
 			}
 		}
 		if folder {
-			chevron := ui.ButtonBase(c).Label("Toggle folder").Size(14, 20).Justify(ui.Center)
+			chevron := ui.ButtonBase(c).Label(locales.ToggleFolder()).Size(14, 20).Justify(ui.Center)
 			chevron.Children(func() { disclosure(c, open, 11, p.subtle) })
 			if chevron.Clicked() {
 				a.expanded[id] = !a.expanded[id]
@@ -194,7 +185,6 @@ func (a *App) treeRow(c *ui.Context, p colors, r treeRow, rows []treeRow) {
 	}
 }
 
-// Where over a row a drag drops.
 const (
 	dropBefore = iota + 1
 	dropAfter
@@ -208,8 +198,6 @@ func dropSide(row ui.Element) int {
 	return dropAfter
 }
 
-// selectTreeItem is Yaak's handleSelect: Shift selects the rows from the
-// anchor, Cmd adds or removes a row, and a plain click selects one row.
 func (a *App) selectTreeItem(id string, mods ui.Modifiers, rows []treeRow) {
 	t := &a.tree
 	t.last = id
@@ -239,7 +227,6 @@ func (a *App) selectTreeItem(id string, mods ui.Modifiers, rows []treeRow) {
 	}
 }
 
-// treeKey handles the keys of a focused sidebar row, as Yaak's Tree does.
 func (a *App) treeKey(ev ui.InputEvent, rows []treeRow) bool {
 	t := &a.tree
 	at := slices.IndexFunc(rows, func(r treeRow) bool { return s(r.m, "id") == t.last })
@@ -291,7 +278,6 @@ func (a *App) treeKey(ev ui.InputEvent, rows []treeRow) bool {
 	return true
 }
 
-// hotkeyItem shows the action's first key by a menu item.
 func (a *App) hotkeyItem(item *ui.MenuItem, action string) *ui.MenuItem {
 	if keys := a.hotkeyKeys(action); len(keys) > 0 {
 		item.Shortcut(keys[0].mods, keys[0].key)
@@ -308,7 +294,6 @@ func (a *App) hotkeyMatches(action string, ev ui.InputEvent) bool {
 	return false
 }
 
-// selectedTreeModels returns the selected sidebar items, in sidebar order.
 func (a *App) selectedTreeModels() []engine.Object {
 	var models []engine.Object
 	for _, r := range a.visibleTree() {
@@ -325,11 +310,9 @@ func (a *App) startRename(id string) {
 	}
 }
 
-// renameInput edits a row's name in place: Enter or leaving the field
-// saves it, and Escape gives up.
 func (a *App) renameInput(c *ui.Context, p colors, m engine.Object) {
 	t := &a.tree
-	input := ui.TextInput(c, &t.rename).Label("Rename "+requestName(m)).Placeholder(s(m, "name")).Grow(1).MinWidth(0).Height(24).FontSize(13).Padding(0, 4).Background(p.background).Border(1, p.accent)
+	input := ui.TextInput(c, &t.rename).Label(locales.RenameName(requestName(m))).Placeholder(s(m, "name")).Grow(1).MinWidth(0).Height(24).FontSize(13).Padding(0, 4).Background(p.background).Border(1, p.accent)
 	t.renameFrames++
 	if t.renameFrames == 1 {
 		input.Focus().SetTextSelection(0, utf8.RuneCountInString(t.rename))
@@ -356,8 +339,6 @@ func (a *App) renameInput(c *ui.Context, p colors, m engine.Object) {
 	}
 }
 
-// patchModel saves fields of a model, and of its open draft, which saves
-// the rest later.
 func (a *App) patchModel(id string, patch engine.Object) {
 	m := a.models[id]
 	if m == nil {
@@ -384,8 +365,6 @@ func (a *App) patchModel(id string, patch engine.Object) {
 	a.saveModel(update)
 }
 
-// dropTreeItems drops dragged rows before or after a row, or into a folder
-// dropped after, as its first child.
 func (a *App) dropTreeItems(ids []string, target engine.Object, side int) {
 	id, parent := s(target, "id"), s(target, "folderId")
 	if slices.Contains(ids, id) {
@@ -403,15 +382,12 @@ func (a *App) dropTreeItems(ids []string, target engine.Object, side int) {
 	a.moveTreeItems(ids, parent, at)
 }
 
-// moveTreeItems is Yaak's handleDragEnd: it moves items into parent at
-// insertAt among its children, between their neighbors' sort priorities,
-// or renumbers all the children when there is no room between them.
 func (a *App) moveTreeItems(ids []string, parent string, insertAt int) {
 	var items []engine.Object
 	for _, id := range ids {
 		m := a.models[id]
 		if m == nil || id == parent || a.hasAncestor(parent, id) {
-			continue // not into itself
+			continue
 		}
 		items = append(items, m)
 	}
@@ -452,7 +428,6 @@ func (a *App) moveTreeItems(ids []string, parent string, insertAt int) {
 	}
 }
 
-// hasAncestor reports whether folder id is, or is inside, ancestor.
 func (a *App) hasAncestor(id, ancestor string) bool {
 	for depth := 0; id != "" && depth < 32; depth++ {
 		if id == ancestor {
@@ -463,56 +438,36 @@ func (a *App) hasAncestor(id, ancestor string) bool {
 	return false
 }
 
-// deleteTreeItems asks before deleting sidebar items, as Yaak's
-// deleteModelWithConfirm does.
 func (a *App) deleteTreeItems(ids []string) {
 	if len(ids) == 0 {
 		return
 	}
 	a.deleteIDs = slices.Clone(ids)
-	title := "Delete " + pluralizeCount("Item", len(ids))
+	title := locales.DeleteCountItems(len(ids))
 	if len(ids) == 1 {
-		title = "Delete " + modelTypeLabel(a.models[ids[0]])
+		title = locales.DeleteKind(modelTypeLabel(a.models[ids[0]]))
 	}
 	a.prompt("delete_items", title, "", "")
 }
 
-// pluralize is Yaak's: word, with an s unless count is 1.
-func pluralize(word string, count int) string {
-	if count == 1 {
-		return word
-	}
-	return word + "s"
-}
-
-func pluralizeCount(word string, count int) string {
-	if count == 1 {
-		return "1 " + word
-	}
-	return strconv.Itoa(count) + " " + word + "s"
-}
-
-// modelTypeLabel is Yaak's name for a kind of model.
 func modelTypeLabel(m engine.Object) string {
 	switch s(m, "model") {
 	case "http_request":
-		return "HTTP Request"
+		return locales.HTTPRequest()
 	case "grpc_request":
-		return "gRPC Request"
+		return locales.GRPCRequest()
 	case "websocket_request":
-		return "WebSocket Request"
+		return locales.WebSocketRequest()
 	case "folder":
-		return "Folder"
+		return locales.Folder()
 	case "environment":
-		return "Environment"
+		return locales.Environment()
 	case "workspace":
-		return "Workspace"
+		return locales.Workspace()
 	}
-	return "Item"
+	return locales.Item()
 }
 
-// treeMenu is Yaak's sidebar context menu, for the selected rows when the
-// row is one of them.
 func (a *App) treeMenu(menu *ui.Menu, m engine.Object) {
 	items := []engine.Object{m}
 	if slices.Contains(a.tree.selected, s(m, "id")) {
@@ -526,20 +481,20 @@ func (a *App) treeMenu(menu *ui.Menu, m engine.Object) {
 	id := s(child, "id")
 	folder := s(child, "model") == "folder"
 	onlyHTTP := !slices.ContainsFunc(items, func(m engine.Object) bool { return s(m, "model") != "http_request" })
-	if one && folder && menu.Item("Folder Settings").Chosen() {
+	if one && folder && menu.Item(locales.FolderSettings()).Chosen() {
 		a.openScope(child)
 	}
-	if onlyHTTP && a.hotkeyItem(menu.Item("Send"), "request.send").Chosen() {
+	if onlyHTTP && a.hotkeyItem(menu.Item(locales.Send()), "request.send").Chosen() {
 		a.sendRequests(treeIDs(items))
 	}
-	if one && folder && menu.Item("Send All").Disabled(len(a.folderRequests(id)) == 0).Chosen() {
+	if one && folder && menu.Item(locales.SendAll()).Disabled(len(a.folderRequests(id)) == 0).Chosen() {
 		a.sendFolder(id)
 	}
-	if one && s(child, "model") == "http_request" && menu.Item("Copy as Curl").Chosen() {
+	if one && s(child, "model") == "http_request" && menu.Item(locales.CopyAsCurl()).Chosen() {
 		a.openRequest(id)
 		a.copyCurl()
 	}
-	if one && s(child, "model") == "grpc_request" && menu.Item("Copy as gRPCurl").Chosen() {
+	if one && s(child, "model") == "grpc_request" && menu.Item(locales.CopyAsGRPCurl()).Chosen() {
 		a.copyGrpcurl(id)
 	}
 	if one {
@@ -550,28 +505,27 @@ func (a *App) treeMenu(menu *ui.Menu, m engine.Object) {
 			}
 		}
 	}
-	// Yaak's git items, after a separator from the items above, if any.
 	a.gitTreeMenu(menu, items, onlyHTTP || one && (folder || s(child, "model") == "grpc_request" || len(a.Engine.PluginActions()) > 0))
 	menu.Separator()
-	if one && a.hotkeyItem(menu.Item("Rename"), "sidebar.selected.rename").Chosen() {
+	if one && a.hotkeyItem(menu.Item(locales.Rename()), "sidebar.selected.rename").Chosen() {
 		a.startRename(id)
 	}
-	if a.hotkeyItem(menu.Item("Duplicate"), "model.duplicate").Chosen() {
+	if a.hotkeyItem(menu.Item(locales.Duplicate()), "model.duplicate").Chosen() {
 		for _, m := range items {
 			a.duplicate(s(m, "id"))
 		}
 	}
 	requests := slices.DeleteFunc(slices.Clone(items), func(m engine.Object) bool { return !strings.HasSuffix(s(m, "model"), "_request") })
 	if len(a.list("workspace")) > 1 && len(requests) > 0 && len(requests) == len(items) {
-		label := "Move"
+		label := locales.Move()
 		if len(items) > 1 {
-			label = "Move " + pluralizeCount("Request", len(requests))
+			label = locales.MoveCountRequests(len(requests))
 		}
 		if a.hotkeyItem(menu.Item(label), "sidebar.selected.move").Chosen() {
 			a.moveToWorkspace(requests)
 		}
 	}
-	if a.hotkeyItem(menu.Item("Delete"), "sidebar.selected.delete").Chosen() {
+	if a.hotkeyItem(menu.Item(locales.Delete()), "sidebar.selected.delete").Chosen() {
 		a.deleteTreeItems(treeIDs(items))
 	}
 	if one && folder {

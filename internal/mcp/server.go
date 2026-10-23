@@ -19,11 +19,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// Tool inputs, mirroring the zod schemas of the @yaak/mcp-server plugin
-// that Yaak's tools replace. Optional fields are pointers that omit when
-// unset, so an input, marshaled, holds only what the caller gave, ready to
-// lay over a model.
-
 const (
 	workspaceIDText = "Workspace ID (required if multiple workspaces are open)"
 	bodyTypeText    = `Body type. Supported values: "binary", "graphql", "application/x-www-form-urlencoded", "multipart/form-data", or any text-based type (e.g., "application/json", "text/plain")`
@@ -44,7 +39,6 @@ const (
 - "none": {}`
 )
 
-// Pair is a header or URL parameter; enabled unless the caller says not.
 type Pair struct {
 	Name    string `json:"name"`
 	Value   string `json:"value"`
@@ -66,7 +60,6 @@ type SendHTTPRequestParams struct {
 	WorkspaceID   *string `json:"workspaceId,omitempty"`
 }
 
-// requestFields are the fields of a request a caller may give.
 type requestFields struct {
 	Name               *string         `json:"name,omitempty"`
 	Method             *string         `json:"method,omitempty"`
@@ -102,7 +95,6 @@ type GetFolderParams struct {
 	WorkspaceID *string `json:"workspaceId,omitempty"`
 }
 
-// folderFields are the fields of a folder a caller may give.
 type folderFields struct {
 	FolderID           *string         `json:"folderId,omitempty"`
 	Description        *string         `json:"description,omitempty"`
@@ -137,7 +129,6 @@ var (
 	toastColors = []string{"primary", "secondary", "info", "success", "notice", "warning", "danger"}
 )
 
-// descriptions are the inputs' field descriptions, by field.
 var descriptions = map[string]string{
 	"workspaceId": workspaceIDText, "bodyType": bodyTypeText, "body": bodyText,
 	"authenticationType": authenticationTypeText, "authentication": authenticationText,
@@ -148,8 +139,6 @@ var descriptions = map[string]string{
 	"sortPriority": "Sort priority for ordering",
 }
 
-// schemaFor is T's input schema, with the descriptions given over the
-// shared ones.
 func schemaFor[T any](given map[string]string) *jsonschema.Schema {
 	schema, err := jsonschema.For[T](nil)
 	if err != nil {
@@ -178,7 +167,6 @@ func anySlice(values []string) []any {
 	return out
 }
 
-// NewServer is Yeek's MCP server, its tools acting through host.
 func NewServer(host Host, version string) *mcp.Server {
 	s := &server{host: host}
 	srv := mcp.NewServer(&mcp.Implementation{Name: "yeek-mcp-server", Version: version}, &mcp.ServerOptions{Logger: slog.New(slog.DiscardHandler)})
@@ -215,11 +203,10 @@ func text(s string) (result, any, error) {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: s}}}, nil, nil
 }
 
-// toJSON is serde_json's to_string_pretty of the value.
 func toJSON(v any) (result, any, error) {
 	data, err := json.Marshal(v, jsontext.WithIndent("  "), json.Deterministic(true), json.FormatNilMapAsNull(true))
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to serialize result: %w", err) //nolint:staticcheck // Yaak's message, shown as is
+		return nil, nil, fmt.Errorf("Failed to serialize result: %w", err) //nolint:staticcheck
 	}
 	return text(string(data))
 }
@@ -235,14 +222,14 @@ func (s *server) resolveWorkspace(id *string) (Workspace, error) {
 			for i, w := range workspaces {
 				list = append(list, strconv.Itoa(i+1)+". "+w.Name+" (ID: "+w.ID+")")
 			}
-			return Workspace{}, errors.New("Multiple workspaces are open. Please specify which workspace to use.\n\n" + //nolint:staticcheck // Yaak's message, shown as is
+			return Workspace{}, errors.New("Multiple workspaces are open. Please specify which workspace to use.\n\n" + //nolint:staticcheck
 				"Currently open workspaces:\n" + strings.Join(list, "\n") + "\n\n" +
 				"You can use the list_workspaces tool to get workspace IDs, then use other tools " +
 				"with the workspace context. For example, ask the user which workspace they want " +
 				"to work with by presenting them with the numbered list above.")
 		}
 		if len(workspaces) == 0 {
-			return Workspace{}, errors.New("No workspace is open") //nolint:staticcheck // Yaak's message, shown as is
+			return Workspace{}, errors.New("No workspace is open") //nolint:staticcheck
 		}
 		return workspaces[0], nil
 	}
@@ -253,7 +240,7 @@ func (s *server) resolveWorkspace(id *string) (Workspace, error) {
 	for _, w := range workspaces {
 		list = append(list, "- "+w.Name+" (ID: "+w.ID+")")
 	}
-	return Workspace{}, fmt.Errorf("Workspace with ID %q not found.\n\nAvailable workspaces:\n%s", *id, strings.Join(list, "\n")) //nolint:staticcheck // Yaak's message, shown as is
+	return Workspace{}, fmt.Errorf("Workspace with ID %q not found.\n\nAvailable workspaces:\n%s", *id, strings.Join(list, "\n")) //nolint:staticcheck
 }
 
 func (s *server) findFolder(workspace, id string) (engine.Object, error) {
@@ -269,10 +256,6 @@ func (s *server) findFolder(workspace, id string) (engine.Object, error) {
 	return nil, nil
 }
 
-// givenFields are the fields of an input the caller gave, by their model
-// names, without the ones that pick what the tool acts on. It marshals with
-// encoding/json v1, whose omitempty leaves out only unset pointers, so an
-// empty list given (headers: []) still clears one.
 func givenFields(input any) engine.Object {
 	data, err := jsonv1.Marshal(input)
 	if err != nil {
@@ -295,7 +278,6 @@ func givenFields(input any) engine.Object {
 	return fields
 }
 
-// merge lays the given fields over existing, keeping its id.
 func merge(existing, given engine.Object) engine.Object {
 	out := maps.Clone(existing)
 	maps.Copy(out, given)
@@ -380,7 +362,6 @@ func (s *server) sendHTTPRequest(ctx context.Context, _ *mcp.CallToolRequest, p 
 	if err != nil {
 		return nil, nil, err
 	}
-	// Plugins never saw where the host keeps the body, so neither do MCP clients.
 	response = maps.Clone(response)
 	delete(response, "bodyPath")
 	return toJSON(response)
@@ -475,7 +456,7 @@ func (s *server) updateFolder(_ context.Context, _ *mcp.CallToolRequest, p Updat
 		return nil, nil, err
 	}
 	if existing == nil {
-		return nil, nil, fmt.Errorf("Folder with ID %s not found", p.ID) //nolint:staticcheck // Yaak's message, shown as is
+		return nil, nil, fmt.Errorf("Folder with ID %s not found", p.ID) //nolint:staticcheck
 	}
 	folder, err := s.host.UpsertFolder(merge(existing, givenFields(p)))
 	if err != nil {

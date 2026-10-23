@@ -17,6 +17,7 @@ import (
 	"github.com/egoist/mygo/yeekui"
 	"github.com/egoist/mygo/yeekui/markdown"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
 type KV struct {
@@ -27,17 +28,15 @@ type KV struct {
 	Enabled               bool
 }
 type Draft struct {
-	FilePath                                                string
-	OperationName, DescriptionMode                          string
-	OperationExplicit                                       bool
-	FilterProvider                                          string
-	FilterPending, FilterOpen, InheritedClosed              bool
-	TreeOpen                                                map[string]bool
-	PrettySource, PrettyBody                                string
-	ResponseFilter, FilteredBody, FilterError, ResponseMode string
-	FilterSource                                            string
-	// ConnEvent is the gRPC or WebSocket event shown (-1 for none), of
-	// ConnEventFor's connection; HexDump and ShowLarge are how it shows.
+	FilePath                                                                                                          string
+	OperationName, DescriptionMode                                                                                    string
+	OperationExplicit                                                                                                 bool
+	FilterProvider                                                                                                    string
+	FilterPending, FilterOpen, InheritedClosed                                                                        bool
+	TreeOpen                                                                                                          map[string]bool
+	PrettySource, PrettyBody                                                                                          string
+	ResponseFilter, FilteredBody, FilterError, ResponseMode                                                           string
+	FilterSource                                                                                                      string
 	ConnEvent                                                                                                         int
 	ConnEventFor                                                                                                      string
 	EventSplit                                                                                                        float32
@@ -57,33 +56,30 @@ type Draft struct {
 	outline                                                                                                           *jsonOutline
 	outlineSource, crumbKey                                                                                           string
 
-	// AuthDisabled is Yaak's authentication.disabled: nil or false (enabled),
-	// true (disabled), or a template ("Enabled when...").
 	AuthDisabled any
 	authPreview  authConditionPreview
 }
 
 type App struct {
-	oauthBrowserCount       int
-	oauthEditors            map[string]*oauthEditorState
-	methodError             string
-	partEditor              *multipartPartEditor
-	exports                 *exportDialog
-	imports                 *importDialog
-	importCounts            map[string]int
-	createWorkspace         *createWorkspaceForm
-	cloneGit                *cloneGitForm
-	certificates            *certificateEditor
-	proxyEditor             *proxyEditor
-	workspaceNetworkEditors map[string]*workspaceNetworkEditor
-	inView                  bool
-	afterInput              []func()
-	cookieSelections        map[string]string
-	cookies                 *cookieManager
-	modelVersion            uint64
-	templateCache           templateVariableCache
-	templateForm            *templateForm
-	// encryptionGate waits for Workspace Encryption to be set up.
+	oauthBrowserCount          int
+	oauthEditors               map[string]*oauthEditorState
+	methodError                string
+	partEditor                 *multipartPartEditor
+	exports                    *exportDialog
+	imports                    *importDialog
+	importCounts               map[string]int
+	createWorkspace            *createWorkspaceForm
+	cloneGit                   *cloneGitForm
+	certificates               *certificateEditor
+	proxyEditor                *proxyEditor
+	workspaceNetworkEditors    map[string]*workspaceNetworkEditor
+	inView                     bool
+	afterInput                 []func()
+	cookieSelections           map[string]string
+	cookies                    *cookieManager
+	modelVersion               uint64
+	templateCache              templateVariableCache
+	templateForm               *templateForm
 	encryptionGate             *encryptionGate
 	editors                    map[string]*documentEditor
 	workerDone                 chan struct{}
@@ -95,30 +91,27 @@ type App struct {
 	docsSplit                  float32
 	scopeDraft, workspaceDraft *Draft
 
-	gitState                                  *engine.GitStatus
-	gitInfo                                   *engine.GitBranchInfo
-	gitNoRepo                                 bool
-	gitRefreshed                              time.Time
-	gitCommitMessage, syncing, divergedChoice string
-	// gitDiff is the commit dialog's diff panel.
-	gitDiff                               *gitDiffPanel
-	fileHistory                           *fileHistory
-	commitCollapsed                       map[string]bool
-	fonts                                 *systemFonts
-	markdown                              *markdown.Options
-	gitCommitSplit, gitCommitMessageSplit float32
-	notEmptySyncDir                       string
-	switchTarget, moveTarget              string
-	rememberWindow                        bool
-	moving                                []string
-	// OpenWorkspace opens a workspace in a new window.
-	OpenWorkspace func(id string)
-	gitRemotes    []engine.GitRemoteInfo
-	diverged      *engine.GitResult
-	asking        *askState
-	stopSync      func()
-	syncReview    *syncReview
-	// snapshot is what MCP tools read of the window, off its thread.
+	gitState                                   *engine.GitStatus
+	gitInfo                                    *engine.GitBranchInfo
+	gitNoRepo                                  bool
+	gitRefreshed                               time.Time
+	gitCommitMessage, syncing, divergedChoice  string
+	gitDiff                                    *gitDiffPanel
+	fileHistory                                *fileHistory
+	commitCollapsed                            map[string]bool
+	fonts                                      *systemFonts
+	markdown                                   *markdown.Options
+	gitCommitSplit, gitCommitMessageSplit      float32
+	notEmptySyncDir                            string
+	switchTarget, moveTarget                   string
+	rememberWindow                             bool
+	moving                                     []string
+	OpenWorkspace                              func(id string)
+	gitRemotes                                 []engine.GitRemoteInfo
+	diverged                                   *engine.GitResult
+	asking                                     *askState
+	stopSync                                   func()
+	syncReview                                 *syncReview
 	snapshot                                   atomic.Pointer[windowSnapshot]
 	connections                                map[string]engine.Object
 	closing                                    bool
@@ -164,18 +157,13 @@ type App struct {
 	environmentColor                           string
 	toasts                                     []toastItem
 	toastSerial                                int
-	checkingUpdates                            bool // a check the user asked for is under way
 	folderEnvID, hotkeyFilter, recordingHotkey string
 	folderEnvRows                              []KV
 	valuePrompts                               []*valuePrompt
 	testMode                                   bool
-	// preview is the web view of response previews; openPreview makes it
-	// in place of the window, for tests.
-	preview     *responsePreview
-	openPreview func() (ui.NativeWebView, func(string), func(float64), error)
-	// confirmMessage answers confirmNative in place of the system's
-	// message box, for tests.
-	confirmMessage func(message, confirm string) bool
+	preview                                    *responsePreview
+	openPreview                                func() (ui.NativeWebView, func(string), func(float64), error)
+	confirmMessage                             func(message, confirm string) bool
 }
 
 func New(e *engine.Engine) (*App, error) {
@@ -234,7 +222,6 @@ func (a *App) OpenWindow() {
 		a.run(func() (func(), error) { return func() { a.closing = true; a.Window.Close() }, nil })
 	})
 	a.Window.OnFileDrop(func(event *mygo.FileDropEvent) {
-		// The Import Data dialog's source list takes the files dropped on it.
 		if a.dialogOpen && a.dialog == "imports" {
 			return
 		}
@@ -244,6 +231,7 @@ func (a *App) OpenWindow() {
 	})
 	a.Window.OnClosed(func() { a.Close() })
 	a.Window.OnFocus(a.maybeCheckForUpdates)
+	a.applySavedLanguage()
 	go a.worker()
 	if a.active != "" {
 		a.openRequest(a.active)
@@ -388,7 +376,6 @@ func (a *App) list(kind string) []engine.Object {
 	return out
 }
 
-// ShowWorkspace opens a workspace in the window.
 func (a *App) ShowWorkspace(id string) { a.switchWorkspace(id) }
 
 func (a *App) switchWorkspace(id string) {
@@ -419,7 +406,6 @@ func (a *App) openRequest(id string) {
 		return
 	}
 	a.activeFolder = ""
-	// Most recent first, as Yaak's recent requests are.
 	a.tabs = append([]string{id}, slices.DeleteFunc(a.tabs, func(tab string) bool { return tab == id })...)
 	a.active = id
 	if a.drafts[id] == nil {
@@ -498,8 +484,6 @@ func (a *App) addRequest(kind, folder string) {
 	a.createRequest(engine.Object{"model": kind, "folderId": nilIfEmpty(folder)})
 }
 
-// createRequest is Yaak's createRequestAndNavigate: a new request goes
-// below the active one, in its folder, else at the top.
 func (a *App) createRequest(m engine.Object) {
 	m["workspaceId"] = a.workspace
 	if active := a.models[a.active]; active != nil && a.activeFolder == "" {
@@ -528,9 +512,6 @@ func (a *App) send() {
 	if d == nil {
 		return
 	}
-	// Yaak's request.send: an open WebSocket, or a gRPC call streaming
-	// from the client, sends the message; another running call is
-	// cancelled.
 	if a.running[d.ID] {
 		kind := a.grpcMethodType(d)
 		switch {
@@ -575,10 +556,8 @@ func (a *App) send() {
 	})
 }
 
-// sendFolder sends every HTTP request in a folder one at a time, in sidebar order.
 func (a *App) sendFolder(folder string) { a.sendRequests(a.folderRequests(folder)) }
 
-// sendRequests sends HTTP requests one after another, as Send All does.
 func (a *App) sendRequests(ids []string) {
 	if a.deferUntilInputs(func() { a.sendRequests(ids) }) {
 		return
@@ -641,7 +620,7 @@ func sendAllError(failed, total int, last error) error {
 	if total == 1 {
 		return last
 	}
-	return fmt.Errorf("%d of %d requests failed: %w", failed, total, last)
+	return fmt.Errorf("%s: %w", locales.FailedOfTotalRequestsFailed(failed, total), last)
 }
 func (a *App) prompt(kind, title, value, id string) {
 	a.errorMessage = ""
@@ -678,7 +657,6 @@ func (a *App) duplicate(id string) {
 		m, err := a.Engine.Store.Get(a.ctx, created)
 		var copies []engine.Object
 		if err == nil && s(m, "model") == "folder" {
-			// The folder's contents were copied with it.
 			copies, err = a.Engine.Store.List(a.ctx, "", s(m, "workspaceId"))
 		}
 		return func() {
@@ -820,13 +798,10 @@ func nilIfEmpty(s string) any {
 	return s
 }
 
-// requestName is Yaak's resolvedModelName: the name, else for a request
-// what its URL or kind says.
 func requestName(m engine.Object) string {
 	if _, request := m["url"]; !request || s(m, "name") != "" {
 		return s(m, "name")
 	}
-	// Template tags show what is inside them.
 	url := s(m, "url")
 	r := []rune(url)
 	var b strings.Builder
@@ -841,15 +816,14 @@ func requestName(m engine.Object) string {
 	if strings.TrimSpace(url) == "" {
 		switch {
 		case s(m, "model") == "http_request" && s(m, "bodyType") == "graphql":
-			return "GraphQL Request"
+			return locales.GraphQLRequest()
 		case s(m, "model") == "http_request":
-			return "HTTP Request"
+			return locales.HTTPRequest()
 		case s(m, "model") == "websocket_request":
-			return "WebSocket Request"
+			return locales.WebSocketRequest()
 		}
-		return "gRPC Request"
+		return locales.GRPCRequest()
 	}
-	// gRPC requests are named by their method.
 	if s(m, "model") == "grpc_request" && s(m, "service") != "" && s(m, "method") != "" {
 		service := s(m, "service")
 		return service[strings.LastIndex(service, ".")+1:] + "/" + s(m, "method")
@@ -862,7 +836,6 @@ func requestName(m engine.Object) string {
 	return url
 }
 
-// sizeText is Yaak's formatSize: decimal units, to one place.
 func sizeText(n float64) string {
 	num, unit := n, "B"
 	switch {
@@ -881,7 +854,6 @@ func stringifyDraft(d *Draft) string {
 	return string(value)
 }
 
-// background starts I/O after queued model writes, keeping saves and window closing responsive.
 func (a *App) background(job func() (func(), error)) {
 	if a.testMode {
 		a.run(job)

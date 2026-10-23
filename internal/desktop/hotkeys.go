@@ -9,50 +9,48 @@ import (
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
+	"yeek/locales"
 )
 
-// keyCombo is one key with its modifiers; ui.Cmd is Command on macOS and
-// Control elsewhere.
 type keyCombo struct {
 	mods ui.Modifiers
 	key  ui.Key
-	name string // how the key is shown, as "K" or "↩"
+	name string
 }
 
-// hotkey mirrors an entry of Yaak's hotkey table: the action, its label in
-// Yaak's words, and its keys (the first is the one shown).
 type hotkey struct {
-	action, label string
-	keys          []keyCombo
+	action string
+	label  func() string
+	keys   []keyCombo
 }
 
 var hotkeys = []hotkey{
-	{"app.zoom_in", "Zoom In", []keyCombo{{ui.Cmd, ui.KeyEqual, "="}}},
-	{"app.zoom_out", "Zoom Out", []keyCombo{{ui.Cmd, ui.KeyMinus, "-"}}},
-	{"app.zoom_reset", "Zoom to Actual Size", []keyCombo{{ui.Cmd, ui.Key0, "0"}}},
-	{"command_palette.toggle", "Toggle Command Palette", []keyCombo{{ui.Cmd, ui.KeyK, "K"}}},
-	{"cookies_editor.show", "Show Cookies", []keyCombo{{ui.Cmd | ui.Shift, ui.KeyK, "K"}}},
-	{"editor.autocomplete", "Trigger Autocomplete", []keyCombo{{ui.Ctrl, ui.KeySpace, "Space"}}},
-	{"environment_editor.toggle", "Edit Environments", []keyCombo{{ui.Cmd | ui.Shift, ui.KeyE, "E"}}},
-	{"request.rename", "Rename Active Request", []keyCombo{{ui.Ctrl | ui.Shift, ui.KeyR, "R"}}},
-	{"request.send", "Send Active Request", []keyCombo{{ui.Cmd, ui.KeyEnter, "↩"}, {ui.Cmd, ui.KeyR, "R"}}},
-	{"hotkeys.showHelp", "Show Keyboard Shortcuts", []keyCombo{{ui.Cmd | ui.Shift, ui.KeySlash, "/"}}},
-	{"model.create", "New Request", []keyCombo{{ui.Cmd, ui.KeyN, "N"}}},
-	{"model.duplicate", "Duplicate Request", []keyCombo{{ui.Cmd, ui.KeyD, "D"}}},
-	{"switcher.next", "Go To Previous Request", []keyCombo{{ui.Ctrl | ui.Shift, ui.KeyTab, "Tab"}}},
-	{"switcher.prev", "Go To Next Request", []keyCombo{{ui.Ctrl, ui.KeyTab, "Tab"}}},
-	{"switcher.toggle", "Toggle Request Switcher", []keyCombo{{ui.Cmd, ui.KeyP, "P"}}},
-	{"settings.show", "Open Settings", []keyCombo{{ui.Cmd, ui.KeyComma, ","}}},
-	{"sidebar.filter", "Filter Sidebar", []keyCombo{{ui.Cmd, ui.KeyF, "F"}}},
-	{"sidebar.expand_all", "Expand All Folders", []keyCombo{{ui.Cmd | ui.Shift, ui.KeyEqual, "="}}},
-	{"sidebar.collapse_all", "Collapse All Folders", []keyCombo{{ui.Cmd | ui.Shift, ui.KeyMinus, "-"}}},
-	{"sidebar.selected.delete", "Delete Selected Sidebar Item", []keyCombo{{0, ui.KeyDelete, "Delete"}, {ui.Cmd, ui.KeyBackspace, "⌫"}}},
-	{"sidebar.selected.duplicate", "Duplicate Selected Sidebar Item", []keyCombo{{ui.Cmd, ui.KeyD, "D"}}},
-	{"sidebar.selected.move", "Move Selected to Workspace", nil},
-	{"sidebar.selected.rename", "Rename Selected Sidebar Item", []keyCombo{{0, ui.KeyEnter, "↩"}}},
-	{"sidebar.focus", "Focus or Toggle Sidebar", []keyCombo{{ui.Cmd, ui.KeyB, "B"}}},
-	{"url_bar.focus", "Focus URL", []keyCombo{{ui.Cmd, ui.KeyL, "L"}}},
-	{"workspace_settings.show", "Open Workspace Settings", []keyCombo{{ui.Cmd, ui.KeySemicolon, ";"}}},
+	{"app.zoom_in", locales.ZoomIn, []keyCombo{{ui.Cmd, ui.KeyEqual, "="}}},
+	{"app.zoom_out", locales.ZoomOut, []keyCombo{{ui.Cmd, ui.KeyMinus, "-"}}},
+	{"app.zoom_reset", locales.ZoomToActualSize, []keyCombo{{ui.Cmd, ui.Key0, "0"}}},
+	{"command_palette.toggle", locales.ToggleCommandPalette, []keyCombo{{ui.Cmd, ui.KeyK, "K"}}},
+	{"cookies_editor.show", locales.ShowCookies, []keyCombo{{ui.Cmd | ui.Shift, ui.KeyK, "K"}}},
+	{"editor.autocomplete", locales.TriggerAutocomplete, []keyCombo{{ui.Ctrl, ui.KeySpace, "Space"}}},
+	{"environment_editor.toggle", locales.EditEnvironments, []keyCombo{{ui.Cmd | ui.Shift, ui.KeyE, "E"}}},
+	{"request.rename", locales.RenameActiveRequest, []keyCombo{{ui.Ctrl | ui.Shift, ui.KeyR, "R"}}},
+	{"request.send", locales.SendActiveRequest, []keyCombo{{ui.Cmd, ui.KeyEnter, "↩"}, {ui.Cmd, ui.KeyR, "R"}}},
+	{"hotkeys.showHelp", locales.ShowKeyboardShortcuts, []keyCombo{{ui.Cmd | ui.Shift, ui.KeySlash, "/"}}},
+	{"model.create", locales.NewRequest, []keyCombo{{ui.Cmd, ui.KeyN, "N"}}},
+	{"model.duplicate", locales.DuplicateRequest, []keyCombo{{ui.Cmd, ui.KeyD, "D"}}},
+	{"switcher.next", locales.GoToPreviousRequest, []keyCombo{{ui.Ctrl | ui.Shift, ui.KeyTab, "Tab"}}},
+	{"switcher.prev", locales.GoToNextRequest, []keyCombo{{ui.Ctrl, ui.KeyTab, "Tab"}}},
+	{"switcher.toggle", locales.ToggleRequestSwitcher, []keyCombo{{ui.Cmd, ui.KeyP, "P"}}},
+	{"settings.show", locales.OpenSettings, []keyCombo{{ui.Cmd, ui.KeyComma, ","}}},
+	{"sidebar.filter", locales.FilterSidebar, []keyCombo{{ui.Cmd, ui.KeyF, "F"}}},
+	{"sidebar.expand_all", locales.ExpandAllFolders, []keyCombo{{ui.Cmd | ui.Shift, ui.KeyEqual, "="}}},
+	{"sidebar.collapse_all", locales.CollapseAllFolders, []keyCombo{{ui.Cmd | ui.Shift, ui.KeyMinus, "-"}}},
+	{"sidebar.selected.delete", locales.DeleteSelectedSidebarItem, []keyCombo{{0, ui.KeyDelete, "Delete"}, {ui.Cmd, ui.KeyBackspace, "⌫"}}},
+	{"sidebar.selected.duplicate", locales.DuplicateSelectedSidebarItem, []keyCombo{{ui.Cmd, ui.KeyD, "D"}}},
+	{"sidebar.selected.move", locales.MoveSelectedToWorkspace, nil},
+	{"sidebar.selected.rename", locales.RenameSelectedSidebarItem, []keyCombo{{0, ui.KeyEnter, "↩"}}},
+	{"sidebar.focus", locales.FocusOrToggleSidebar, []keyCombo{{ui.Cmd, ui.KeyB, "B"}}},
+	{"url_bar.focus", locales.FocusURL, []keyCombo{{ui.Cmd, ui.KeyL, "L"}}},
+	{"workspace_settings.show", locales.OpenWorkspaceSettings, []keyCombo{{ui.Cmd, ui.KeySemicolon, ";"}}},
 }
 
 func findHotkey(action string) (hotkey, bool) {
@@ -64,8 +62,6 @@ func findHotkey(action string) (hotkey, bool) {
 	return hotkey{}, false
 }
 
-// hotkeyKeys are the action's keys: the user's from Settings → Shortcuts
-// when set (an empty list turns the action off), else the defaults.
 func (a *App) hotkeyKeys(action string) []keyCombo {
 	if custom, ok := o(a.settings, "hotkeys")[action].([]any); ok {
 		keys := []keyCombo{}
@@ -81,8 +77,6 @@ func (a *App) hotkeyKeys(action string) []keyCombo {
 	return h.keys
 }
 
-// hotkeyText shows the action's first key as the platform writes it: the
-// symbols ⌃ ⌥ ⇧ ⌘ on macOS, words joined with + elsewhere.
 func (a *App) hotkeyText(action string) string {
 	keys := a.hotkeyKeys(action)
 	if len(keys) == 0 {
@@ -112,8 +106,6 @@ func comboText(k keyCombo) string {
 	return strings.Join(parts, "+")
 }
 
-// pressed reports whether one of the action's keys was pressed this frame,
-// unless a focused element took it first.
 func (a *App) pressed(c *ui.Context, action string) bool {
 	hit := false
 	for _, k := range a.hotkeyKeys(action) {
@@ -124,7 +116,6 @@ func (a *App) pressed(c *ui.Context, action string) bool {
 	return hit
 }
 
-// hotkeyTable lists actions with their keys, as Yaak's HotkeyList does.
 func hotkeyTable(actions ...string) []hotkey {
 	result := make([]hotkey, 0, len(actions))
 	for _, action := range actions {
@@ -135,7 +126,6 @@ func hotkeyTable(actions ...string) []hotkey {
 	return result
 }
 
-// handleHotkeys runs the window's shortcuts while no dialog is open.
 func (a *App) handleHotkeys(c *ui.Context) {
 	if len(a.toasts) > 0 && c.Shortcut(0, ui.KeyEscape) {
 		a.toasts = nil
@@ -143,7 +133,6 @@ func (a *App) handleHotkeys(c *ui.Context) {
 	if a.pressed(c, "command_palette.toggle") {
 		a.togglePalette()
 	}
-	// Yaak's useZoom.
 	scale := cmp.Or(n(a.settings, "interfaceScale"), 1)
 	if a.pressed(c, "app.zoom_in") {
 		a.saveSetting("interfaceScale", min(1.8, scale*1.1))
@@ -155,15 +144,14 @@ func (a *App) handleHotkeys(c *ui.Context) {
 		a.saveSetting("interfaceScale", 1.0)
 	}
 	if a.pressed(c, "settings.show") {
-		a.prompt("settings", "Settings", "", "")
+		a.prompt("settings", locales.Settings(), "", "")
 	}
 	if a.pressed(c, "hotkeys.showHelp") {
-		a.prompt("shortcuts", "Keyboard Shortcuts", "", "")
+		a.prompt("shortcuts", locales.KeyboardShortcuts(), "", "")
 	}
 	if a.workspace == "" {
 		return
 	}
-	// The focused sidebar sends and duplicates its selected rows instead.
 	tree := a.tree.focused && a.tree.renaming == ""
 	if a.pressed(c, "request.send") {
 		if requests := a.selectedTreeModels(); tree && len(requests) > 0 {
@@ -202,10 +190,10 @@ func (a *App) handleHotkeys(c *ui.Context) {
 		a.openEnvironments()
 	}
 	if a.pressed(c, "workspace_settings.show") {
-		a.prompt("workspace_settings", "Workspace Settings", "", a.workspace)
+		a.prompt("workspace_settings", locales.WorkspaceSettings(), "", a.workspace)
 	}
 	if a.pressed(c, "request.rename") && a.models[a.active] != nil {
-		a.prompt("rename", "Rename Request", s(a.models[a.active], "name"), a.active)
+		a.prompt("rename", locales.RenameRequest(), s(a.models[a.active], "name"), a.active)
 	}
 	if a.pressed(c, "url_bar.focus") && a.active != "" {
 		a.focusURL = true
@@ -233,7 +221,6 @@ func (a *App) handleHotkeys(c *ui.Context) {
 	}
 }
 
-// keyNames are the key names of Yaak's hotkey strings, such as "Meta+Shift+k".
 var keyNames = func() map[string]ui.Key {
 	names := map[string]ui.Key{"Enter": ui.KeyEnter, "Escape": ui.KeyEscape, "Backspace": ui.KeyBackspace, "Tab": ui.KeyTab, "Space": ui.KeySpace, "Delete": ui.KeyDelete,
 		"ArrowUp": ui.KeyUp, "ArrowDown": ui.KeyDown, "ArrowLeft": ui.KeyLeft, "ArrowRight": ui.KeyRight, "Home": ui.KeyHome, "End": ui.KeyEnd, "PageUp": ui.KeyPageUp, "PageDown": ui.KeyPageDown,
@@ -251,11 +238,8 @@ var keyNames = func() map[string]ui.Key {
 	return names
 }()
 
-// displayNames show a key as Yaak's Hotkey component does.
 var displayNames = map[string]string{"Enter": "↩", "Escape": "Esc", "Backspace": "⌫", "Delete": "⌦", "ArrowUp": "↑", "ArrowDown": "↓", "ArrowLeft": "←", "ArrowRight": "→", "Equal": "=", "Minus": "-", "BracketLeft": "[", "BracketRight": "]", "Backquote": "`"}
 
-// parseHotkey reads a hotkey string. "Meta" is Command on macOS and Control
-// elsewhere, as Yaak's defaults use it.
 func parseHotkey(text string) (keyCombo, bool) {
 	parts := strings.Split(text, "+")
 	if len(parts) == 0 {
@@ -291,7 +275,6 @@ func parseHotkey(text string) (keyCombo, bool) {
 	return keyCombo{mods, key, shown}, true
 }
 
-// formatHotkey writes a key as a hotkey string, modifiers in Yaak's order.
 func formatHotkey(mods ui.Modifiers, key ui.Key) (string, bool) {
 	name := ""
 	for n, k := range keyNames {

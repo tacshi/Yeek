@@ -127,7 +127,6 @@ func TestCurlBinaryExportDoesNotEmbedFileData(t *testing.T) {
 	if got := <-bodies; !bytes.Equal(got, data) {
 		t.Fatal(got)
 	}
-	// A copied file command also works when the file will only exist on the target machine.
 	obj(r, "body")["filePath"] = filepath.Join(t.TempDir(), "not-created.bin")
 	saveTest(t, e, r)
 	if _, err = e.Curl(t.Context(), str(r, "id"), ""); err != nil {

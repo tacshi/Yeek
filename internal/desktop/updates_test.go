@@ -11,13 +11,18 @@ func TestSettingsGeneralUpdates(t *testing.T) {
 	a, _ := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
 	tt := ui.NewTester(a.View, 1360, 860)
-	for _, want := range []string{"Updates", "Update Channel", "Update Behavior", "Automatically download updates", "Send anonymous usage statistics", "App Info"} {
+	for _, want := range []string{"Updates", "Update Behavior", "Automatically download updates", "App Info"} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q", want)
 		}
 	}
+	for _, gone := range []string{"Update Channel", "Send anonymous usage statistics"} {
+		if tt.HasText(gone) {
+			t.Fatalf("%q is shown", gone)
+		}
+	}
 	if !b(a.settings, "autoupdate") || !b(a.settings, "autoDownloadUpdates") {
-		t.Fatal("updates are automatic by default, as in Yaak", a.settings)
+		t.Fatal("updates are automatic by default", a.settings)
 	}
 	if err := tt.Click("Enable Automatically download updates"); err != nil {
 		t.Fatal(err)
@@ -25,7 +30,6 @@ func TestSettingsGeneralUpdates(t *testing.T) {
 	if b(a.settings, "autoDownloadUpdates") {
 		t.Fatal("the checkbox did not turn automatic downloads off")
 	}
-	// Manual updates disable automatic downloads, as Yaak's row does.
 	a.saveSetting("autoupdate", false)
 	tt.Frame()
 	_ = tt.Click("Enable Automatically download updates")
@@ -45,7 +49,6 @@ func TestToastActions(t *testing.T) {
 			t.Fatalf("missing %q", want)
 		}
 	}
-	// A toast without a timeout stays.
 	a.toasts[0].shown = a.toasts[0].shown.Add(-time.Minute)
 	tt.Frame()
 	if err := tt.Click("Download and Install"); err != nil {

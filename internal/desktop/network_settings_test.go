@@ -135,7 +135,6 @@ func TestWorkspaceDNSAndCAEditors(t *testing.T) {
 	if len(rows) != 1 || s(rows[0], "hostname") != "api.test" || len(networkArray(rows[0], "ipv4")) != 2 || len(networkArray(rows[0], "ipv6")) != 1 {
 		t.Fatal(rows)
 	}
-	// Certificate authorities are a section of the Settings tab.
 	a.workspaceDraft.Tab = 1
 	tt.Frame()
 	tt.Scroll(680, 500, 0, 2000)
@@ -161,7 +160,6 @@ func TestRequestNetworkSettingsInheritAndOverride(t *testing.T) {
 	a.models["workspace"] = engine.Object{"settingRequestTimeout": 1200, "settingHttpVersion": "http1"}
 	d := newDraft(engine.Object{"model": "http_request", "id": "request", "workspaceId": "workspace"})
 	tt := ui.NewTester(func(c *ui.Context) { a.requestSettings(c, p, d) }, 700, 650)
-	// Without an override the request shows the inherited timeout; editing it overrides it.
 	if b(o(d.Model, "settingRequestTimeout"), "enabled") {
 		t.Fatal("timeout overridden before editing")
 	}
@@ -195,9 +193,7 @@ func TestRequestNetworkSettingsInheritAndOverride(t *testing.T) {
 	}
 }
 
-// Yaak's NumberUnitInput rules: megabytes shown to three decimals at most,
-// saved as bytes, and integers and sizes validated as Yaak does.
-func TestNumberUnitInputsMatchYaak(t *testing.T) {
+func TestNumberUnitInputs(t *testing.T) {
 	for bytes, want := range map[float64]string{64 << 20: "64", 1.5 * (1 << 20): "1.5", 1234567: "1.177", 0: "0"} {
 		if got := formatMegabytes(bytes); got != want {
 			t.Errorf("formatMegabytes(%v) = %q, want %q", bytes, got, want)

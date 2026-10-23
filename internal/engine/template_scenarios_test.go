@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// Ported from Yaak's crates/yaak-templates/src/{parser,renderer}.rs tests.
-
 func tv(kind, text string) *templateValue { return &templateValue{kind: kind, text: text} }
 
 func fn(name string, args ...any) *templateValue {
@@ -25,7 +23,7 @@ func fn(name string, args ...any) *templateValue {
 func raw(text string) templateToken      { return templateToken{raw: text} }
 func tag(v *templateValue) templateToken { return templateToken{tag: v} }
 
-func TestTemplateParserMatchesYaak(t *testing.T) {
+func TestTemplateParser(t *testing.T) {
 	for _, c := range []struct {
 		name, source string
 		want         []templateToken
@@ -59,7 +57,7 @@ func TestTemplateParserMatchesYaak(t *testing.T) {
 	}
 }
 
-func TestTemplateStringDisplayMatchesYaak(t *testing.T) {
+func TestTemplateStringDisplay(t *testing.T) {
 	for text, want := range map[string]string{
 		"Hello You": "'Hello You'", "Hello 'You'": `'Hello \'You\''`, "X-Api-Key": "'X-Api-Key'", "$.token": "'$.token'", "it's": `'it\'s'`,
 		`back\slash`: `'back\\slash'`, `{"a":1}`: `'{"a":1}'`, "héllo": "'héllo'", "a]}b": "'a]}b'",
@@ -81,7 +79,7 @@ func TestTemplateStringDisplayMatchesYaak(t *testing.T) {
 	}
 }
 
-func TestTemplateRendererMatchesYaak(t *testing.T) {
+func TestTemplateRenderer(t *testing.T) {
 	render := func(source string, vars map[string]string, run templateRunner) (string, error) {
 		return renderWith(source, vars, map[string]bool{}, 0, run)
 	}
@@ -135,7 +133,6 @@ func TestTemplateRendererMatchesYaak(t *testing.T) {
 	if _, err := render(`hello ${[ error() ]}`, nil, upper); err == nil || err.Error() != "Failed to do it!" {
 		t.Error("fn error", err)
 	}
-	// Yaak builds identity(value=identity(...('ok'))) one level past MAX_DEPTH.
 	nested := "'ok'"
 	for range maxTemplateDepth + 1 {
 		nested = "identity(value=" + nested + ")"

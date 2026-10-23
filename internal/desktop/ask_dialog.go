@@ -1,44 +1,35 @@
 package desktop
 
 import (
-	"fmt"
-
 	"github.com/egoist/mygo/yeekui"
+	"yeek/locales"
 )
 
-// askInput is a field of an ask dialog.
 type askInput struct {
 	label, description, value string
 	password                  bool
 }
 
-// askState is Yaak's showConfirm, showPrompt and showPromptForm: a
-// description, the fields to fill, and what confirming does.
 type askState struct {
 	description, confirm string
 	danger               bool
-	alert                bool // Yaak's showAlert: one button, no Cancel
+	alert                bool
 	inputs               []askInput
 	done                 func(values []string)
-	// cancel, when set, runs on Cancel, as to go back to the dialog that
-	// asked.
-	cancel func()
+	cancel               func()
 }
 
-// ask opens a dialog that asks the user to confirm, or to fill inputs.
 func (a *App) ask(title, description, confirm string, danger bool, inputs []askInput, done func(values []string)) {
 	a.asking = &askState{description: description, confirm: confirm, danger: danger, inputs: inputs, done: done}
 	a.prompt("ask", title, "", "")
 }
 
-// confirmDialog is Yaak's showConfirm.
 func (a *App) confirmDialog(title, description, confirm string, danger bool, done func()) {
 	a.ask(title, description, confirm, danger, nil, func([]string) { done() })
 }
 
-// alertDialog is Yaak's showAlert: a message and an Okay button.
 func (a *App) alertDialog(title, body string) {
-	a.ask(title, body, "Okay", false, nil, func([]string) {})
+	a.ask(title, body, locales.Okay(), false, nil, func([]string) {})
 	a.asking.alert = true
 }
 
@@ -79,13 +70,13 @@ func (a *App) askDialog(c *ui.Context, p colors) {
 			})
 		}
 		ui.Row(c).Justify(ui.End).Gap(8).Children(func() {
-			if !s.alert && ui.Button(c, "Cancel").Clicked() {
+			if !s.alert && ui.Button(c, locales.Cancel()).Clicked() {
 				a.dialogOpen, a.asking = false, nil
 				if s.cancel != nil {
 					s.cancel()
 				}
 			}
-			confirm := ui.PrimaryButton(c, s.confirm).Label(fmt.Sprintf("Confirm %s", s.confirm))
+			confirm := ui.PrimaryButton(c, s.confirm).Label(locales.ConfirmAction(s.confirm))
 			if s.danger {
 				confirm.Background(p.red)
 			}

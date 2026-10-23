@@ -9,13 +9,12 @@ import (
 	"strings"
 	"time"
 	"uuid"
+
+	"yeek/locales"
 )
 
-// gregorianOffset is the 100-nanosecond intervals from 1582-10-15 to 1970-01-01.
 const gregorianOffset = 0x01B21DD213814000
 
-// timeUUID is a UUID of version 1 or 6 at t, with a random clock sequence
-// and a random node, as the uuid package Yaak uses makes them.
 func timeUUID(version int, t time.Time) string {
 	var u [16]byte
 	_, _ = rand.Read(u[8:])
@@ -33,15 +32,14 @@ func timeUUID(version int, t time.Time) string {
 		u[6], u[7] = byte(low>>8)|0x60, byte(low)
 	}
 	u[8] = u[8]&0x3f | 0x80
-	u[10] |= 0x01 // a random node is marked multicast
+	u[10] |= 0x01
 	return format(u)
 }
 
-// nameUUID is a UUID of version 3 (MD5) or 5 (SHA-1) for name in namespace.
 func nameUUID(version int, name, namespace string) (string, error) {
 	ns, err := uuid.Parse(strings.TrimSpace(namespace))
 	if err != nil {
-		return "", fmt.Errorf("namespace must be a valid UUID: %w", err)
+		return "", fmt.Errorf("%s: %w", locales.NamespaceMustBeAValidUUID(), err)
 	}
 	var h hash.Hash
 	if version == 3 {
@@ -62,8 +60,6 @@ func format(u [16]byte) string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", u[0:4], u[4:6], u[6:8], u[8:10], u[10:16])
 }
 
-// uuidTimestamp is uuid.v6's optional timestamp, as JavaScript's Date
-// parses the usual forms; anything else is now.
 func uuidTimestamp(text string) time.Time {
 	text = strings.TrimSpace(text)
 	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04:05", "2006-01-02T15:04", "2006-01-02", time.RFC1123, time.RFC1123Z} {
