@@ -40,11 +40,10 @@ func (a *App) keepSyncing() {
 	if dir == "" {
 		return
 	}
+	a.reviewSync(workspace, dir, 1)
 	a.background(func() (func(), error) {
-		if err := a.syncNow(workspace, dir); err != nil {
-			return nil, err
-		}
-		stop, err := a.Engine.WatchSync(a.ctx, workspace, dir, func(err error) { a.Window.Update(func() { a.errorMessage = err.Error() }) })
+		changed := func() { a.Window.Update(func() { a.reviewSync(workspace, dir, 1) }) }
+		stop, err := a.Engine.WatchSync(a.ctx, workspace, dir, changed, func(err error) { a.Window.Update(func() { a.errorMessage = err.Error() }) })
 		return func() {
 			if a.syncing == dir+"\x00"+workspace {
 				a.stopSync = stop
@@ -56,14 +55,194 @@ func (a *App) keepSyncing() {
 	})
 }
 
-// syncNow syncs the workspace with its directory, the copy updated last
-// winning a conflict.
+// maxSyncAttempts is Yaak's MAX_SYNC_ATTEMPTS: files can keep changing
+// under a plan, so stop planning again after a few stale applies.
+const maxSyncAttempts = 3
+
+// syncNow syncs the workspace with its directory without asking, the copy
+// updated last winning a conflict, as Yaak's sync({ force: true }) does
+// after Git changed the files.
 func (a *App) syncNow(workspace, dir string) error {
-	plan, err := a.Engine.PlanSync(a.ctx, workspace, dir)
-	if err != nil {
-		return err
+	for attempt := 1; ; attempt++ {
+		plan, err := a.Engine.PlanSync(a.ctx, workspace, dir)
+		if err != nil {
+			return err
+		}
+		err = a.Engine.ApplySync(a.ctx, workspace, dir, plan, engine.SyncNewest)
+		if !errors.Is(err, engine.ErrSyncStale) || attempt == maxSyncAttempts {
+			return err
+		}
 	}
-	return a.Engine.ApplySync(a.ctx, workspace, dir, plan, engine.SyncNewest)
+}
+
+// syncReview is the plan the Changes Detected dialog shows.
+type syncReview struct {
+	workspace, dir string
+	plan           []engine.SyncChange
+	attempt        int
+	// shown is false while another dialog is open; the review waits for it.
+	shown bool
+}
+
+// incomingSyncChanges are the changes of a plan that change the workspace
+// from its directory, Yaak's db ops.
+func incomingSyncChanges(plan []engine.SyncChange) []engine.SyncChange {
+	var incoming []engine.SyncChange
+	for _, c := range plan {
+		direction := c.Direction
+		if c.Conflict {
+			// As engine.SyncNewest resolves it: the copy updated last wins.
+			direction = "push"
+			if s(c.Remote, "updatedAt") > s(c.Local, "updatedAt") {
+				direction = "pull"
+			}
+		}
+		if direction == "pull" {
+			incoming = append(incoming, c)
+		}
+	}
+	return incoming
+}
+
+// reviewSync is Yaak's syncWorkspace: changes going out to the directory
+// apply at once, and changes coming in from it are shown in the Changes
+// Detected dialog first.
+func (a *App) reviewSync(workspace, dir string, attempt int) {
+	a.background(func() (func(), error) {
+		plan, err := a.Engine.PlanSync(a.ctx, workspace, dir)
+		if err != nil {
+			return nil, err
+		}
+		if !slices.ContainsFunc(plan, func(c engine.SyncChange) bool { return c.Direction != "none" || c.Conflict }) {
+			return a.hideSyncReview, nil
+		}
+		if len(incomingSyncChanges(plan)) == 0 {
+			return a.applySync(workspace, dir, plan, attempt)
+		}
+		return func() {
+			if attempt > 1 {
+				a.showStaleSyncToast()
+			}
+			a.syncReview = &syncReview{workspace: workspace, dir: dir, plan: plan, attempt: attempt}
+			a.showSyncReview()
+		}, nil
+	})
+}
+
+// applySync applies a plan, planning (and asking) again when it went
+// stale, up to maxSyncAttempts times.
+func (a *App) applySync(workspace, dir string, plan []engine.SyncChange, attempt int) (func(), error) {
+	err := a.Engine.ApplySync(a.ctx, workspace, dir, plan, engine.SyncNewest)
+	switch {
+	case errors.Is(err, engine.ErrSyncStale) && attempt < maxSyncAttempts:
+		return func() { a.reviewSync(workspace, dir, attempt+1) }, nil
+	case errors.Is(err, engine.ErrSyncStale):
+		return func() {
+			a.hideSyncReview()
+			a.showStaleSyncToast()
+		}, nil
+	case err != nil:
+		return nil, err
+	}
+	return a.hideSyncReview, nil
+}
+
+func (a *App) showStaleSyncToast() {
+	a.showToast("sync-stale", engine.ErrSyncStale.Error(), "warning", 5*time.Second)
+}
+
+// showSyncReview opens the Changes Detected dialog for the review waiting,
+// unless another dialog is open.
+func (a *App) showSyncReview() {
+	r := a.syncReview
+	if r == nil || r.shown || a.dialogOpen && a.dialog != "commit_sync" {
+		return
+	}
+	r.shown = true
+	a.prompt("commit_sync", "Changes Detected", "", "")
+}
+
+// hideSyncReview closes the Changes Detected dialog, as Yaak's
+// hideDialog("commit-sync") does.
+func (a *App) hideSyncReview() {
+	a.syncReview = nil
+	if a.dialog == "commit_sync" {
+		a.dialogOpen = false
+	}
+}
+
+// syncReviewDialog is the Changes Detected dialog of Yaak's syncWorkspace.
+func (a *App) syncReviewDialog(c *ui.Context, p colors) {
+	r := a.syncReview
+	if r == nil {
+		return
+	}
+	incoming := incomingSyncChanges(r.plan)
+	deletingWorkspace := slices.ContainsFunc(incoming, func(c engine.SyncChange) bool {
+		return c.Remote == nil && s(c.Local, "model") == "workspace"
+	})
+	ui.Column(c).Padding(20).Gap(12).MaxHeight(560).Children(func() {
+		if deletingWorkspace {
+			ui.Row(c).Padding(10, 12).Radius(6).Border(1, p.red.Alpha(.35)).Background(p.red.Alpha(.08)).Children(func() {
+				ui.Text(c, "🚨 Changes contain a workspace deletion!").FontWeight(600).TextColor(p.red)
+			})
+		}
+		verb := "have"
+		if len(incoming) == 1 {
+			verb = "has"
+		}
+		ui.Text(c, pluralizeCount("file", len(incoming))+" in the directory "+verb+" changed. Do you want to update your workspace?").MaxLines(3)
+		ui.Column(c).Gap(0).Margin(4, 0).Shrink(1).MinHeight(0).Children(func() {
+			ui.Row(c).Padding(8, 0).Gap(16).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
+				ui.Text(c, "Type").TextColor(p.muted).Width(130).SingleLine()
+				ui.Text(c, "Name").TextColor(p.muted).Grow(1).SingleLine()
+				ui.Text(c, "Operation").TextColor(p.muted).SingleLine()
+			})
+			ui.Scroll(c).Shrink(1).MinHeight(0).Children(func() {
+				for _, change := range incoming {
+					model, label, color := change.Remote, "update", p.blue
+					switch {
+					case change.Local == nil:
+						label, color = "create", p.green
+					case change.Remote == nil:
+						model, label, color = change.Local, "delete", p.red
+					}
+					ui.Row(c).Key(change.ID).Padding(6, 0).Gap(16).BorderWidth(0, 0, 1, 0).BorderColor(p.border.Alpha(.5)).Children(func() {
+						ui.Text(c, modelTypeLabel(model)).TextColor(p.muted).Width(130).SingleLine()
+						name := a.syncModelName(model)
+						ui.Text(c, name).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(name)
+						ui.Text(c, label).Font("monospace").FontSize(12).Padding(1, 4).Radius(3).Background(p.border.Alpha(.4)).TextColor(color)
+					})
+				}
+			})
+		})
+		ui.Row(c).Justify(ui.End).Gap(8).Padding(4, 0, 0, 0).Children(func() {
+			if ui.Button(c, "Cancel").Clicked() {
+				a.syncReview, a.dialogOpen = nil, false
+			}
+			if ui.PrimaryButton(c, "Apply Changes").AutoFocus().Clicked() {
+				workspace, dir, plan, attempt := r.workspace, r.dir, r.plan, r.attempt
+				a.background(func() (func(), error) { return a.applySync(workspace, dir, plan, attempt) })
+			}
+		})
+	})
+}
+
+// syncModelName is Yaak's resolvedModelNameWithFolders: the model's name
+// after those of the folders it is in.
+func (a *App) syncModelName(m engine.Object) string {
+	names := []string{requestName(m)}
+	seen := map[string]bool{}
+	for id := s(m, "folderId"); id != "" && !seen[id]; {
+		seen[id] = true
+		folder := a.models[id]
+		if folder == nil {
+			break
+		}
+		names = append([]string{requestName(folder)}, names...)
+		id = s(folder, "folderId")
+	}
+	return strings.Join(names, " / ")
 }
 
 // setSyncDir is Yaak's SyncToFilesystemSetting: the workspace syncs with

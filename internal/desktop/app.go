@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -111,11 +112,14 @@ type App struct {
 	rememberWindow                        bool
 	moving                                []string
 	// OpenWorkspace opens a workspace in a new window.
-	OpenWorkspace                              func(id string)
-	gitRemotes                                 []engine.GitRemoteInfo
-	diverged                                   *engine.GitResult
-	asking                                     *askState
-	stopSync                                   func()
+	OpenWorkspace func(id string)
+	gitRemotes    []engine.GitRemoteInfo
+	diverged      *engine.GitResult
+	asking        *askState
+	stopSync      func()
+	syncReview    *syncReview
+	// snapshot is what MCP tools read of the window, off its thread.
+	snapshot                                   atomic.Pointer[windowSnapshot]
 	connections                                map[string]engine.Object
 	closing                                    bool
 	Engine                                     *engine.Engine
@@ -209,6 +213,7 @@ func New(e *engine.Engine) (*App, error) {
 	} else {
 		a.active = ""
 	}
+	a.publishSnapshot()
 	return a, nil
 }
 func (a *App) OpenWindow() {

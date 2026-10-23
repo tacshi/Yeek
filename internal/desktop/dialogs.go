@@ -11,6 +11,10 @@ import (
 
 func (a *App) dialogs(c *ui.Context, p colors) {
 	a.checkEncryptionGate()
+	// A sync review waits for the dialog open when it came in.
+	if !a.dialogOpen {
+		a.showSyncReview()
+	}
 	// Yaak's Import Data and Import Complete dialogs disable closing.
 	locked := a.dialog == "imports" || a.dialog == "import_complete"
 	dialog := ui.DialogBase(c, &a.dialogOpen, func(backdrop, panel ui.Element) {
@@ -64,6 +68,8 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 					}
 				})
 			})
+		case "commit_sync":
+			a.syncReviewDialog(c, p)
 		case "delete_body":
 			a.deleteBodyDialog(c, p)
 		case "delete_items":

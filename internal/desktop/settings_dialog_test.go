@@ -11,7 +11,7 @@ func TestSettingsDialogTabsInYaakOrder(t *testing.T) {
 	a, _ := cookieApp(t)
 	a.prompt("settings", "Settings", "", "")
 	tt := ui.NewTester(a.View, 1360, 860)
-	for _, want := range []string{"General", "Theme", "Interface", "Shortcuts", "Plugins", "Certificates", "Proxy", "App Info", "Data Directory"} {
+	for _, want := range []string{"General", "Theme", "Interface", "Shortcuts", "Plugins", "Agents", "Certificates", "Proxy", "App Info", "Data Directory"} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q", want)
 		}

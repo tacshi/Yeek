@@ -8,9 +8,60 @@ import (
 	"unicode"
 )
 
+// prettyBodyJSON is JSON.stringify(value, null, 2). Object members keep
+// their order: an orderedBody lists them, and JSON text given as a
+// jsontext.Value is reindented as it stands.
 func prettyBodyJSON(value any) string {
 	data, _ := json.Marshal(value, jsontext.WithIndent("  "), json.Deterministic(true))
 	return string(data)
+}
+
+// orderedBody is a JSON object that keeps its members in the order added,
+// as a JavaScript object does.
+type orderedBody struct {
+	keys   []string
+	values map[string]any
+}
+
+func (o *orderedBody) set(key string, value any) {
+	if o.values == nil {
+		o.values = map[string]any{}
+	}
+	if _, exists := o.values[key]; !exists {
+		o.keys = append(o.keys, key)
+	}
+	o.values[key] = value
+}
+
+func (o orderedBody) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := enc.WriteToken(jsontext.BeginObject); err != nil {
+		return err
+	}
+	for _, key := range o.keys {
+		if err := enc.WriteToken(jsontext.String(key)); err != nil {
+			return err
+		}
+		if err := json.MarshalEncode(enc, o.values[key]); err != nil {
+			return err
+		}
+	}
+	return enc.WriteToken(jsontext.EndObject)
+}
+
+// jsonText is text parsed as JSON, keeping its members' order, or false
+// when it is not JSON.
+func jsonText(text string) (jsontext.Value, bool) {
+	value := jsontext.Value(strings.TrimSpace(text))
+	if !value.IsValid(jsontext.AllowDuplicateNames(true)) {
+		return nil, false
+	}
+	return value, true
+}
+
+// formURLEncode is URLSearchParams' serializer: it leaves letters, digits
+// and *-._ as they are and writes spaces as +.
+func formURLEncode(s string) string {
+	return strings.NewReplacer("%2A", "*", "~", "%7E").Replace(url.QueryEscape(s))
 }
 
 // ConvertRequestBody keeps input that cannot be represented by the new editor.
@@ -31,8 +82,12 @@ func ConvertRequestBody(body Object, from, to string) Object {
 			if object, ok := parsed.(map[string]any); ok {
 				if query, ok := object["query"].(string); ok {
 					result := Object{"query": query}
-					if variables := object["variables"]; variables != nil {
-						result["variables"] = prettyBodyJSON(variables)
+					if object["variables"] != nil {
+						var variables struct {
+							Variables jsontext.Value `json:"variables"`
+						}
+						_ = json.Unmarshal([]byte(text), &variables)
+						result["variables"] = prettyBodyJSON(variables.Variables)
 					}
 					if operation, ok := object["operationName"].(string); ok {
 						result["operationName"] = operation
@@ -63,11 +118,16 @@ func ConvertRequestBody(body Object, from, to string) Object {
 		}
 		return body
 	}
-	if _, exists := body["text"].(string); exists {
-		return body
+	if text, exists := body["text"].(string); exists {
+		result := Object{"text": text}
+		if comments, ok := body["sendJsonComments"].(bool); ok {
+			result["sendJsonComments"] = comments
+		}
+		return result
 	}
 	if _, exists := body["form"].([]any); exists {
-		result, values := Object{}, url.Values{}
+		var result orderedBody
+		var pairs []string
 		for _, row := range objects(array(body, "form")) {
 			if !enabled(row) || str(row, "name") == "" {
 				continue
@@ -76,34 +136,35 @@ func ConvertRequestBody(body Object, from, to string) Object {
 			if IsFileFormField(row) {
 				value = str(row, "file")
 			}
-			values.Add(name, value)
-			if old, exists := result[name]; exists {
+			pairs = append(pairs, formURLEncode(name)+"="+formURLEncode(value))
+			if old, exists := result.values[name]; exists {
 				if list, ok := old.([]any); ok {
-					result[name] = append(list, value)
+					result.set(name, append(list, value))
 				} else {
-					result[name] = []any{old, value}
+					result.set(name, []any{old, value})
 				}
 			} else {
-				result[name] = value
+				result.set(name, value)
 			}
 		}
 		if to == "application/json" {
 			return Object{"text": prettyBodyJSON(result)}
 		}
-		return Object{"text": values.Encode()}
+		return Object{"text": strings.Join(pairs, "&")}
 	}
 	if query, exists := body["query"].(string); exists {
 		if to == "application/json" || from == "graphql" {
-			result := Object{"query": query}
+			var result orderedBody
+			result.set("query", query)
 			if text := str(body, "variables"); strings.TrimSpace(text) != "" {
-				var value any
-				if json.Unmarshal([]byte(StripJSONComments(text)), &value) != nil {
-					value = text
+				if value, ok := jsonText(StripJSONComments(text)); ok {
+					result.set("variables", value)
+				} else {
+					result.set("variables", text)
 				}
-				result["variables"] = value
 			}
 			if op := str(body, "operationName"); strings.TrimSpace(op) != "" {
-				result["operationName"] = op
+				result.set("operationName", op)
 			}
 			return Object{"text": prettyBodyJSON(result)}
 		}

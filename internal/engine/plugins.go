@@ -349,9 +349,9 @@ func (e *Engine) PluginFilterNames() []string {
 	}
 	return names
 }
-func (e *Engine) Filter(ctx context.Context, content, expression, provider, workspace string) (string, error) {
+func (e *Engine) Filter(ctx context.Context, content, expression, contentType, provider, workspace string) (string, error) {
 	if provider == "" {
-		return FilterResponse(content, expression)
+		return FilterBody(content, expression, contentType)
 	}
 	for _, p := range e.pluginList() {
 		if p.info.Name == provider && p.info.Enabled && p.info.Error == "" && p.definition.Filter != nil {
