@@ -11,7 +11,6 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -24,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ohler55/ojg/jp"
+	"yeek/internal/filter"
 )
 
 func extendedTemplateFunction(name string, args map[string]string) (string, error) {
@@ -194,41 +193,7 @@ func templatePath(input, path string, args map[string]string) (string, error) {
 	if strings.HasPrefix(strings.TrimSpace(input), "<") {
 		return filterXPath(input, path, args["result"], args["join"])
 	}
-	var data any
-	if err := json.Unmarshal([]byte(input), &data); err != nil {
-		return "", err
-	}
-	expression, err := jp.ParseString(path)
-	if err != nil {
-		return "", err
-	}
-	values := expression.Get(data)
-	asString := func(v any) string {
-		if s, ok := v.(string); ok {
-			return s
-		}
-		data, _ := json.Marshal(v, json.Deterministic(true))
-		return string(data)
-	}
-	switch args["result"] {
-	case "all":
-		data, err := json.Marshal(values, json.Deterministic(true))
-		if args["formatted"] == "true" {
-			data, err = json.Marshal(values, json.Deterministic(true), jsontext.WithIndent("  "))
-		}
-		return string(data), err
-	case "join":
-		items := make([]string, len(values))
-		for i, v := range values {
-			items[i] = asString(v)
-		}
-		return strings.Join(items, args["join"]), nil
-	default:
-		if len(values) == 0 {
-			return "", nil
-		}
-		return asString(values[0]), nil
-	}
+	return filter.TemplateJSONPath(input, path, args["result"], args["join"], args["formatted"] == "true")
 }
 func dateLayout(format string) string {
 	replacer := strings.NewReplacer("yyyy", "2006", "yy", "06", "MMMM", "January", "MMM", "Jan", "MM", "01", "dd", "02", "HH", "15", "hh", "03", "mm", "04", "ss", "05", "SSS", "000", "XXX", "Z07:00", "XX", "Z0700")

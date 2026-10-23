@@ -17,13 +17,14 @@ const (
 	settingsInterface
 	settingsShortcuts
 	settingsPlugins
+	settingsAgents
 	settingsCertificates
 	settingsProxy
 )
 
 var settingsTabs = []struct{ label, glyph string }{
 	{"General", "gear"}, {"Theme", "palette"}, {"Interface", "columns"}, {"Shortcuts", "keyboard"},
-	{"Plugins", "puzzle"}, {"Certificates", "shield"}, {"Proxy", "wifi"},
+	{"Plugins", "puzzle"}, {"Agents", "sparkles"}, {"Certificates", "shield"}, {"Proxy", "wifi"},
 }
 
 // settingsDialog is Yaak's Settings: tabs with icons down the left.
@@ -38,6 +39,8 @@ func (a *App) settingsDialog(c *ui.Context, p colors) {
 					badge = badgeCount(len(oslice(a.settings, "clientCertificates")))
 				case settingsPlugins:
 					badge = badgeCount(len(a.Engine.Plugins()))
+				case settingsAgents:
+					badge = badgeDot(b(a.settings, "mcpServerEnabled"))
 				case settingsProxy:
 					badge = badgeDot(s(o(a.settings, "proxy"), "type") == "enabled")
 				}
@@ -73,6 +76,8 @@ func (a *App) settingsDialog(c *ui.Context, p colors) {
 				a.settingsShortcuts(c, p)
 			case settingsPlugins:
 				a.pluginsSettings(c, p)
+			case settingsAgents:
+				a.settingsAgents(c, p)
 			case settingsCertificates:
 				a.certificateSettings(c, p)
 			case settingsProxy:

@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"log"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 
 	"github.com/egoist/mygo"
 	"yeek/internal/desktop"
@@ -51,6 +54,8 @@ func run() (runErr error) {
 	}
 	defer func() { runErr = errors.Join(runErr, e.Close()) }()
 	var windows []*desktop.App
+	// The MCP server reads the windows from its own goroutines.
+	var windowsMu sync.Mutex
 	ready := false
 	pendingURLs := []string{}
 	pending := append([]string{}, flag.Args()...)
@@ -61,7 +66,9 @@ func run() (runErr error) {
 			log.Print(err)
 			return nil
 		}
+		windowsMu.Lock()
 		windows = append(windows, a)
+		windowsMu.Unlock()
 		a.OpenWorkspace = func(id string) {
 			if w := open(); w != nil {
 				w.ShowWorkspace(id)
@@ -141,8 +148,16 @@ func run() (runErr error) {
 			a.ImportPath(arg)
 		}
 	})
+	mcpCtx, stopMCP := context.WithCancel(context.Background())
+	defer stopMCP()
+	mcpServer := &desktop.MCPServer{Engine: e, Windows: func() []*desktop.App {
+		windowsMu.Lock()
+		defer windowsMu.Unlock()
+		return slices.Clone(windows)
+	}}
 	mygo.App.WhenReady(func() {
 		ready = true
+		mcpServer.Run(mcpCtx)
 		action := func(fn func(*desktop.App)) func(*mygo.MenuItem, *mygo.Window) {
 			return func(_ *mygo.MenuItem, w *mygo.Window) {
 				if a := active(w); a != nil {
@@ -187,6 +202,7 @@ func run() (runErr error) {
 		}
 	})
 	mygo.App.OnQuit(func() {
+		stopMCP()
 		for _, a := range windows {
 			a.Close()
 		}

@@ -61,10 +61,7 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		return nil, err
 	}
 	for _, m := range models {
-		if syncKind(str(m, "model")) && (str(m, "id") == workspace || str(m, "workspaceId") == workspace) {
-			if str(m, "model") == "environment" && !boolean(m, "public") {
-				continue
-			}
+		if syncedLocal(m, workspace) {
 			local[str(m, "id")] = m
 		}
 		if str(m, "model") == "sync_state" && str(m, "workspaceId") == workspace && str(m, "syncDir") == dir {
@@ -215,38 +212,152 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 	})
 	return result, nil
 }
+
+// ErrSyncStale is ApplySync's answer when the workspace or its directory
+// changed after the plan was made: the plan has to be made, and
+// reviewed, again. Yaak's apply_sync_ops returns false then (#739).
+var ErrSyncStale = errors.New("Files changed while syncing. Review the changes again.") //nolint:staticcheck // Yaak's toast, shown as is
+
+// syncedLocal reports whether a model of the database syncs with the
+// workspace's directory: a model of the workspace, and an environment only
+// when it is shared.
+func syncedLocal(m Object, workspace string) bool {
+	if !syncKind(str(m, "model")) || str(m, "id") != workspace && str(m, "workspaceId") != workspace {
+		return false
+	}
+	return str(m, "model") != "environment" || boolean(m, "public")
+}
+
+// sameSyncPlan reports whether two plans would change the same models from
+// the same copies.
+func sameSyncPlan(a, b []SyncChange) bool {
+	effective := func(plan []SyncChange) map[string]SyncChange {
+		m := map[string]SyncChange{}
+		for _, c := range plan {
+			if c.Direction != "none" || c.Conflict {
+				m[c.ID] = c
+			}
+		}
+		return m
+	}
+	ea, eb := effective(a), effective(b)
+	if len(ea) != len(eb) {
+		return false
+	}
+	for id, x := range ea {
+		y, ok := eb[id]
+		if !ok || x.LocalHash != y.LocalHash || x.RemoteHash != y.RemoteHash {
+			return false
+		}
+	}
+	return true
+}
+
+// ApplySync applies a plan PlanSync made, once reviewed, while its inputs
+// still match, as Yaak's apply_sync_ops does: it returns ErrSyncStale when
+// the plan has to be made again. Files are written first, so the write
+// transaction never waits on the filesystem; inbound changes are then
+// checked against a fresh scan, and the database again inside the
+// transaction, in case another writer changed it meanwhile.
 func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []SyncChange, resolve string) error {
 	current, err := e.PlanSync(ctx, workspace, dir)
 	if err != nil {
 		return err
 	}
-	byID := map[string]SyncChange{}
-	for _, c := range current {
-		byID[c.ID] = c
+	if !sameSyncPlan(plan, current) {
+		return ErrSyncStale
 	}
 	for _, c := range plan {
-		v := byID[c.ID]
-		if c.LocalHash != v.LocalHash || c.RemoteHash != v.RemoteHash {
-			return errors.New("workspace changed during sync; refresh the preview")
-		}
 		if c.Conflict && resolve != "push" && resolve != "pull" && resolve != SyncNewest {
 			return fmt.Errorf("%s changed both locally and on disk; choose which copy to keep", c.Path)
+		}
+		if filepath.Base(c.Path) != c.Path {
+			return errors.New("sync filename must stay in its directory")
 		}
 	}
 	dir, err = filepath.Abs(dir)
 	if err != nil {
 		return err
 	}
+	plan = slices.Clone(plan)
+	inbound := false
+	for i := range plan {
+		if plan[i].Conflict {
+			plan[i].Direction = conflictDirection(plan[i], resolve)
+		}
+		inbound = inbound || plan[i].Direction == "pull"
+	}
+	for _, change := range plan {
+		if change.Direction != "push" {
+			continue
+		}
+		path := filepath.Join(dir, change.Path)
+		if change.Local == nil {
+			if err = os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			continue
+		}
+		data, err := yaml.Marshal(change.Local)
+		if err != nil {
+			return err
+		}
+		// Sync files are created as any file is, as Yaak's are.
+		if err = atomicWrite(path, data, 0o666); err != nil {
+			return err
+		}
+	}
+	// Inbound changes need a fresh scan: a file edited since the plan was
+	// reviewed must not be imported unseen. Files just written now match
+	// the database, so only their database side has to be unchanged.
+	if inbound {
+		current, err = e.PlanSync(ctx, workspace, dir)
+		if err != nil {
+			return err
+		}
+		written := map[string]SyncChange{}
+		for _, c := range current {
+			written[c.ID] = c
+		}
+		for _, c := range plan {
+			now := written[c.ID]
+			switch c.Direction {
+			case "push":
+				if now.LocalHash != c.LocalHash {
+					return ErrSyncStale
+				}
+				now.Direction, now.Conflict = "none", false
+			case "pull":
+				if now.LocalHash != c.LocalHash || now.RemoteHash != c.RemoteHash {
+					return ErrSyncStale
+				}
+				now.Direction, now.Conflict = "none", false
+			}
+			written[c.ID] = now
+		}
+		for _, c := range written {
+			if c.Direction != "none" || c.Conflict {
+				return ErrSyncStale
+			}
+		}
+	}
 	pending := []SyncChange{}
 	for _, change := range plan {
-		if change.Conflict {
-			change.Direction = conflictDirection(change, resolve)
-		}
 		if change.Direction == "pull" && change.Remote != nil {
 			pending = append(pending, change)
 		}
 	}
 	if err = e.Store.Write(ctx, Object{"type": "sync"}, func(t *modelTx) error {
+		// The files were checked above; only the database is read again.
+		for _, change := range plan {
+			m, err := t.get(ctx, change.ID)
+			if err != nil || !syncedLocal(m, workspace) {
+				m = nil
+			}
+			if modelHash(m) != change.LocalHash {
+				return ErrSyncStale
+			}
+		}
 		for len(pending) > 0 {
 			next := []SyncChange{}
 			progress := false
@@ -268,9 +379,6 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 			pending = next
 		}
 		for _, change := range plan {
-			if change.Conflict {
-				change.Direction = conflictDirection(change, resolve)
-			}
 			if change.Direction == "pull" && change.Remote == nil && change.Local != nil {
 				if err := t.delete(ctx, change.ID); err != nil {
 					return err
@@ -286,32 +394,9 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 		return err
 	}
 	for _, change := range plan {
-		if change.Conflict {
-			change.Direction = conflictDirection(change, resolve)
-		}
-		if filepath.Base(change.Path) != change.Path {
-			return errors.New("sync filename must stay in its directory")
-		}
-		path := filepath.Join(dir, change.Path)
 		model := change.Local
 		if change.Direction == "pull" {
 			model = change.Remote
-		}
-		if change.Direction == "push" {
-			if model == nil {
-				if err = os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-					return err
-				}
-			} else {
-				data, err := yaml.Marshal(model)
-				if err != nil {
-					return err
-				}
-				// Sync files are created as any file is, as Yaak's are.
-				if err = atomicWrite(path, data, 0o666); err != nil {
-					return err
-				}
-			}
 		}
 		state := Object{"model": "sync_state", "workspaceId": workspace, "modelId": change.ID, "checksum": modelHash(model), "relPath": change.Path, "syncDir": dir, "flushedAt": now()}
 		for _, s := range states {
@@ -405,19 +490,23 @@ func SyncTempFile(name string) bool {
 	return strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".tmp")
 }
 
-func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, onError func(error)) (func(), error) {
+// WatchSync calls changed, from a goroutine of its own, once the
+// workspace's directory or its synced models have changed and settled, so
+// the app syncs them as Yaak's initSync does; onError reports a watch that
+// failed. It returns the function that stops watching.
+func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, changed func(), onError func(error)) (func(), error) {
 	if e.WatchDir == nil {
 		return nil, errors.New("no file watcher")
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	files := make(chan struct{}, 1)
-	changed := func() {
+	fileChanged := func() {
 		select {
 		case files <- struct{}{}:
 		default:
 		}
 	}
-	if err := e.WatchDir(ctx, dir, changed, onError); err != nil {
+	if err := e.WatchDir(ctx, dir, fileChanged, onError); err != nil {
 		cancel()
 		return nil, err
 	}
@@ -454,13 +543,7 @@ func (e *Engine) WatchSync(ctx context.Context, workspace, dir string, onError f
 				}
 			case <-tick:
 				tick = nil
-				plan, err := e.PlanSync(ctx, workspace, dir)
-				if err == nil {
-					err = e.ApplySync(ctx, workspace, dir, plan, SyncNewest)
-				}
-				if err != nil {
-					onError(err)
-				}
+				changed()
 			}
 		}
 	}()

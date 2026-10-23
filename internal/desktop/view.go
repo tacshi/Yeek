@@ -17,6 +17,7 @@ import (
 
 func (a *App) View(c *ui.Context) {
 	a.inView = true
+	a.publishSnapshot()
 	c.SetZoom(float32(cmp.Or(n(a.settings, "interfaceScale"), 1)))
 	p := a.theme(c)
 	if !a.dialogOpen && a.templateForm == nil && len(a.valuePrompts) == 0 && !a.palette.open && !a.switcher.open {
@@ -1495,9 +1496,9 @@ func (a *App) responseText(c *ui.Context, p colors, d *Draft, response engine.Ob
 		if d.FilterSource != source {
 			d.FilterSource = source
 			d.FilterPending = true
-			input, expression, provider, workspace := body, d.ResponseFilter, d.FilterProvider, a.workspace
+			input, expression, contentType, provider, workspace := body, d.ResponseFilter, responseMIME(response), d.FilterProvider, a.workspace
 			a.background(func() (func(), error) {
-				filtered, err := a.Engine.Filter(a.ctx, input, expression, provider, workspace)
+				filtered, err := a.Engine.Filter(a.ctx, input, expression, contentType, provider, workspace)
 				return func() {
 					if d.FilterSource != source {
 						return
