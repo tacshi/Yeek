@@ -128,6 +128,10 @@ func (a *App) settingsAgents(c *ui.Context, p colors) {
 		}
 	})
 	describedSection(c, p, locales.ConnectAnAgent(), locales.PickYourAgentOrEditorTo(), func() {
+		if !enabled || token == "" {
+			settingRow(c, p, locales.ThroughTheApp(), locales.TurnOnTheMCPServerAbove(), nil, func() {})
+			return
+		}
 		client := a.agentClient()
 		ui.Row(c).FillWidth().Padding(14, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 			selected := 0
@@ -146,10 +150,6 @@ func (a *App) settingsAgents(c *ui.Context, p colors) {
 			}
 			ui.Spacer(c)
 		})
-		if !enabled || token == "" {
-			settingRow(c, p, locales.ThroughTheApp(), locales.TurnOnTheMCPServerAbove(), nil, func() {})
-			return
-		}
 		setup := appAgentSetup(client, url, token)
 		ui.Column(c).Key("Through the app").FillWidth().Padding(14, 0).Gap(4).Children(func() {
 			ui.Text(c, locales.ThroughTheApp()).FontSize(13)

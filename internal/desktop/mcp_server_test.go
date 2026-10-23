@@ -70,7 +70,7 @@ func TestAgentsSettingsServeTheOpenWorkspace(t *testing.T) {
 	if err := tt.Click("Agents"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Turn on the MCP server above to connect this way.") || tt.HasText("Token") {
+	if !tt.HasText("Turn on the MCP server above to connect this way.") || tt.HasText("Token") || tt.HasText("Codex") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("MCP server enabled"); err != nil {
