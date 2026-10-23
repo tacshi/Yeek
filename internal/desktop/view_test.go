@@ -146,7 +146,7 @@ func TestCreateWorkspaceWithSyncGitAndEncryption(t *testing.T) {
 	}
 
 	full := t.TempDir()
-	_ = os.WriteFile(filepath.Join(full, "yaak.wk_x.yaml"), []byte("model: workspace\nid: wk_x\nname: X\n"), 0600)
+	_ = os.WriteFile(filepath.Join(full, "yeek.wk_x.yaml"), []byte("model: workspace\nid: wk_x\nname: X\n"), 0600)
 	a.dialogOpen = false
 	a.newWorkspace()
 	a.setNewWorkspaceDir(a.createWorkspace, full)

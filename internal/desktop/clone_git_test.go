@@ -52,7 +52,7 @@ func TestCloneGitRepositoryDialog(t *testing.T) {
 		t.Skip("git not installed")
 	}
 	source := t.TempDir()
-	_ = os.WriteFile(filepath.Join(source, "yaak.wk_cloned.yaml"), []byte("model: workspace\nid: wk_cloned\nname: Cloned API\n"), 0600)
+	_ = os.WriteFile(filepath.Join(source, "yeek.wk_cloned.yaml"), []byte("model: workspace\nid: wk_cloned\nname: Cloned API\n"), 0600)
 	for _, args := range [][]string{{"init", "-q"}, {"add", "."}, {"-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "-m", "first"}} {
 		if out, err := exec.Command("git", append([]string{"-C", source}, args...)...).CombinedOutput(); err != nil { // #nosec G204 -- git with the test's own arguments.
 			t.Fatal(string(out))

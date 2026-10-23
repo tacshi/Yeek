@@ -32,7 +32,7 @@ const (
 	promptStoreForever = "forever"
 )
 
-const promptNamespace = "plugin:@yaak/template-function-prompt"
+const promptNamespace = "plugin:@yeek/template-function-prompt"
 
 type savedPrompt struct {
 	Value     string `json:"value"`
@@ -77,13 +77,15 @@ func (e *Engine) storedPrompt(ctx context.Context, key string) (Object, savedPro
 	if err != nil {
 		return nil, savedPrompt{}, false
 	}
-	for _, m := range models {
-		if str(m, "namespace") != promptNamespace {
-			continue
-		}
-		var saved savedPrompt
-		if json.Unmarshal([]byte(str(m, "value")), &saved) == nil {
-			return m, saved, true
+	for _, namespace := range []string{promptNamespace, legacyPromptNamespace} {
+		for _, m := range models {
+			if str(m, "namespace") != namespace {
+				continue
+			}
+			var saved savedPrompt
+			if json.Unmarshal([]byte(str(m, "value")), &saved) == nil {
+				return m, saved, true
+			}
 		}
 	}
 	return nil, savedPrompt{}, false

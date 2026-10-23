@@ -74,7 +74,7 @@ func (e *Engine) ExportWorkspaces(ctx context.Context, options ExportOptions) ([
 		})
 		resources[collection] = items
 	}
-	return json.Marshal(Object{"yaakSchema": 5, "yeekVersion": "0.1.0", "timestamp": now(), "resources": resources}, jsontext.WithIndent("  "), json.Deterministic(true))
+	return json.Marshal(Object{"yeekSchema": 5, "yeekVersion": "0.1.0", "timestamp": now(), "resources": resources}, jsontext.WithIndent("  "), json.Deterministic(true))
 }
 
 func (e *Engine) ExportToFile(ctx context.Context, path string, options ExportOptions) error {

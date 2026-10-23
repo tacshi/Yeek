@@ -45,7 +45,7 @@ func (f *syncFixture) saveDB(m Object) {
 }
 
 func (f *syncFixture) workspacePath() string {
-	return filepath.Join(f.dir, "yaak."+f.workspace+".yaml")
+	return filepath.Join(f.dir, "yeek."+f.workspace+".yaml")
 }
 
 func (f *syncFixture) dbWorkspace() Object {
@@ -357,7 +357,7 @@ func TestReviewedInboundAndOutboundUpdatesApplyTogether(t *testing.T) {
 func TestLaterFileEditsInvalidateReviewedOutboundOperations(t *testing.T) {
 	for _, creating := range []bool{false, true} {
 		for _, filePresent := range []bool{true, false} {
-			f := newSyncFixture(t, "yaak.rq_sync_test.yaml")
+			f := newSyncFixture(t, "yeek.rq_sync_test.yaml")
 			if creating {
 				for _, state := range f.states() {
 					if str(state, "modelId") == f.request {

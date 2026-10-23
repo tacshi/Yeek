@@ -1308,7 +1308,7 @@ func (a *App) gitTreeMenu(menu *ui.Menu, items []engine.Object, separate bool) {
 		a.background(func() (func(), error) {
 			var err error
 			if !ok {
-				path, err = a.Engine.GitRepoPath(dir, "yaak."+id+".yaml")
+				path, err = a.Engine.GitRepoPath(dir, engine.SyncFileName(dir, id))
 			}
 			return func() { a.openFileHistory(dir, path) }, err
 		})

@@ -27,7 +27,7 @@ func newSyncFixture(t *testing.T, filename string) *syncFixture {
 	r := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "name": "Keep this request", "url": "https://example.com"})
 	f := &syncFixture{t: t, e: e, workspace: str(w, "id"), request: str(r, "id"), dir: t.TempDir(), json: strings.HasSuffix(filename, ".json")}
 	f.sync()
-	generated := filepath.Join(f.dir, "yaak."+f.request+".yaml")
+	generated := filepath.Join(f.dir, "yeek."+f.request+".yaml")
 	f.requestPath = filepath.Join(f.dir, filename)
 	if f.json {
 		f.edit(func(Object) {})
@@ -321,5 +321,35 @@ func TestAtomicWritePreservesExistingPermissionsAndNewFileDefaults(t *testing.T)
 	}
 	if err := atomicWrite(path, []byte("replaced"), 0o666); err == nil {
 		t.Fatal("replaced a read-only file")
+	}
+}
+
+func TestEarlierVersionsSyncFilesKeepTheirNames(t *testing.T) {
+	dir := t.TempDir()
+	if got := SyncFileName(dir, "rq_1"); got != "yeek.rq_1.yaml" {
+		t.Fatal(got)
+	}
+	f := newSyncFixture(t, "placeholder.yaml")
+	legacy := filepath.Join(f.dir, legacySyncPrefix+f.request+".yaml")
+	if err := os.Rename(f.requestPath, legacy); err != nil {
+		t.Fatal(err)
+	}
+	f.requestPath = legacy
+	if changes := f.changes(); len(changes) != 0 {
+		t.Fatalf("changes = %+v", changes)
+	}
+	m := clone(f.dbRequest())
+	m["url"] = "https://changed.test"
+	saveTest(t, f.e, m)
+	f.sync()
+	data, err := os.ReadFile(legacy) // #nosec G304 -- a file of the test's directory
+	if err != nil || !strings.Contains(string(data), "https://changed.test") {
+		t.Fatal(string(data), err)
+	}
+	if _, err := os.Stat(filepath.Join(f.dir, "yeek."+f.request+".yaml")); !os.IsNotExist(err) {
+		t.Fatal("a second file was written", err)
+	}
+	if got := SyncFileName(f.dir, f.request); got != legacySyncPrefix+f.request+".yaml" {
+		t.Fatal(got)
 	}
 }

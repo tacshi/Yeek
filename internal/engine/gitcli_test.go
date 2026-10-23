@@ -43,7 +43,7 @@ func TestGitBranchesAndCommits(t *testing.T) {
 	if err := e.GitCommitStaged(t.Context(), dir, "nothing"); err == nil || err.Error() != "No staged changes to commit" {
 		t.Fatal(err)
 	}
-	commitFile(t, e, dir, "yaak.rq_1.yaml", "model: http_request\n", "Add request")
+	commitFile(t, e, dir, "yeek.rq_1.yaml", "model: http_request\n", "Add request")
 	info, err := e.GitBranchInfo(t.Context(), dir)
 	if err != nil || info.Head == "" || len(info.LocalBranches) != 1 {
 		t.Fatal(info, err)
@@ -55,7 +55,7 @@ func TestGitBranchesAndCommits(t *testing.T) {
 	if _, err := e.GitCheckoutBranch(t.Context(), dir, "feature", false); err != nil {
 		t.Fatal(err)
 	}
-	commitFile(t, e, dir, "yaak.rq_2.yaml", "model: http_request\n", "Feature")
+	commitFile(t, e, dir, "yeek.rq_2.yaml", "model: http_request\n", "Feature")
 	if _, err := e.GitCheckoutBranch(t.Context(), dir, main, false); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestGitBranchesAndCommits(t *testing.T) {
 	if err != nil || len(status.Commits) != 2 || status.Commits[0].Email != "test@example.com" {
 		t.Fatal(status, err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "yaak.rq_1.yaml"), []byte("changed"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "yeek.rq_1.yaml"), []byte("changed"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.GitResetChanges(t.Context(), dir); err != nil {
@@ -219,22 +219,22 @@ func TestGitFileVersionsAndRestore(t *testing.T) {
 	if err := os.Mkdir(sync, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	commitFile(t, e, repo, "yaak/yaak.rq_1.yaml", "model: http_request\nid: rq_1\nname: Before\nurl: https://example.com\n", "add")
-	if err := os.WriteFile(filepath.Join(sync, "yaak.rq_1.yaml"), []byte("model: http_request\nid: rq_1\nname: After\nurl: https://example.com\n"), 0600); err != nil {
+	commitFile(t, e, repo, "yaak/yeek.rq_1.yaml", "model: http_request\nid: rq_1\nname: Before\nurl: https://example.com\n", "add")
+	if err := os.WriteFile(filepath.Join(sync, "yeek.rq_1.yaml"), []byte("model: http_request\nid: rq_1\nname: After\nurl: https://example.com\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sync, "yaak.fl_1.json"), []byte(`{"model":"folder","id":"fl_1","name":"New","headers":[{"name":"A"}]}`), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(sync, "yeek.fl_1.json"), []byte(`{"model":"folder","id":"fl_1","name":"New","headers":[{"name":"A"}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(sync, "README.md"), []byte("notes"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
-	prev, next, err := e.GitFileVersions(sync, "yaak/yaak.rq_1.yaml")
+	prev, next, err := e.GitFileVersions(sync, "yaak/yeek.rq_1.yaml")
 	if err != nil || prev != "model: http_request\nid: rq_1\nname: Before\nurl: https://example.com\n" || next != "model: http_request\nid: rq_1\nname: After\nurl: https://example.com\n" {
 		t.Fatalf("modified: %q %q %v", prev, next, err)
 	}
-	prev, next, err = e.GitFileVersions(sync, "yaak/yaak.fl_1.json")
+	prev, next, err = e.GitFileVersions(sync, "yaak/yeek.fl_1.json")
 	if err != nil || prev != "" || next != "model: folder\nid: fl_1\nname: New\nheaders:\n  - name: A\n" {
 		t.Fatalf("new json: %q %q %v", prev, next, err)
 	}
@@ -245,18 +245,18 @@ func TestGitFileVersionsAndRestore(t *testing.T) {
 		t.Fatal("a path outside the repository was read")
 	}
 
-	if err := e.GitStage(repo, []string{"yaak/yaak.rq_1.yaml", "yaak/yaak.fl_1.json"}, true); err != nil {
+	if err := e.GitStage(repo, []string{"yaak/yeek.rq_1.yaml", "yaak/yeek.fl_1.json"}, true); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"yaak/yaak.rq_1.yaml", "yaak/yaak.fl_1.json"} {
+	for _, path := range []string{"yaak/yeek.rq_1.yaml", "yaak/yeek.fl_1.json"} {
 		if err := e.GitRestore(t.Context(), sync, path); err != nil {
 			t.Fatal(path, err)
 		}
 	}
-	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); !strings.Contains(string(data), "name: Before") { // #nosec G304 -- a file of the test's directory.
+	if data, _ := os.ReadFile(filepath.Join(sync, "yeek.rq_1.yaml")); !strings.Contains(string(data), "name: Before") { // #nosec G304 -- a file of the test's directory.
 		t.Fatalf("modified file not restored: %q", data)
 	}
-	if _, err := os.Stat(filepath.Join(sync, "yaak.fl_1.json")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(sync, "yeek.fl_1.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("new file not removed", err)
 	}
 	status, err := e.GitStatus(t.Context(), sync)
@@ -276,8 +276,8 @@ func TestGitFileHistory(t *testing.T) {
 	if err := os.Mkdir(sync, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	path, err := e.GitRepoPath(sync, "yaak.rq_1.yaml")
-	if err != nil || path != "yaak/yaak.rq_1.yaml" {
+	path, err := e.GitRepoPath(sync, "yeek.rq_1.yaml")
+	if err != nil || path != "yaak/yeek.rq_1.yaml" {
 		t.Fatal(path, err)
 	}
 	if commits, err := e.GitFileLog(t.Context(), sync, path); err != nil || len(commits) != 0 {
@@ -299,18 +299,18 @@ func TestGitFileHistory(t *testing.T) {
 	if err := e.GitRestoreFromCommit(t.Context(), sync, commits[1].Hash, path); err != nil {
 		t.Fatal(err)
 	}
-	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); string(data) != "name: One\n" { // #nosec G304 -- a file of the test's directory.
+	if data, _ := os.ReadFile(filepath.Join(sync, "yeek.rq_1.yaml")); string(data) != "name: One\n" { // #nosec G304 -- a file of the test's directory.
 		t.Fatalf("not restored: %q", data)
 	}
 	unrelated, _, _ := gitCommand(t.Context(), repo, "", "rev-list", "--max-count=1", "--skip=1", "HEAD")
-	if err := os.Remove(filepath.Join(sync, "yaak.rq_1.yaml")); err != nil {
+	if err := os.Remove(filepath.Join(sync, "yeek.rq_1.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	commitFile(t, e, repo, "yaak/yaak.rq_2.yaml", "name: Three\n", "third")
-	if err := e.GitRestoreFromCommit(t.Context(), sync, strings.TrimSpace(unrelated), "yaak/yaak.rq_2.yaml"); err != nil {
+	commitFile(t, e, repo, "yaak/yeek.rq_2.yaml", "name: Three\n", "third")
+	if err := e.GitRestoreFromCommit(t.Context(), sync, strings.TrimSpace(unrelated), "yaak/yeek.rq_2.yaml"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(sync, "yaak.rq_2.yaml")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(sync, "yeek.rq_2.yaml")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("file not removed", err)
 	}
 }

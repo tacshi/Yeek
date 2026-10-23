@@ -34,7 +34,7 @@ func TestExportWorkspaceSelectionAndPrivateHierarchy(t *testing.T) {
 		t.Fatal(err)
 	}
 	resources := obj(document, "resources")
-	if len(array(resources, "workspaces")) != 2 || len(array(resources, "httpRequests")) != 1 || len(array(resources, "websocketRequests")) != 1 || number(document, "yaakSchema") != 5 || str(document, "timestamp") == "" {
+	if len(array(resources, "workspaces")) != 2 || len(array(resources, "httpRequests")) != 1 || len(array(resources, "websocketRequests")) != 1 || number(document, "yeekSchema") != 5 || str(document, "timestamp") == "" {
 		t.Fatal(document)
 	}
 	for _, env := range objects(array(resources, "environments")) {

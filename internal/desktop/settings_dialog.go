@@ -216,9 +216,9 @@ func cmpOrString(value, fallback string) string {
 }
 
 func (a *App) themeChoices(dark bool) (names, ids []string) {
-	names, ids = []string{"Yaak"}, []string{"yaak-light"}
+	names, ids = []string{"Yeek"}, []string{"yeek-light"}
 	if dark {
-		ids[0] = "yaak-dark"
+		ids[0] = "yeek-dark"
 	}
 	for _, theme := range builtinThemes {
 		if theme.Dark == dark {

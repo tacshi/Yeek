@@ -152,7 +152,7 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		lh, rh := modelHash(l), modelHash(r)
 		path := paths[id]
 		if path == "" {
-			path = "yaak." + id + ".yaml"
+			path = syncPrefix + id + ".yaml"
 		}
 		change := SyncChange{ID: id, Path: path, Local: l, Remote: r, LocalHash: lh, RemoteHash: rh}
 		switch {

@@ -103,7 +103,7 @@ func migrateNativeImport(resources Object) {
 				environment["parentModel"], environment["parentId"] = "environment", nil
 			}
 		}
-		resources["environments"] = append(array(resources, "environments"), Object{"model": "environment", "id": stableImportID("environment", "yaak-base:"+id), "workspaceId": id, "parentModel": "workspace", "parentId": id, "name": "Global Variables", "variables": variables})
+		resources["environments"] = append(array(resources, "environments"), Object{"model": "environment", "id": stableImportID("environment", legacyBaseEnvironmentSeed+id), "workspaceId": id, "parentModel": "workspace", "parentId": id, "name": "Global Variables", "variables": variables})
 		delete(workspace, "variables")
 	}
 	for _, environment := range objects(array(resources, "environments")) {

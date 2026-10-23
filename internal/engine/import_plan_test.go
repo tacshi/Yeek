@@ -207,7 +207,7 @@ func TestImportReimportFromMultiWorkspaceFileStaysScoped(t *testing.T) {
 	e := testEngine(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "workspaces.json")
-	content := `{"yaakSchema":5,"resources":{"workspaces":[{"id":"one","name":"One"},{"id":"two","name":"Two"}],"httpRequests":[{"id":"r1","workspaceId":"one","name":"First","url":"https://one.test"},{"id":"r2","workspaceId":"two","name":"Second","url":"https://two.test"}]}}`
+	content := `{"yeekSchema":5,"resources":{"workspaces":[{"id":"one","name":"One"},{"id":"two","name":"Two"}],"httpRequests":[{"id":"r1","workspaceId":"one","name":"First","url":"https://one.test"},{"id":"r2","workspaceId":"two","name":"Second","url":"https://two.test"}]}}`
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}

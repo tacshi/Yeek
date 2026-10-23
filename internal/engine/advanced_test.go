@@ -71,7 +71,7 @@ func TestSyncRoundTripAndConflict(t *testing.T) {
 	if err = e.ApplySync(t.Context(), wid, dir, plan, ""); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "yaak."+str(r, "id")+".yaml")
+	path := filepath.Join(dir, "yeek."+str(r, "id")+".yaml")
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is generated inside t.TempDir.
 	if err != nil {
 		t.Fatal(err)

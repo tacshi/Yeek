@@ -107,7 +107,7 @@ func importFormat(data []byte) string {
 	}
 	switch {
 	case len(obj(root, "resources")) > 0:
-		return "Yaak"
+		return "Yeek"
 	case root["item"] != nil || root["_postman_variable_scope"] != nil:
 		return "Postman"
 	case root["openapi"] != nil:
