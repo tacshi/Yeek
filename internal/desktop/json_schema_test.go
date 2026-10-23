@@ -27,7 +27,6 @@ func optionNames(options []templateOption) []string {
 	return names
 }
 
-// at completes where | is.
 func at(text string) []templateOption {
 	caret := len([]rune(text[:strings.Index(text, "|")]))
 	return jsonSchemaOptions(testMessage, strings.Replace(text, "|", "", 1), caret)
@@ -53,7 +52,6 @@ func TestJSONSchemaCompletion(t *testing.T) {
 			t.Errorf("%s: %v, want %v", text, got, want)
 		}
 	}
-	// A property name is quoted, with its colon, over what was typed.
 	options := at(`{"na|"}`)
 	if o := options[0]; o.apply != `"name": ` || o.from != 1 || o.end != 5 || o.detail != "string" {
 		t.Fatalf("%+v", o)

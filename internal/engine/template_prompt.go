@@ -11,33 +11,27 @@ import (
 	"time"
 )
 
-// TemplatePrompt asks the user for a value while a request is rendered.
 type TemplatePrompt struct {
 	Title, Label, Placeholder, Default string
 	Password                           bool
 }
 
-// TemplatePrompter returns the entered value, or an error when the prompt is cancelled.
 type TemplatePrompter func(context.Context, TemplatePrompt) (string, error)
 
 type templatePrompterKey struct{}
 
-// ErrPromptCancelled is returned when the user dismisses a prompt.text dialog.
 var ErrPromptCancelled = errors.New("prompt cancelled")
 
 func WithTemplatePrompter(ctx context.Context, prompter TemplatePrompter) context.Context {
 	return context.WithValue(ctx, templatePrompterKey{}, prompter)
 }
 
-// How prompt.text stores what was entered, as Yaak's prompt plugin does.
 const (
 	promptStoreNone    = "none"
 	promptStoreExpire  = "expire"
 	promptStoreForever = "forever"
 )
 
-// promptNamespace is where prompt.text keeps stored values, as Yaak's
-// plugin store keeps them for its prompt plugin.
 const promptNamespace = "plugin:@yaak/template-function-prompt"
 
 type savedPrompt struct {
@@ -47,17 +41,14 @@ type savedPrompt struct {
 
 var slugRemove = regexp.MustCompile(`[^\w\s$*_+~.()'"!\-:@]+`)
 
-// slugify is the npm slugify package as Yaak calls it: lower case and
-// trimmed, with runs of spaces as dashes.
 func slugify(s string) string {
 	s = slugRemove.ReplaceAllString(strings.ToLower(strings.TrimSpace(s)), "")
 	return strings.Join(strings.Fields(s), "-")
 }
 
-// promptKey is Yaak's buildKey: the namespace and the key, else the label.
 func promptKey(args map[string]string) (string, error) {
 	if args["key"] == "" && args["label"] == "" {
-		return "", errors.New("A label or key is required when storing values") //nolint:staticcheck // Yaak's wording, shown as is.
+		return "", errors.New("A label or key is required when storing values") //nolint:staticcheck
 	}
 	var parts []string
 	for _, part := range []string{args["namespace"], cmp.Or(args["key"], args["label"])} {
@@ -68,12 +59,11 @@ func promptKey(args map[string]string) (string, error) {
 	return strings.Join(parts, "."), nil
 }
 
-// PromptKey is where prompt.text stores a value, for its form's banner.
 func PromptKey(args map[string]string) (string, error) { return promptKey(args) }
 
 func promptStore(args map[string]string) string {
 	switch store := cmp.Or(args["store"], promptStoreNone); store {
-	case "session": // Yeek's earlier names
+	case "session":
 		return promptStoreForever
 	case "ttl":
 		return promptStoreExpire
@@ -99,7 +89,6 @@ func (e *Engine) storedPrompt(ctx context.Context, key string) (Object, savedPro
 	return nil, savedPrompt{}, false
 }
 
-// maybeGetValue is Yaak's: a stored value, unless it expired.
 func (e *Engine) maybeGetValue(ctx context.Context, args map[string]string, store, key string) (string, bool) {
 	if store == promptStoreNone {
 		return "", false
@@ -136,7 +125,7 @@ func (e *Engine) promptTemplate(ctx context.Context, args map[string]string) (st
 	key := ""
 	if store != promptStoreNone {
 		if args["namespace"] == "" {
-			return "", errors.New("Namespace is required when storing values") //nolint:staticcheck // Yaak's wording, shown as is.
+			return "", errors.New("Namespace is required when storing values") //nolint:staticcheck
 		}
 		var err error
 		if key, err = promptKey(args); err != nil {

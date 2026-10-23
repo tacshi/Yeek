@@ -103,7 +103,6 @@ func TestNativeCodePreservesDocumentHistory(t *testing.T) {
 	active = 0
 	tt.Frame()
 	tt.Command("undo")
-	// A new document's caret starts at its beginning, as CodeMirror's does.
 	if values[0] != "one" || values[1] != "?two" {
 		t.Fatalf("document undo leaked: %q", values)
 	}

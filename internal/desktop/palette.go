@@ -10,17 +10,15 @@ import (
 	"yeek/internal/engine"
 )
 
-// paletteState is Yaak's command palette (⌘K): actions, then requests,
-// environments and workspaces to switch to, filtered as you type.
 type paletteState struct {
 	open     bool
 	query    string
-	selected string // key of the highlighted item
+	selected string
 }
 
 type paletteItem struct {
 	key, label, search, action string
-	request                    engine.Object // a request row shows its method and folders
+	request                    engine.Object
 	run                        func()
 }
 
@@ -29,7 +27,6 @@ type paletteGroup struct {
 	items []paletteItem
 }
 
-// paletteMaxPerGroup matches Yaak's MAX_PER_GROUP.
 const paletteMaxPerGroup = 8
 
 func (a *App) togglePalette() {
@@ -102,7 +99,6 @@ func (a *App) paletteGroups() []paletteGroup {
 	return append(groups, workspaces)
 }
 
-// allRequests is every request of the workspace.
 func (a *App) allRequests() []engine.Object {
 	result := []engine.Object{}
 	for _, kind := range []string{"http_request", "grpc_request", "websocket_request"} {
@@ -111,7 +107,6 @@ func (a *App) allRequests() []engine.Object {
 	return result
 }
 
-// recentFirst orders requests as Yaak does: recently opened first, the rest by creation.
 func (a *App) recentFirst(requests []engine.Object) []engine.Object {
 	slices.SortStableFunc(requests, func(x, y engine.Object) int {
 		xi, yi := slices.Index(a.tabs, s(x, "id")), slices.Index(a.tabs, s(y, "id"))
@@ -128,7 +123,6 @@ func (a *App) recentFirst(requests []engine.Object) []engine.Object {
 	return requests
 }
 
-// requestPath is the names of a request's folders, outermost first, then its own.
 func (a *App) requestPath(m engine.Object) []string {
 	path := []string{requestName(m)}
 	for id, depth := s(m, "folderId"), 0; id != "" && depth < 32; id, depth = s(a.models[id], "folderId"), depth+1 {
@@ -137,9 +131,6 @@ func (a *App) requestPath(m engine.Object) []string {
 	return path
 }
 
-// fuzzyScore matches query against text as fuzzbunny does in spirit: a
-// substring scores highest, earlier and at a word start better; otherwise the
-// query's characters in order, closer together better. ok is false for no match.
 func fuzzyScore(text, query string) (int, bool) {
 	text, query = strings.ToLower(text), strings.ToLower(strings.TrimSpace(query))
 	if query == "" {
@@ -172,7 +163,6 @@ func fuzzyScore(text, query string) (int, bool) {
 	return 5000 - gaps, true
 }
 
-// filteredPalette applies the query, best matches first, at most eight per group.
 func (a *App) filteredPalette() ([]paletteGroup, []paletteItem) {
 	groups := a.paletteGroups()
 	query := strings.TrimSpace(a.palette.query)
@@ -201,8 +191,6 @@ func (a *App) filteredPalette() ([]paletteGroup, []paletteItem) {
 	return groups, all
 }
 
-// paletteView is the command palette: a search field over grouped results,
-// near the top of the window, without a title.
 func (a *App) paletteView(c *ui.Context, p colors) {
 	if !a.palette.open {
 		return
@@ -289,17 +277,11 @@ func (a *App) paletteView(c *ui.Context, p colors) {
 	})
 }
 
-// switcherState is Yaak's recent-request switcher (⌘P, Ctrl+Tab): the header's
-// request menu, open with one entry highlighted. Repeating Ctrl+Tab moves the
-// highlight; Enter or a click opens it. Yaak also opens it when Control is
-// released, which needs key events for modifiers that MyGo does not deliver.
 type switcherState struct {
 	open  bool
 	index int
 }
 
-// toggleSwitcher opens the switcher, or moves its highlight by step while open.
-// A step of 1 from closed highlights the second entry, the request before this one.
 func (a *App) toggleSwitcher(step int) {
 	recent := a.recentRequestIDs()
 	if !a.switcher.open {
@@ -321,7 +303,6 @@ func (a *App) toggleSwitcher(step int) {
 	}
 }
 
-// recentRequestIDs is up to twenty recently opened requests, newest first.
 func (a *App) recentRequestIDs() []string {
 	ids := []string{}
 	for _, id := range a.tabs {

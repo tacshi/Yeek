@@ -1,35 +1,21 @@
-// Yaak's polyfills.ts (#730): built-ins that PDF.js's modern build calls
-// unconditionally but the system WebKit on older macOS lacks. The upsert
-// methods and Math.sumPrecise arrived in Safari 26.2, and async iteration
-// of ReadableStream in Safari 27. Without them the PDF viewer throws as soon
-// as it renders. Loaded before PDF.js, and by its worker, which has its own
-// globals. Each is defined only when missing, so newer engines keep theirs.
 
-// https://tc39.es/proposal-upsert/#sec-map.prototype.getOrInsert
 function getOrInsert(key, value) {
   if (this.has(key)) return this.get(key);
   this.set(key, value);
   return value;
 }
 
-// https://tc39.es/proposal-upsert/#sec-map.prototype.getOrInsertComputed
 function getOrInsertComputed(key, callbackfn) {
   if (typeof callbackfn !== "function") {
     throw new TypeError("getOrInsertComputed callback is not a function");
   }
   if (this.has(key)) return this.get(key);
-  // Map keys are canonicalized, so -0 is stored and passed on as +0
   const k = Object.is(key, -0) ? 0 : key;
   const value = callbackfn(k);
-  // The spec sets after the callback even if the callback inserted the key itself
   this.set(k, value);
   return value;
 }
 
-// https://tc39.es/proposal-math-sum/
-//
-// Shewchuk's exact summation with round-half-even on the final step (the
-// algorithm behind Python's math.fsum).
 function sumPrecise(items) {
   const partials = [];
   let allNegativeZero = true;
@@ -90,7 +76,6 @@ function sumPrecise(items) {
   return hi === 0 ? 0 : hi;
 }
 
-// https://streams.spec.whatwg.org/#rs-asynciterator
 async function* readableStreamValues({ preventCancel = false } = {}) {
   const reader = this.getReader();
   let finished = false;
@@ -107,8 +92,6 @@ async function* readableStreamValues({ preventCancel = false } = {}) {
     finished = true;
     throw err;
   } finally {
-    // Leaving the loop early (break, return, throw in the body) cancels the stream. The
-    // lock is released even if cancelling rejects, which then propagates as in the spec.
     try {
       if (!finished && !preventCancel) await reader.cancel();
     } finally {

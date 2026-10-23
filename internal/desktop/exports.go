@@ -89,7 +89,6 @@ func (a *App) saveExport() {
 				state.error = err.Error()
 				return
 			}
-			// Yaak closes the dialog and says so.
 			if path != "" {
 				a.dialogOpen = false
 				a.showToast("", "Data export successful", "success", 5*time.Second)
@@ -98,8 +97,6 @@ func (a *App) saveExport() {
 	})
 }
 
-// exportDialog is Yaak's ExportDataDialog: the workspaces as a table, the
-// current one first and selected, and Extra Settings below.
 func (a *App) exportDialog(c *ui.Context, p colors) {
 	state := a.exports
 	if state == nil {
@@ -178,12 +175,10 @@ func (a *App) exportDialog(c *ui.Context, p colors) {
 			ui.Text(c, state.error).TextColor(p.red).MaxLines(3).Selectable()
 		}
 	})
-	// Yaak's DialogFooter (#706), its Create Run Button link left out.
 	dialogFooter(c, p, nil, func() {
 		if ui.Button(c, "Cancel").Clicked() {
 			a.dialogOpen = false
 		}
-		// Yaak's pluralizeCount with omitSingle and noneWord "Nothing".
 		label := "Export " + pluralizeCount("Workspace", selected)
 		switch selected {
 		case 0:

@@ -127,8 +127,6 @@ func writeRequestBody(ctx context.Context, out io.Writer, m Object) (string, err
 		if strings.EqualFold(str(m, "method"), "GET") {
 			return "", nil
 		}
-		// Written by hand so keys keep Yaak's order (query, variables,
-		// operationName) and variables keep the order they were typed in.
 		query, err := json.Marshal(str(body, "query"))
 		if err != nil {
 			return "", err
@@ -249,8 +247,6 @@ type preparedBody struct {
 }
 
 func (e *Engine) prepareRequestBody(ctx context.Context, responseID string, model Object) (preparedBody, error) {
-	// A snapshot keeps redirects, authentication retries, and history on the same
-	// bytes even if another program changes an upload file while it is sending.
 	contentType := ""
 	err := e.writeRequestSnapshot(ctx, responseID, func(writer io.Writer) error {
 		var err error

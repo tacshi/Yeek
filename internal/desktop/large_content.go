@@ -9,11 +9,8 @@ import (
 	"yeek/internal/engine"
 )
 
-// largeBytes is the size above which Yaak asks before showing a body.
 const largeBytes = 2 * 1000 * 1000
 
-// largeBanner is Yaak's Banner over a ConfirmLarge… guard: what the size
-// may cost, then its buttons.
 func largeBanner(c *ui.Context, p colors, before, after string, extra, buttons func()) {
 	ui.Column(c).Margin(8).Padding(12).Gap(12).Radius(6).Border(1, p.accent.Alpha(.5)).Background(p.accent.Alpha(.08)).Children(func() {
 		ui.Row(c).Gap(4).Wrap().Children(func() {
@@ -28,7 +25,6 @@ func largeBanner(c *ui.Context, p colors, before, after string, extra, buttons f
 	})
 }
 
-// probablyTextContentType is Yaak's isProbablyTextContentType.
 func probablyTextContentType(contentType string) bool {
 	kind, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
@@ -53,8 +49,6 @@ func xsButton(c *ui.Context, p colors, label string, primary bool) ui.Element {
 	return ui.Button(c, label).FontSize(12).Padding(3, 10)
 }
 
-// confirmLargeResponse is Yaak's ConfirmLargeResponse: a response body
-// over largeBytes shows once revealed.
 func (a *App) confirmLargeResponse(c *ui.Context, p colors, response engine.Object) bool {
 	id := s(response, "id")
 	if n(response, "contentLength") <= largeBytes || a.revealedLarge[id] {
@@ -74,8 +68,6 @@ func (a *App) confirmLargeResponse(c *ui.Context, p colors, response engine.Obje
 	return false
 }
 
-// confirmLargeResponseRequest is Yaak's ConfirmLargeResponseRequest, for
-// the body that was sent.
 func (a *App) confirmLargeResponseRequest(c *ui.Context, p colors, response engine.Object) bool {
 	key := s(response, "id") + ".request"
 	if n(response, "requestContentLength") <= largeBytes || a.revealedLarge[key] {
@@ -92,8 +84,6 @@ func (a *App) confirmLargeResponseRequest(c *ui.Context, p colors, response engi
 	return false
 }
 
-// confirmLargeRequestBody is Yaak's ConfirmLargeRequestBody, for a text
-// body being edited.
 func (a *App) confirmLargeRequestBody(c *ui.Context, p colors, d *Draft) bool {
 	key := d.ID + ".body"
 	if len(d.Body) <= largeBytes || a.revealedLarge[key] {
@@ -116,7 +106,6 @@ func (a *App) confirmLargeRequestBody(c *ui.Context, p colors, d *Draft) bool {
 	return false
 }
 
-// copyBody copies a stored body in full, not its preview.
 func (a *App) copyBody(id string) {
 	a.background(func() (func(), error) {
 		data, err := a.Engine.Body(id)
@@ -127,7 +116,6 @@ func (a *App) copyBody(id string) {
 	})
 }
 
-// deleteBodyDialog is Yaak's confirmation for deleting a request's body text.
 func (a *App) deleteBodyDialog(c *ui.Context, p colors) {
 	ui.Column(c).Padding(20).Gap(18).Children(func() {
 		ui.Text(c, "Are you sure you want to delete the request body text?")

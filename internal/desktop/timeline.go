@@ -12,7 +12,6 @@ import (
 
 func timelineTabLabel(d *Draft) string { return "Timeline" }
 
-// timelineMenu is Yaak's Timeline tab menu: the event list, or the events as text.
 func timelineMenu(m *ui.Menu, d *Draft) {
 	if m.Item("Timeline").Checked(!d.TimelineText).Chosen() {
 		d.TimelineText = false
@@ -38,7 +37,6 @@ type eventDisplay struct {
 	color                 ui.Color
 }
 
-// timelineDisplay is Yaak's getEventDisplay.
 func timelineDisplay(e engine.Object, p colors) eventDisplay {
 	switch s(e, "type") {
 	case "setting":
@@ -118,7 +116,6 @@ func array(m engine.Object, key string) []any {
 	return v
 }
 
-// formatBytes is Yaak's: bytes, then KB and MB to one decimal.
 func formatBytes(bytes float64) string {
 	switch {
 	case bytes < 1024:
@@ -129,7 +126,6 @@ func formatBytes(bytes float64) string {
 	return fmt.Sprintf("%.1f MB", bytes/(1024*1024))
 }
 
-// timelineText is Yaak's formatEventText: curl-style, > sent, < received, * the rest.
 func timelineText(e engine.Object, prefix bool) string {
 	mark, text := "*", ""
 	switch s(e, "type") {
@@ -188,7 +184,6 @@ func eventTime(m engine.Object) string {
 	return ""
 }
 
-// timelineView is Yaak's HttpResponseTimeline: the events, and the chosen one's details.
 func (a *App) timelineView(c *ui.Context, p colors, d *Draft, response engine.Object) {
 	events := a.responseEvents(response)
 	if len(events) == 0 {
@@ -209,8 +204,6 @@ func (a *App) timelineView(c *ui.Context, p colors, d *Draft, response engine.Ob
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		list := ui.Scroll(c).FillWidth().Padding(4, 12, 4, 0).Gap(1)
 		if d.TimelineIndex >= 0 {
-			// A fixed height for the list once details open below it. (Grow sets a
-			// zero flex basis, so the list is sized one way or the other, not both.)
 			list.Shrink(0).Height(220)
 		} else {
 			list.Grow(1).MinHeight(0)
@@ -244,7 +237,6 @@ func (a *App) timelineView(c *ui.Context, p colors, d *Draft, response engine.Ob
 	})
 }
 
-// timelineDetails is Yaak's EventDetails.
 func (a *App) timelineDetails(c *ui.Context, p colors, d *Draft, m engine.Object) {
 	e := o(m, "event")
 	display := timelineDisplay(e, p)
@@ -282,7 +274,6 @@ func (a *App) timelineDetails(c *ui.Context, p colors, d *Draft, m engine.Object
 	})
 }
 
-// timelineFields are the rows Yaak shows for each kind of event.
 func timelineFields(e engine.Object, p colors) []keyValue {
 	row := func(label, value string) keyValue { return keyValue{label: label, value: value, color: p.muted} }
 	switch s(e, "type") {

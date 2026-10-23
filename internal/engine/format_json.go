@@ -7,10 +7,6 @@ import (
 	"unicode/utf16"
 )
 
-// FormatJSON is Yaak's format_json (crates/yaak-templates), behind its
-// editor's Format and its pretty JSON responses: it reindents JSON by its
-// characters, so invalid JSON formats too, template tags and strings are
-// kept whole (#710: quoted strings in tags may hold ]}), and comments stay.
 func FormatJSON(text, tab string) string {
 	r := []rune(text)
 	var out []rune
@@ -37,7 +33,6 @@ func FormatJSON(text, tab string) string {
 			}
 			continue
 		case inTag:
-			// A quoted argument is allowed to contain ]}, so skip over strings whole.
 			if c == '\'' {
 				out = append(out, c)
 				if end, ok := quoted.take(r, i+1); ok {
@@ -69,12 +64,9 @@ func FormatJSON(text, tab string) string {
 				i++
 			}
 			i--
-			// Whether the comma before already broke the line.
 			if t := trimmed(); strings.HasSuffix(t, ",\n") && !sawNewline {
-				// A trailing comment on the line of its comma, as "foo",// comment.
 				out = append([]rune(t[:len(t)-1]), ' ')
 			} else if !strings.HasSuffix(t, "\n") && len(out) > 0 {
-				// A trailing comment after a value.
 				out = append(out, ' ')
 			}
 			out = append(out, comment...)
@@ -93,7 +85,6 @@ func FormatJSON(text, tab string) string {
 				}
 				comment = append(comment, r[i])
 			}
-			// On a fresh line, then a fresh line for what follows.
 			if t := trimmed(); t != "" && !strings.HasSuffix(t, "\n") {
 				indent()
 			}
@@ -116,7 +107,6 @@ func FormatJSON(text, tab string) string {
 			out = append(out, c)
 			indent()
 		case '}', ']':
-			// Invalid JSON may close more than it opens.
 			if depth > 0 {
 				depth--
 			}
@@ -136,7 +126,6 @@ func FormatJSON(text, tab string) string {
 			out = append(out, c)
 		}
 	}
-	// Drop whitespace-only lines, keeping empty lines inside block comments.
 	var lines []string
 	inComment := false
 	for _, line := range rustLines(string(out)) {
@@ -166,14 +155,11 @@ func isRustWhitespace(r rune) bool {
 
 var unicodeLiteral = regexp.MustCompile(`\\u([0-9a-fA-F]{4})`)
 
-// PrettyJSONResponse is how Yaak's TextViewer shows a JSON response pretty:
-// formatted, its \uXXXX escapes decoded and \/ written /.
 func PrettyJSONResponse(text string) string {
 	if text == "" {
 		return text
 	}
 	body := FormatJSON(text, "  ")
-	// JavaScript's String.fromCharCode of each escape, joined as UTF-16.
 	var units []uint16
 	var b strings.Builder
 	flush := func() {

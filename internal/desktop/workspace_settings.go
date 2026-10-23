@@ -8,8 +8,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// workspaceSettingsDialog is Yaak's WorkspaceSettingsDialog: Workspace,
-// Settings, Headers, Auth and DNS tabs, saving each change as it is made.
 func (a *App) workspaceSettingsDialog(c *ui.Context, p colors) {
 	m := a.models[a.dialogID]
 	if m == nil {
@@ -58,7 +56,6 @@ func (a *App) workspaceSettingsDialog(c *ui.Context, p colors) {
 	}
 }
 
-// saveWorkspaceDraft writes the fields the dialog edits onto the stored workspace.
 func (a *App) saveWorkspaceDraft(d *Draft) {
 	if a.deferUntilInputs(func() { a.saveWorkspaceDraft(d) }) {
 		return
@@ -106,8 +103,6 @@ func (a *App) workspaceGeneral(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// workspaceSyncSetting is Yaak's SyncToFilesystemSetting: the directory
-// the workspace syncs with, which a non-empty directory can open instead.
 func (a *App) workspaceSyncSetting(c *ui.Context, p colors, workspace engine.Object) {
 	id := s(workspace, "id")
 	dir := ""
@@ -143,7 +138,6 @@ func (a *App) workspaceSyncSetting(c *ui.Context, p colors, workspace engine.Obj
 	})
 }
 
-// openSyncDirWorkspace is Yaak's openWorkspaceFromSyncDir.
 func (a *App) openSyncDirWorkspace(dir string) {
 	a.background(func() (func(), error) {
 		id, err := a.Engine.SyncDirWorkspace(dir)
@@ -163,7 +157,6 @@ func (a *App) openSyncDirWorkspace(dir string) {
 	})
 }
 
-// workspaceEncryptionSetting is Yaak's "Workspace encryption" row.
 func (a *App) workspaceEncryptionSetting(c *ui.Context, p colors, workspace engine.Object) {
 	id := s(workspace, "id")
 	settingRow(c, p, "Workspace encryption", "Encrypt secrets stored with the secure() template function.", nil, func() {

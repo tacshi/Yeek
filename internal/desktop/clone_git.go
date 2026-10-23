@@ -10,14 +10,11 @@ import (
 	"github.com/egoist/mygo/yeekui"
 )
 
-// cloneGitForm is Yaak's CloneGitRepositoryDialog.
 type cloneGitForm struct {
 	url, base, override, subdirectory, error string
 	hasOverride, hasSubdirectory, cloning    bool
 }
 
-// defaultProjectDir is Yaak's appInfo.defaultProjectDir, ~/YaakProjects, in
-// Yeek's name.
 func defaultProjectDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -39,7 +36,6 @@ var (
 	sshRepoName = regexp.MustCompile(`:([^/]+?)(\.git)?$`)
 )
 
-// extractRepoName is Yaak's: the repository's name from its URL, HTTPS or SSH.
 func extractRepoName(url string) string {
 	if m := repoName.FindStringSubmatch(url); m != nil && m[1] != "" {
 		return m[1]
@@ -50,7 +46,6 @@ func extractRepoName(url string) string {
 	return ""
 }
 
-// pathSeparator is Yaak's getPathSeparator: \ when the path has one.
 func pathSeparator(path string) string {
 	if strings.Contains(path, `\`) {
 		return `\`
@@ -58,8 +53,6 @@ func pathSeparator(path string) string {
 	return "/"
 }
 
-// directory is where the repository clones: the base directory and the
-// repository's name, unless typed.
 func (f *cloneGitForm) directory() string {
 	if f.hasOverride {
 		return f.override
@@ -70,7 +63,6 @@ func (f *cloneGitForm) directory() string {
 	return f.base
 }
 
-// workspaceDirectory is the directory the workspace's files are in.
 func (f *cloneGitForm) workspaceDirectory() string {
 	dir := f.directory()
 	if f.hasSubdirectory && f.subdirectory != "" {
@@ -142,9 +134,6 @@ func (a *App) cloneGitDialog(c *ui.Context, p colors) {
 	}
 }
 
-// cloneRepository is Yaak's handleClone with gitClone: credentials asked
-// for and stored when the remote wants them, once, then the workspace in
-// the clone opened.
 func (a *App) cloneRepository(f *cloneGitForm, retried bool) {
 	url, dir, workspaceDir := f.url, f.directory(), f.workspaceDirectory()
 	f.cloning, f.error = true, ""
@@ -180,8 +169,6 @@ func (a *App) cloneRepository(f *cloneGitForm, retried bool) {
 	})
 }
 
-// openWorkspaceFolder is Yaak's New Workspace > Open Folder: the workspace
-// synced in a folder the user picks.
 func (a *App) openWorkspaceFolder() {
 	a.background(func() (func(), error) {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Select Workspace Directory", Directory: true})

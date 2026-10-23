@@ -29,8 +29,6 @@ func (a *App) formatRequestBody(d *Draft) {
 		text, label = d.Query, "GraphQL query"
 		formatted, err = engine.FormatGraphQL(text)
 	} else if text != "" {
-		// Yaak's tryFormatJson: format_json, which keeps keys in order,
-		// numbers' digits, comments and template tags.
 		formatted = engine.FormatJSON(text, "  ")
 	} else {
 		formatted = text
@@ -173,7 +171,6 @@ func (a *App) changeBodyType(d *Draft, kind string) {
 	body := engine.ConvertRequestBody(d.bodyObject(), d.BodyType, kind)
 	if kind == "graphql" || kind == "multipart/form-data" || d.BodyType == "" && strings.EqualFold(d.Method, "GET") && kind != "" && kind != "binary" {
 		if !strings.EqualFold(d.Method, "POST") {
-			// Yaak's "switched-method" toast.
 			a.showToast("switched-method", "Request method switched to POST", "info", 5*time.Second)
 		}
 		d.Method = "POST"

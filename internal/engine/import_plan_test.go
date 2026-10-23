@@ -63,7 +63,6 @@ func TestImportPreviewReimportAndConflicts(t *testing.T) {
 			t.Fatalf("reimport %s: %s (%v)", item.Name, item.Action, item.ChangedFields)
 		}
 	}
-	// Editor row identifiers and empty optional fields are not content changes.
 	saveTest(t, e, Object{"model": "http_request", "id": rid, "headers": []any{Object{"id": "editor-row", "name": "Accept", "value": "application/json", "enabled": true}}, "description": "", "body": Object{}})
 	p = testImportPlan(t, e, doc, wid)
 	if item := planItem(t, p, "http_request:r"); item.Action != "unchanged" {
@@ -413,7 +412,6 @@ func TestImportFileLinksPersistAndTemplatesRemap(t *testing.T) {
 	}
 }
 
-// Yaak's warn_if_imported_elsewhere and resolve_linked_source.
 func TestImportLinksByKeysAndWarnsLikeYaak(t *testing.T) {
 	e := testEngine(t)
 	doc := importDocumentForTest()
@@ -424,19 +422,16 @@ func TestImportLinksByKeysAndWarnsLikeYaak(t *testing.T) {
 		t.Fatalf("first import warned: %v", first.Warnings)
 	}
 
-	// The same file into a new workspace: a second copy.
 	again := testImportPlan(t, e, importDocumentForTest(), "")
 	if !slices.ContainsFunc(again.Warnings, func(w ImportWarning) bool {
 		return w.Title == "Already imported into API" && w.Detail == "Importing here makes a second copy" && w.Level == "warning"
 	}) {
 		t.Fatalf("warnings %v", again.Warnings)
 	}
-	// Back into its workspace it isn't.
 	if back := testImportPlan(t, e, importDocumentForTest(), wid); len(back.Warnings) != 0 {
 		t.Fatalf("warned importing back: %v", back.Warnings)
 	}
 
-	// Moved: a new origin, the same keys, still links.
 	moved := importDocumentForTest()
 	moved.Origin = "/moved/collection.yaak"
 	plan := testImportPlan(t, e, moved, wid)
@@ -444,7 +439,6 @@ func TestImportLinksByKeysAndWarnsLikeYaak(t *testing.T) {
 		t.Fatalf("moved file not linked: %s", item.Action)
 	}
 
-	// Two sources holding the same keys, neither from this origin: new.
 	sources, _ := e.Store.List(t.Context(), "import_source", wid)
 	bindings, _ := e.Store.List(t.Context(), "import_source_resource", wid)
 	copySource := clone(sources[0])

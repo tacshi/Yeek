@@ -1,4 +1,3 @@
-// Package plugin defines the API for Go extensions loaded by Yeek.
 package plugin
 
 import "context"

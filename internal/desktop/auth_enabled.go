@@ -7,15 +7,11 @@ import (
 	"github.com/egoist/mygo/yeekui"
 )
 
-// authConditionPreview is the rendered state of an "Enabled when..."
-// template, for the badge beside it.
 type authConditionPreview struct {
 	source                    string
 	started, pending, enabled bool
 }
 
-// authEnabledControl is the Enabled / Disabled / Enabled when... switch at
-// the top of Yaak's HttpAuthenticationEditor.
 func (a *App) authEnabledControl(c *ui.Context, p colors, d *Draft) {
 	selected := 0
 	switch disabled := d.AuthDisabled.(type) {
@@ -57,8 +53,6 @@ func (a *App) authEnabledControl(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// previewAuthCondition renders the condition once per change, like Yaak's
-// useRenderTemplate with purpose "preview".
 func (a *App) previewAuthCondition(d *Draft, condition string) {
 	if d.authPreview.started && d.authPreview.source == condition {
 		return

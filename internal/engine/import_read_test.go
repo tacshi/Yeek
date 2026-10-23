@@ -67,7 +67,6 @@ body:
 	if len(str(obj(request, "body"), "text")) > 10000 {
 		t.Fatal("unbounded recursive schema")
 	}
-	// Selecting the API file grants access to its source tree, not arbitrary files.
 	writeImportFixture(t, filepath.Dir(dir), filepath.Base(dir)+"-outside.json", `{"type":"string"}`)
 	defer func() { _ = os.Remove(filepath.Join(filepath.Dir(dir), filepath.Base(dir)+"-outside.json")) }()
 	writeImportFixture(t, dir, "api.yaml", "openapi: 3.0.3\ninfo: {title: API}\npaths: {}\ncomponents:\n  schemas:\n    X: {$ref: '../"+filepath.Base(dir)+"-outside.json'}\n")

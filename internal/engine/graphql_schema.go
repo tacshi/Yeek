@@ -18,8 +18,6 @@ import (
 	"github.com/vektah/gqlparser/v2/validator"
 )
 
-// GraphQLIndex is an immutable schema shared by documentation, completion, and
-// validation. Construct it once for each fetched or imported schema.
 type GraphQLIndex struct{ Schema *ast.Schema }
 type GraphQLDiagnostic struct {
 	Message                  string
@@ -235,7 +233,6 @@ func GraphQLOperations(source string) []string {
 }
 
 func GraphQLDiagnostics(index *GraphQLIndex, query, variables, operation string) []GraphQLDiagnostic {
-	// Dynamic query fragments cannot be validated before template evaluation.
 	if strings.Contains(query, "${[") {
 		return nil
 	}

@@ -25,7 +25,6 @@ func TestSettingsGeneralUpdates(t *testing.T) {
 	if b(a.settings, "autoDownloadUpdates") {
 		t.Fatal("the checkbox did not turn automatic downloads off")
 	}
-	// Manual updates disable automatic downloads, as Yaak's row does.
 	a.saveSetting("autoupdate", false)
 	tt.Frame()
 	_ = tt.Click("Enable Automatically download updates")
@@ -45,7 +44,6 @@ func TestToastActions(t *testing.T) {
 			t.Fatalf("missing %q", want)
 		}
 	}
-	// A toast without a timeout stays.
 	a.toasts[0].shown = a.toasts[0].shown.Add(-time.Minute)
 	tt.Frame()
 	if err := tt.Click("Download and Install"); err != nil {

@@ -7,14 +7,8 @@ import (
 	"unicode/utf8"
 )
 
-// RFC 9535 filter expressions, for [?expr] written without parentheses,
-// and its function extensions, which ?(...) filters may call too. Yaak's
-// crates/yaak-filter/src/jsonpath/rfc.rs.
-
 const maxRFCDepth = 100
 
-// query is an embedded query: @ or $ and the segments after it, run by the
-// engine.
 type query struct {
 	root     bool
 	path     string
@@ -54,7 +48,6 @@ func (f rfcFunction) arity() int {
 
 func (f rfcFunction) returnsLogical() bool { return f == rfcMatch || f == rfcSearch }
 
-// optional is an RFC 9535 value, or Nothing.
 type optional struct {
 	value jsValue
 	ok    bool
@@ -62,7 +55,6 @@ type optional struct {
 
 func some(v jsValue) optional { return optional{v, true} }
 
-// call is the function's result; Nothing when ok is false.
 func (f rfcFunction) call(args []optional, nodes []jsValue, e *engine) optional {
 	argument := func(i int) optional {
 		if i < len(args) {
@@ -105,7 +97,6 @@ func (f rfcFunction) call(args []optional, nodes []jsValue, e *engine) optional 
 	return some(jsBoolValue(matched))
 }
 
-// callJS is a call from a ?(...) filter, where Nothing is undefined.
 func (f rfcFunction) callJS(args [][]jsValue, e *engine) jsValue {
 	var nodes []jsValue
 	var values []optional
@@ -132,8 +123,6 @@ func isNameFirst(c rune) bool { return isASCIILetter(c) || c == '_' || c >= 0x80
 func isNameChar(c rune) bool  { return isNameFirst(c) || isDigit(c) }
 func isBlank(c rune) bool     { return c == ' ' || c == '\t' || c == '\n' || c == '\r' }
 
-// closingBracket is the index after the ] that closes the bracket opened
-// at open, skipping quoted text.
 func closingBracket(chars []rune, open int) (int, bool) {
 	depth := 0
 	for i := open; i < len(chars); i++ {
@@ -158,8 +147,6 @@ func closingBracket(chars []rune, open int) (int, bool) {
 	return 0, false
 }
 
-// scanQuery reads the segments after @ or $ from start, returning where
-// they end.
 func scanQuery(chars []rune, start int, root bool) (int, query) {
 	at := func(i int) rune {
 		if i < len(chars) {
@@ -596,8 +583,6 @@ func (p *rfcParser) string() (string, error) {
 	return value, nil
 }
 
-// quotedString reads a quoted name with JSON escapes (and \'), and the
-// index after its closing quote.
 func quotedString(chars []rune, start int) (string, int, bool) {
 	if start >= len(chars) || chars[start] != '\'' && chars[start] != '"' {
 		return "", 0, false

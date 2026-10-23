@@ -27,8 +27,6 @@ func TestFolderSettingsTabsAutosaveAndVariables(t *testing.T) {
 		_ = png.Encode(f, settledImage(tt))
 		_ = f.Close()
 	}
-	// The name saves as it is typed, with no Save button.
-	// The field sits under its "Folder Name" caption.
 	caption, _ := tt.Find("Folder Name")
 	tt.ClickAt(caption.X+40, caption.Y+caption.H+16)
 	tt.Key(ui.Cmd, ui.KeyA)
@@ -37,7 +35,6 @@ func TestFolderSettingsTabsAutosaveAndVariables(t *testing.T) {
 	if s(saved, "name") != "Users v2" || tt.HasText("Save") {
 		t.Fatalf("name = %q", s(saved, "name"))
 	}
-	// Variables: create the folder environment, then edit it.
 	if err := tt.Click("Variables"); err != nil {
 		t.Fatal(err)
 	}

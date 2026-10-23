@@ -26,7 +26,6 @@ func TestWorkspaceCreationAndRequestEditing(t *testing.T) {
 	if err := tt.Click("Create Workspace"); err != nil {
 		t.Fatal(err)
 	}
-	// Yaak's CreateWorkspaceDialog.
 	for _, text := range []string{"Name", "Local directory sync", "Select Directory", "No directory selected", "Workspace encryption", "Enable Encryption"} {
 		if !tt.HasText(text) {
 			t.Fatalf("missing %q: %v", text, tt.Texts())
@@ -101,7 +100,6 @@ func TestNativeWorkspaceSnapshot(t *testing.T) {
 	}
 }
 
-// Yaak's CreateWorkspaceDialog with a sync directory, Git and encryption.
 func TestCreateWorkspaceWithSyncGitAndEncryption(t *testing.T) {
 	a, e := cookieApp(t)
 	dir := t.TempDir()
@@ -135,8 +133,6 @@ func TestCreateWorkspaceWithSyncGitAndEncryption(t *testing.T) {
 		t.Fatal("git not initialized", err)
 	}
 
-	// A directory holding only what the system wrote there, as Finder's
-	// .DS_Store, is empty.
 	finder := t.TempDir()
 	for _, name := range []string{".DS_Store", "Thumbs.db", "desktop.ini"} {
 		_ = os.WriteFile(filepath.Join(finder, name), []byte{0, 0, 0, 1}, 0600)
@@ -149,7 +145,6 @@ func TestCreateWorkspaceWithSyncGitAndEncryption(t *testing.T) {
 		t.Fatalf("%q %v", a.createWorkspace.dir, tt.Texts())
 	}
 
-	// A directory with files is offered to open instead.
 	full := t.TempDir()
 	_ = os.WriteFile(filepath.Join(full, "yaak.wk_x.yaml"), []byte("model: workspace\nid: wk_x\nname: X\n"), 0600)
 	a.dialogOpen = false
@@ -161,9 +156,6 @@ func TestCreateWorkspaceWithSyncGitAndEncryption(t *testing.T) {
 	}
 }
 
-// Yaak's PairEditor: a row dragged by its handle goes where the marker
-// shows, before or after the row under the pointer; the row for a new
-// pair stays last.
 func TestPairRowsReorderByDragging(t *testing.T) {
 	a, p := templateTestApp()
 	rows := []KV{{ID: "a", Name: "A", Enabled: true}, {ID: "b", Name: "B", Enabled: true}, {ID: "c", Name: "C", Enabled: true}}
@@ -196,7 +188,6 @@ func TestPairRowsReorderByDragging(t *testing.T) {
 		t.Fatalf("after dropping A after C: %s", names())
 	}
 
-	// Past the last row goes before the row for a new pair.
 	grip, _ = tt.Find("Drag Header 1")
 	last, _ := tt.Find("Header 4")
 	tt.Press(grip.X+grip.W/2, grip.Y+grip.H/2)

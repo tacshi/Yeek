@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// Ported from Yaak's crates/yaak-templates/src/{parser,renderer}.rs tests.
-
 func tv(kind, text string) *templateValue { return &templateValue{kind: kind, text: text} }
 
 func fn(name string, args ...any) *templateValue {
@@ -135,7 +133,6 @@ func TestTemplateRendererMatchesYaak(t *testing.T) {
 	if _, err := render(`hello ${[ error() ]}`, nil, upper); err == nil || err.Error() != "Failed to do it!" {
 		t.Error("fn error", err)
 	}
-	// Yaak builds identity(value=identity(...('ok'))) one level past MAX_DEPTH.
 	nested := "'ok'"
 	for range maxTemplateDepth + 1 {
 		nested = "identity(value=" + nested + ")"

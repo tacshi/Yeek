@@ -94,7 +94,6 @@ func (r resolvedRequest) oauthOptions(environment string) OAuthOptions {
 	return OAuthOptions{WorkspaceID: str(r.Workspace, "id"), ContextID: r.AuthOwnerID, EnvironmentID: environment, Settings: r.Settings}
 }
 
-// PrepareOAuth resolves a saved scope's network settings and the editable auth values.
 func (e *Engine) PrepareOAuth(ctx context.Context, ownerID, environment string, auth Object) (Object, OAuthOptions, error) {
 	owner, err := e.Store.Get(ctx, ownerID)
 	if err != nil {
@@ -187,7 +186,6 @@ func mergeOAuthPairs(base, override []oauthPair, insensitive bool) []oauthPair {
 	return append(result, override...)
 }
 
-// RenderOAuth keeps substituted pair values inside their rows, even when they contain JSON quotes.
 func (e *Engine) RenderOAuth(ctx context.Context, auth Object, workspace, folder, environment, request string) (Object, error) {
 	ctx = context.WithValue(ctx, templateRequestKey{}, request)
 	result := clone(auth)
@@ -243,7 +241,6 @@ func validateOAuthPairs(auth Object) error {
 	return nil
 }
 
-// FetchOAuthToken retains the uncached API for callers without a saved request context.
 func (e *Engine) FetchOAuthToken(ctx context.Context, auth Object, openURL func(string) error) (Object, error) {
 	token, err := e.fetchOAuthToken(ctx, normalizeOAuth(auth), OAuthOptions{OpenExternal: openURL})
 	return token.Response, err

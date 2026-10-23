@@ -22,10 +22,9 @@ import (
 
 type SendOptions struct{ EnvironmentID, CookieJarID string }
 type resolvedRequest struct {
-	AuthOwnerID string
-	Model       Object
-	Settings    Object
-	// SettingSources names the model each setting came from, for the timeline.
+	AuthOwnerID    string
+	Model          Object
+	Settings       Object
 	SettingSources map[string]Object
 	Workspace      Object
 	Variables      map[string]string
@@ -137,9 +136,6 @@ func (e *Engine) resolve(ctx context.Context, request Object, environment string
 	}
 	keys := []string{"url", "headers", "metadata", "urlParameters"}
 	if str(rendered, "authenticationType") != "" && str(rendered, "authenticationType") != "none" {
-		// Like Yaak's render_http_request: authentication.disabled is true,
-		// false, or a template ("Enabled when...") that disables auth when it
-		// renders empty. Disabled auth keeps only {disabled: true}.
 		authValues := obj(rendered, "authentication")
 		disabled := false
 		switch condition := authValues["disabled"].(type) {
@@ -199,8 +195,6 @@ func (e *Engine) resolve(ctx context.Context, request Object, environment string
 	return resolvedRequest{Model: rendered, Settings: settings, SettingSources: sources, Workspace: workspace, Variables: vars, AuthOwnerID: authOwnerID}, nil
 }
 
-// ensureProto is Yaak's default scheme for a URL typed without one: HTTPS
-// for the .app, .dev and .page TLDs (which are HSTS-preloaded), else HTTP.
 func ensureProto(raw string) string {
 	raw = strings.TrimPrefix(raw, "//")
 	if u, err := url.Parse("http://" + raw); err == nil {
@@ -226,8 +220,6 @@ func buildURL(m Object) (*url.URL, error) {
 	if u.Hostname() == "" {
 		return nil, errors.New("URL is missing a hostname")
 	}
-	// Like Yaak, the URL's own query stays as typed and enabled parameters
-	// are appended after it in table order.
 	var params [][2]string
 	for _, p := range objects(array(m, "urlParameters")) {
 		if !enabled(p) || str(p, "name") == "" {
@@ -264,8 +256,6 @@ func buildURL(m Object) (*url.URL, error) {
 	return u, nil
 }
 
-// queryComponent percent-encodes everything but unreserved characters, so
-// spaces become %20 as in Yaak rather than +.
 func queryComponent(s string) string {
 	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
 }
@@ -293,9 +283,6 @@ func stripQuery(raw string, names ...string) string {
 	}), "&")
 }
 
-// escapeRawQuery percent-encodes bytes that can't appear in a request line
-// (the url crate's query set: controls, space, quotes, angle brackets,
-// non-ASCII) while leaving existing escapes and the user's ordering alone.
 func escapeRawQuery(raw string) string {
 	var b strings.Builder
 	for i := 0; i < len(raw); i++ {
@@ -320,8 +307,6 @@ func replacePathParameter(path, name, value string) (string, bool) {
 	return strings.Join(parts, "/"), changed
 }
 
-// authApplies reports whether a resolved model's authentication should be
-// applied: it has a type and wasn't disabled.
 func authApplies(m Object) bool {
 	kind := str(m, "authenticationType")
 	return kind != "" && kind != "none" && !boolean(obj(m, "authentication"), "disabled")
@@ -348,7 +333,6 @@ func (e *Engine) authenticate(req *http.Request, m Object, oauthOptions ...OAuth
 			key = str(auth, "name")
 		}
 		if cmp.Or(str(auth, "location"), str(auth, "in")) == "query" {
-			// Appended after the URL's own parameters, like Yaak's setQueryParameters.
 			req.URL.RawQuery = appendQuery(req.URL.RawQuery, [][2]string{{key, str(auth, "value")}})
 		} else {
 			if strings.EqualFold(key, "Cookie") {
@@ -658,8 +642,6 @@ func settingSource(m Object) Object {
 	return Object{"model": str(m, "model"), "id": str(m, "id"), "name": str(m, "name")}
 }
 
-// timelineSettings are Yaak's "setting" timeline events: each setting the
-// request is sent with, and the model it came from.
 func (r resolvedRequest) timelineSettings() []Object {
 	timeout := "Infinity"
 	if ms := number(r.Settings, "settingRequestTimeout"); ms > 0 {
@@ -684,7 +666,6 @@ func (r resolvedRequest) timelineSettings() []Object {
 	return events
 }
 
-// rustDuration writes a duration as Rust's Debug does, which Yaak shows: 500ms, 30s, 1.5s.
 func rustDuration(d time.Duration) string {
 	if d < time.Second {
 		return strconv.FormatInt(d.Milliseconds(), 10) + "ms"
@@ -692,7 +673,6 @@ func rustDuration(d time.Duration) string {
 	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64) + "s"
 }
 
-// sendURLEvent is Yaak's send_url event: the request line's parts.
 func sendURLEvent(req *http.Request) Object {
 	u := req.URL
 	port := 80
@@ -706,8 +686,6 @@ func sendURLEvent(req *http.Request) Object {
 	return Object{"type": "send_url", "method": req.Method, "scheme": u.Scheme, "username": u.User.Username(), "password": password, "host": u.Hostname(), "port": port, "path": u.EscapedPath(), "query": u.RawQuery, "fragment": u.Fragment}
 }
 
-// redirectEvent is Yaak's redirect event: where the redirect goes, and what
-// following it drops from the request.
 func redirectEvent(next, previous *http.Request) Object {
 	status := 0
 	if next.Response != nil {

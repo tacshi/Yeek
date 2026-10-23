@@ -12,8 +12,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// A file of the sync directory changed outside Yeek is reported, through
-// mygo.WatchFiles, and syncs into the workspace.
 func TestWatchSyncDirPullsEdits(t *testing.T) {
 	a, e, ids := treeApp(t)
 	dir := t.TempDir()
@@ -40,7 +38,6 @@ func TestWatchSyncDirPullsEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A temporary file of an atomic write is no change of its own.
 	if err := os.WriteFile(filepath.Join(dir, ".yaak.x.yaml.1-1.tmp"), []byte("model: nonsense"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -68,8 +65,6 @@ func TestWatchSyncDirPullsEdits(t *testing.T) {
 	}
 }
 
-// Changes coming in from the directory wait in Yaak's Changes Detected
-// dialog; a plan that went stale meanwhile is reviewed again (#739).
 func TestSyncReviewsIncomingChanges(t *testing.T) {
 	a, e, ids := treeApp(t)
 	dir := t.TempDir()
@@ -106,7 +101,6 @@ func TestSyncReviewsIncomingChanges(t *testing.T) {
 		t.Fatal("applied before review")
 	}
 
-	// The file changed again before Apply Changes: the plan is reviewed again.
 	rename("Newer")
 	if err := tt.Click("Apply Changes"); err != nil {
 		t.Fatal(err)
@@ -123,7 +117,6 @@ func TestSyncReviewsIncomingChanges(t *testing.T) {
 		t.Fatal(name(), a.dialogOpen)
 	}
 
-	// Changes going out apply without asking.
 	m := deepCopy(a.models[ids["Alpha"]])
 	m["name"] = "Outgoing"
 	if _, err := e.Save(t.Context(), m); err != nil {

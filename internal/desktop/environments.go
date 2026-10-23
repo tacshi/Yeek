@@ -9,11 +9,8 @@ import (
 	"yeek/internal/engine"
 )
 
-// environmentColors are Yaak's theme colors an environment can take, stored
-// as Yaak stores them ("var(--danger)"), so synced workspaces stay compatible.
 var environmentColors = []string{"danger", "warning", "notice", "success", "primary", "info", "secondary"}
 
-// envColor resolves an environment's stored color: a theme color, or a hex value.
 func envColor(stored string, p colors) (ui.Color, bool) {
 	stored = strings.TrimSpace(stored)
 	if name, ok := strings.CutPrefix(stored, "var(--"); ok {
@@ -46,13 +43,10 @@ var (
 	variableNameRaw = regexp.MustCompile(`(?i)^[a-z_][a-z0-9_.-]*$`)
 )
 
-// colorDot is Yaak's ColorIndicator.
 func colorDot(c *ui.Context, color ui.Color, size float32) ui.Element {
 	return ui.Box(c).Size(size, size).Radius(size / 2).Shrink(0).Background(color)
 }
 
-// environmentsBreakdown splits the workspace's environments as Yaak does:
-// the base environment (Global Variables) and its sub-environments.
 func (a *App) environmentsBreakdown() (base engine.Object, subs []engine.Object) {
 	for _, env := range a.list("environment") {
 		switch s(env, "parentModel") {
@@ -83,19 +77,14 @@ func (a *App) openEnvironments() {
 	a.openEnvironmentsAt(id)
 }
 
-// openEnvironmentsAt opens the editor with one environment selected.
 func (a *App) openEnvironmentsAt(id string) {
 	a.prompt("environments", "Environments", "", id)
 	a.envDraft = kvRows(a.models[id], "variables")
 }
 
-// environmentDialog is Yaak's EnvironmentEditDialog: the environments as a
-// tree on the left, the selected one's editor on the right.
 func (a *App) environmentDialog(c *ui.Context, p colors) {
 	base, subs := a.environmentsBreakdown()
 	bases := a.baseEnvironments()
-	// Yaak leaves sub-environments out while a workspace has several base
-	// environments, which it asks to be deleted down to one.
 	multiple := len(bases) > 1
 	if a.models[a.dialogID] == nil && base != nil {
 		a.dialogID = s(base, "id")
@@ -116,7 +105,6 @@ func (a *App) environmentDialog(c *ui.Context, p colors) {
 				a.environmentRow(c, p, env, 1, false)
 			}
 		})
-		// Right-clicking empty space offers a sub-environment, while there can be one.
 		sidebar.ContextMenu(func(m *ui.Menu) {
 			if !multiple && base != nil && m.Item("Create Sub Environment").Chosen() {
 				a.newEnvironment()
@@ -137,8 +125,6 @@ func (a *App) environmentDialog(c *ui.Context, p colors) {
 	})
 }
 
-// baseEnvironments are the workspace's environments of its own, which
-// should be one.
 func (a *App) baseEnvironments() []engine.Object {
 	var bases []engine.Object
 	for _, env := range a.list("environment") {
@@ -155,8 +141,6 @@ func (a *App) selectEnvironment(id string) {
 	a.envDraft = kvRows(a.models[id], "variables")
 }
 
-// environmentRow is a row of Yaak's environment tree. With several base
-// environments each shows a warning, and none takes a sub-environment.
 func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth int, multiple bool) {
 	id := s(env, "id")
 	isBase := s(env, "parentModel") == "workspace"
@@ -212,8 +196,6 @@ func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth i
 				a.prompt("environment_color", "Environment Color", "", id)
 			}
 		}
-		// Yaak's menu: a base environment is only shared, or deleted while
-		// there are several, and takes a sub-environment while there's one.
 		label := "Make Sharable"
 		if b(env, "public") {
 			label = "Make Private"
@@ -245,13 +227,10 @@ func (a *App) setEnvironmentField(id, key string, value any) {
 	a.saveModel(copy)
 }
 
-// environmentEditor is Yaak's EnvironmentEditor for the dialog's selected environment.
 func (a *App) environmentEditor(c *ui.Context, p colors, env engine.Object) {
 	a.environmentEditorFor(c, p, env, &a.envDraft, a.saveEnvironment, false)
 }
 
-// environmentEditorFor edits env's variables in rows, calling save after
-// each change; hideName leaves out the heading, as for a folder's environment.
 func (a *App) environmentEditorFor(c *ui.Context, p colors, env engine.Object, rows *[]KV, save func(), hideName bool) {
 	id := s(env, "id")
 	isBase := s(env, "parentModel") == "workspace"
@@ -324,7 +303,6 @@ func (a *App) environmentEditorFor(c *ui.Context, p colors, env engine.Object, r
 	})
 }
 
-// allSecure reports whether every variable value is empty or a secure() template, as Yaak checks.
 func allSecure(rows []KV) bool {
 	for _, row := range rows {
 		value := strings.TrimSpace(row.Value)
@@ -335,7 +313,6 @@ func allSecure(rows []KV) bool {
 	return true
 }
 
-// encryptEnvironment replaces each plain value with a secure() template.
 func (a *App) encryptEnvironment(id string) {
 	workspace := s(a.models[id], "workspaceId")
 	if !a.workspaceKeySet(workspace) {
@@ -379,7 +356,6 @@ func (a *App) saveEnvironmentRows(id string, rows []KV) {
 	}
 }
 
-// newEnvironment opens Yaak's New Environment dialog.
 func (a *App) newEnvironment() {
 	a.saveEnvironment()
 	a.newEnv = newEnvironmentForm{}
@@ -430,8 +406,6 @@ func (a *App) newEnvironmentDialog(c *ui.Context, p colors) {
 	})
 }
 
-// environmentColorPicker is Yaak's ColorPickerWithThemeColors: no color, the
-// theme colors, or a custom one chosen with MyGo's color picker.
 func environmentColorPicker(c *ui.Context, p colors, color *string) {
 	selected := ""
 	switch {
@@ -498,7 +472,6 @@ func hexString(color ui.Color) string {
 	return string(b)
 }
 
-// environmentColorDialog is Yaak's EnvironmentColorPicker dialog.
 func (a *App) environmentColorDialog(c *ui.Context, p colors) {
 	id := a.dialogID
 	ui.Column(c).Padding(16, 20).Gap(16).Children(func() {

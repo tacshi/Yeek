@@ -20,7 +20,6 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-// CookieDomain returns the hostname and whether the cookie includes subdomains.
 func CookieDomain(cookie Object) (string, bool) {
 	domain := obj(cookie, "domain")
 	if host := str(domain, "HostOnly"); host != "" {
@@ -29,8 +28,6 @@ func CookieDomain(cookie Object) (string, bool) {
 	return str(domain, "Suffix"), true
 }
 
-// CookieExpiry reads Yaak's Unix-second representation and earlier Yeek date
-// strings. A zero time is a session cookie; invalid expiry data is an error.
 func CookieExpiry(cookie Object) (time.Time, error) {
 	if cookie["expires"] == nil || cookie["expires"] == "SessionEnd" {
 		return time.Time{}, nil
@@ -73,8 +70,6 @@ func cookieHost(host string) (string, error) {
 	return strings.ToLower(ascii), nil
 }
 
-// An explicit port makes the standard jar canonicalize bracketed IPv6 hosts
-// consistently. Cookies themselves are independent of the request's port.
 func cookieJarURL(u *url.URL) *url.URL {
 	ip, err := netip.ParseAddr(u.Hostname())
 	if err != nil {
@@ -85,8 +80,6 @@ func cookieJarURL(u *url.URL) *url.URL {
 	return result
 }
 
-// CookieKey follows cookie identity: name, canonical domain, and path. Host-only
-// and domain cookies for that same tuple replace one another on the wire.
 func CookieKey(cookie Object) string {
 	host, _ := CookieDomain(cookie)
 	host = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(host)), ".")
@@ -293,8 +286,6 @@ type cookieChange struct {
 	value Object
 }
 
-// Cookies rejected by the standard jar must never enter persistent storage;
-// otherwise a later request could replay an attacker's cookie on another host.
 func receivedCookie(u *url.URL, cookie *http.Cookie, now time.Time) (cookieChange, bool) {
 	u = cookieJarURL(u)
 	probe, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
@@ -325,7 +316,6 @@ func receivedCookie(u *url.URL, cookie *http.Cookie, now time.Time) (cookieChang
 	value := Object{"name": cookie.Name, "value": cookie.Value, "domain": domain, "path": path, "secure": cookie.Secure, "httpOnly": cookie.HttpOnly, "sameSite": nil, "expires": "SessionEnd"}
 	expires := cookie.Expires
 	if cookie.MaxAge > 0 {
-		// Saturate at the maximum HTTP cookie date instead of overflowing a duration.
 		seconds := min(int64(cookie.MaxAge), int64(253402300799)-now.Unix())
 		expires = time.Unix(now.Unix()+seconds, 0)
 	}
@@ -415,7 +405,7 @@ func (e *Engine) persistCookies(ctx context.Context, id string, jar *recordingCo
 	_, err := e.changeCookies(ctx, id, func(current []any) []any { return applyCookieChanges(current, changes) })
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-	} // A deleted jar must not be recreated by a pending send.
+	}
 	if err == nil {
 		jar.mu.Lock()
 		jar.changes = jar.changes[min(len(changes), len(jar.changes)):]

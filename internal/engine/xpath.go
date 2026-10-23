@@ -9,19 +9,11 @@ import (
 	"github.com/antchfx/xpath"
 )
 
-// xpathItem is a node an XPath query selected: an attribute (name and
-// value) or a node of the document.
 type xpathItem struct {
 	node        *xmlquery.Node
 	name, value string
 }
 
-// filterXPath is Yaak's filterXPath (template-function-xml), which its
-// xml.xpath, response and request body path functions share: an attribute,
-// text or CDATA node gives its value and an element its first child as XML
-// (#723); "join" joins those, and "all" joins the nodes as XML with commas,
-// as JavaScript's String of an array does. A query that is no node set,
-// such as count(), gives its value.
 func filterXPath(body, path, result, join string) (string, error) {
 	doc, err := xmlquery.Parse(strings.NewReader(body))
 	if err != nil {
@@ -73,7 +65,6 @@ func filterXPath(body, path, result, join string) (string, error) {
 	return items[0].text(), nil
 }
 
-// text is Yaak's nodeText.
 func (item xpathItem) text() string {
 	switch {
 	case item.node == nil:
@@ -88,8 +79,6 @@ func (item xpathItem) text() string {
 	return b.String()
 }
 
-// xml is the item as xmldom's String of a node writes it; an attribute
-// with the space before it.
 func (item xpathItem) xml() string {
 	if item.node == nil {
 		return " " + item.name + `="` + escapeXMLAttr(item.value) + `"`
@@ -99,8 +88,6 @@ func (item xpathItem) xml() string {
 	return b.String()
 }
 
-// serializeXML writes n as xmldom's XMLSerializer does: empty elements
-// closed in their tag, text escaping &, < and >, and attributes " too.
 func serializeXML(b *strings.Builder, n *xmlquery.Node) {
 	switch n.Type {
 	case xmlquery.DocumentNode:
@@ -161,7 +148,6 @@ var (
 func escapeXMLText(s string) string { return xmlTextEscaper.Replace(s) }
 func escapeXMLAttr(s string) string { return xmlAttrEscaper.Replace(s) }
 
-// jsNumber is JavaScript's String of a number.
 func jsNumber(f float64) string {
 	switch {
 	case math.IsNaN(f):

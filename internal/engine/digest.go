@@ -20,13 +20,9 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// This file ports Yaak's auth-digest plugin (plugins/auth-digest/src).
-
-// authChallenge is one challenge from a WWW-Authenticate header.
 type authChallenge struct {
-	Scheme string
-	Params map[string]string
-	// Token68 is the NTLM TlRMTVNT… form, which carries no parameters.
+	Scheme  string
+	Params  map[string]string
 	Token68 string
 }
 
@@ -34,10 +30,9 @@ type digestChallenge struct {
 	Realm, Nonce string
 	Opaque       *string
 	Qop          []string
-	// Algorithm is echoed back verbatim, so it keeps the server's spelling.
-	Algorithm *string
-	Stale     bool
-	Userhash  bool
+	Algorithm    *string
+	Stale        bool
+	Userhash     bool
 }
 
 type digestOptions struct {
@@ -62,9 +57,6 @@ var (
 	digestQops       = []string{"auth", "auth-int"}
 )
 
-// splitOnCommas splits on commas outside quoted strings. Challenges and
-// their parameters are both comma-separated, so parseChallenges regroups
-// the flat list.
 func splitOnCommas(value string) []string {
 	var parts []string
 	var current strings.Builder
@@ -153,8 +145,6 @@ func toDigestChallenge(params map[string]string) digestChallenge {
 	return c
 }
 
-// resolveDigestAlgorithm accepts MD5, MD5-sess, SHA-256 and SHA-256-sess,
-// tolerating the SHA256 spelling some servers use.
 func resolveDigestAlgorithm(algorithm *string) (newHash func() hash.Hash, sess bool, ok bool) {
 	value := "md5"
 	if algorithm != nil {
@@ -175,21 +165,19 @@ func unsupportedDigestAlgorithm(algorithm *string) error {
 	if algorithm != nil {
 		name = *algorithm
 	}
-	return fmt.Errorf("Unsupported Digest algorithm: %s. Supported algorithms are %s", name, strings.Join(digestAlgorithms, ", ")) //nolint:staticcheck // Yaak's message, shown as it is
+	return fmt.Errorf("Unsupported Digest algorithm: %s. Supported algorithms are %s", name, strings.Join(digestAlgorithms, ", ")) //nolint:staticcheck
 }
 
 func unsupportedDigestQop(qop []string) error {
-	return fmt.Errorf("Unsupported Digest qop: %s. Supported values are %s", strings.Join(qop, ", "), strings.Join(digestQops, " and ")) //nolint:staticcheck // Yaak's message, shown as it is
+	return fmt.Errorf("Unsupported Digest qop: %s. Supported values are %s", strings.Join(qop, ", "), strings.Join(digestQops, " and ")) //nolint:staticcheck
 }
 
-// digestChallengeProblem reports anything that stops this challenge being
-// answered, so selection can pass over it for the next one offered.
 func digestChallengeProblem(c digestChallenge) error {
 	if _, _, ok := resolveDigestAlgorithm(c.Algorithm); !ok {
 		return unsupportedDigestAlgorithm(c.Algorithm)
 	}
 	if c.Nonce == "" {
-		return errors.New(`Digest challenge is missing the required "nonce" parameter`) //nolint:staticcheck // Yaak's message, shown as it is
+		return errors.New(`Digest challenge is missing the required "nonce" parameter`) //nolint:staticcheck
 	}
 	if c.Qop != nil && !slices.ContainsFunc(c.Qop, func(q string) bool { return slices.Contains(digestQops, q) }) {
 		return unsupportedDigestQop(c.Qop)
@@ -197,8 +185,6 @@ func digestChallengeProblem(c digestChallenge) error {
 	return nil
 }
 
-// selectDigestChallenge picks the first answerable challenge, since servers
-// list them strongest-first (RFC 7616 §3.7).
 func selectDigestChallenge(challenges []authChallenge, realm string) (digestChallenge, error) {
 	var digests, offered []string
 	var params []map[string]string
@@ -210,9 +196,9 @@ func selectDigestChallenge(challenges []authChallenge, realm string) (digestChal
 	}
 	if len(params) == 0 {
 		if len(offered) == 0 {
-			return digestChallenge{}, errors.New("Server did not offer Digest authentication (no WWW-Authenticate header in the response)") //nolint:staticcheck // Yaak's message, shown as it is
+			return digestChallenge{}, errors.New("Server did not offer Digest authentication (no WWW-Authenticate header in the response)") //nolint:staticcheck
 		}
-		return digestChallenge{}, fmt.Errorf("Server did not offer Digest authentication. It offered: %s", strings.Join(offered, ", ")) //nolint:staticcheck // Yaak's message, shown as it is
+		return digestChallenge{}, fmt.Errorf("Server did not offer Digest authentication. It offered: %s", strings.Join(offered, ", ")) //nolint:staticcheck
 	}
 	inRealm := params
 	if realm != "" {
@@ -225,7 +211,7 @@ func selectDigestChallenge(challenges []authChallenge, realm string) (digestChal
 		}
 	}
 	if len(inRealm) == 0 {
-		return digestChallenge{}, fmt.Errorf("Server did not offer a Digest realm named %q. It offered: %s", realm, strings.Join(digests, ", ")) //nolint:staticcheck // Yaak's message, shown as it is
+		return digestChallenge{}, fmt.Errorf("Server did not offer a Digest realm named %q. It offered: %s", realm, strings.Join(digests, ", ")) //nolint:staticcheck
 	}
 	for _, p := range inRealm {
 		if c := toDigestChallenge(p); digestChallengeProblem(c) == nil {
@@ -235,9 +221,6 @@ func selectDigestChallenge(challenges []authChallenge, realm string) (digestChal
 	return digestChallenge{}, digestChallengeProblem(toDigestChallenge(inRealm[0]))
 }
 
-// selectDigestQop prefers auth-int only when the body is in hand. A nil body
-// is empty or wasn't handed over; when auth-int is all that's offered it is
-// still used over the empty body.
 func selectDigestQop(qop []string, body *string) (string, error) {
 	if slices.Contains(qop, "auth-int") && (body != nil || !slices.Contains(qop, "auth")) {
 		return "auth-int", nil
@@ -252,9 +235,6 @@ func quoteDigest(value string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(value) + `"`
 }
 
-// encodeDigestExtended is an RFC 5987 ext-value, for usernames a
-// quoted-string can't carry. It matches JavaScript's encodeURIComponent
-// with ', (, ) and * escaped too.
 func encodeDigestExtended(value string) string {
 	var b strings.Builder
 	for _, c := range []byte(value) {
@@ -277,7 +257,6 @@ func isPrintableASCII(s string) bool {
 }
 
 func buildDigestAuthorization(o digestOptions) (string, error) {
-	// RFC 7616 §4 hashes credentials in Normalization Form C.
 	username, password := norm.NFC.String(o.Username), norm.NFC.String(o.Password)
 	c := o.Challenge
 	newHash, sess, ok := resolveDigestAlgorithm(c.Algorithm)
@@ -310,8 +289,6 @@ func buildDigestAuthorization(o digestOptions) (string, error) {
 		}
 		ha2 = h(o.Method + ":" + o.URI + ":" + h(body))
 	}
-	// Without qop the server speaks RFC 2069, where the client contributes
-	// nothing and must not send cnonce, nc or qop back.
 	response := h(ha1 + ":" + c.Nonce + ":" + ha2)
 	if qop != "" {
 		response = h(ha1 + ":" + c.Nonce + ":" + nc + ":" + o.Cnonce + ":" + qop + ":" + ha2)
@@ -342,7 +319,6 @@ func buildDigestAuthorization(o digestOptions) (string, error) {
 
 var absoluteURLRE = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+\-.]*://`)
 
-// digestRequestTarget is the origin-form request-target the digest covers.
 func digestRequestTarget(raw string) (string, error) {
 	if !absoluteURLRE.MatchString(raw) {
 		raw = "http://" + raw
@@ -361,21 +337,15 @@ func digestRequestTarget(raw string) (string, error) {
 	return target, nil
 }
 
-// maxDigestBodyBytes matches Yaak's MAX_AUTH_BODY_BYTES: larger bodies,
-// and streamed ones (files, multipart), aren't handed to authentication.
 const maxDigestBodyBytes = 10 << 20
 
 type digestTransport struct {
-	base http.RoundTripper
-	auth Object
-	// signBody is set for in-memory bodies, which auth-int may hash.
+	base     http.RoundTripper
+	auth     Object
 	signBody bool
 }
 
 func (d digestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Digest needs a server-issued nonce, so like Yaak the challenge is
-	// provoked first. The probe carries only the method and URL: a cookie or
-	// API key header could authorize the very operation it only asks about.
 	probe, err := http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), nil)
 	if err != nil {
 		return nil, err

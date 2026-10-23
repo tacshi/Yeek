@@ -155,7 +155,7 @@ func LoadClientCertificate(model Object) (tls.Certificate, error) {
 		}
 		key = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 	} else if block.Headers["Proc-Type"] == "4,ENCRYPTED" {
-		//nolint:staticcheck // Legacy PEM is an explicit certificate import format.
+		//nolint:staticcheck
 		der, err := x509.DecryptPEMBlock(block, []byte(password))
 		if err != nil {
 			return tls.Certificate{}, fmt.Errorf("decrypt legacy PEM key: %w", err)

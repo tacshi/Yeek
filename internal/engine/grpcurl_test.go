@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// The cases of Yaak's action-copy-grpcurl tests.
 func TestGrpcurlMatchesYaak(t *testing.T) {
 	lines := func(parts ...string) string { return strings.Join(parts, " \\\n  ") }
 	for name, c := range map[string]struct {

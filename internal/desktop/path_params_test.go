@@ -8,7 +8,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// The cases of Yaak's pathPlaceholders.test.ts.
 func TestExtractPathPlaceholders(t *testing.T) {
 	for url, want := range map[string][]string{
 		"/users/:id":                           {":id"},
@@ -65,11 +64,9 @@ func TestPathPlaceholderRowsInParams(t *testing.T) {
 	if !slices.Contains(names, ":id") || !slices.Contains(names, ":postId") {
 		t.Fatalf("rows = %v", names)
 	}
-	// Unfilled placeholder rows are not saved.
 	if params := oslice(d.object(), "urlParameters"); len(params) != 0 {
 		t.Fatalf("saved %v", params)
 	}
-	// Renaming a row renames the placeholder in the URL.
 	if err := tt.Click("Parameter 1"); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +76,6 @@ func TestPathPlaceholderRowsInParams(t *testing.T) {
 	if d.URL != "https://api.test/users/:userId/posts/:postId?q=1" {
 		t.Fatalf("url = %s", d.URL)
 	}
-	// A filled row is saved, and the row of a removed placeholder goes away.
 	if err := tt.Click("Parameter value 1"); err != nil {
 		t.Fatal(err)
 	}

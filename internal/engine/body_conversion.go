@@ -8,16 +8,11 @@ import (
 	"unicode"
 )
 
-// prettyBodyJSON is JSON.stringify(value, null, 2). Object members keep
-// their order: an orderedBody lists them, and JSON text given as a
-// jsontext.Value is reindented as it stands.
 func prettyBodyJSON(value any) string {
 	data, _ := json.Marshal(value, jsontext.WithIndent("  "), json.Deterministic(true))
 	return string(data)
 }
 
-// orderedBody is a JSON object that keeps its members in the order added,
-// as a JavaScript object does.
 type orderedBody struct {
 	keys   []string
 	values map[string]any
@@ -48,8 +43,6 @@ func (o orderedBody) MarshalJSONTo(enc *jsontext.Encoder) error {
 	return enc.WriteToken(jsontext.EndObject)
 }
 
-// jsonText is text parsed as JSON, keeping its members' order, or false
-// when it is not JSON.
 func jsonText(text string) (jsontext.Value, bool) {
 	value := jsontext.Value(strings.TrimSpace(text))
 	if !value.IsValid(jsontext.AllowDuplicateNames(true)) {
@@ -58,13 +51,10 @@ func jsonText(text string) (jsontext.Value, bool) {
 	return value, true
 }
 
-// formURLEncode is URLSearchParams' serializer: it leaves letters, digits
-// and *-._ as they are and writes spaces as +.
 func formURLEncode(s string) string {
 	return strings.NewReplacer("%2A", "*", "~", "%7E").Replace(url.QueryEscape(s))
 }
 
-// ConvertRequestBody keeps input that cannot be represented by the new editor.
 func ConvertRequestBody(body Object, from, to string) Object {
 	body = clone(body)
 	if to == "" {
@@ -176,10 +166,6 @@ func ConvertRequestBody(body Object, from, to string) Object {
 	return body
 }
 
-// StripJSONComments is Yaak's strip_json_comments: it removes // and /* */
-// comments from JSONC, outside strings and template tags, with the spaces
-// before them, then the lines left empty and trailing commas before } or ].
-// Like Rust's str::lines, it ends lines at \n and drops a \r before one.
 func StripJSONComments(text string) string {
 	r := []rune(text)
 	var result []rune
@@ -203,7 +189,6 @@ func StripJSONComments(text string) string {
 			}
 		case inTag:
 			result = append(result, c)
-			// A quoted argument is allowed to contain ]}, so skip over strings whole.
 			if c == '\'' {
 				if end, ok := quoted.take(r, i+1); ok {
 					result = append(result, r[i+1:end]...)
@@ -232,7 +217,7 @@ func StripJSONComments(text string) string {
 			for i < len(r) && (r[i] != '*' || i+1 >= len(r) || r[i+1] != '/') {
 				i++
 			}
-			i++ // the closing /
+			i++
 			trim()
 		default:
 			if c == '"' {
@@ -241,7 +226,6 @@ func StripJSONComments(text string) string {
 			result = append(result, c)
 		}
 	}
-	// Remove lines that are now empty (were comment-only lines).
 	var lines []string
 	for _, line := range rustLines(string(result)) {
 		if strings.TrimSpace(line) != "" {
@@ -251,15 +235,8 @@ func StripJSONComments(text string) string {
 	return stripTrailingCommas([]rune(strings.Join(lines, "\n")))
 }
 
-// tagStrings is Yaak's TagStrings: it reads the single-quoted strings in
-// template tags, left to right through one text, remembering when a scan
-// ran off its end, after which no string can close.
 type tagStrings struct{ noneLeft bool }
 
-// take reads the body of a string whose opening quote is before from: it
-// returns the index just past the closing quote, or false when the quote
-// never closes, which leaves it an ordinary character. \ escapes what
-// follows it.
 func (t *tagStrings) take(r []rune, from int) (int, bool) {
 	if t.noneLeft {
 		return 0, false
@@ -280,7 +257,6 @@ func (t *tagStrings) take(r []rune, from int) (int, bool) {
 	return 0, false
 }
 
-// rustLines is Rust's str::lines.
 func rustLines(text string) []string {
 	if text == "" {
 		return nil
@@ -292,8 +268,6 @@ func rustLines(text string) []string {
 	return lines
 }
 
-// stripTrailingCommas is Yaak's strip_trailing_commas: a comma before } or
-// ], past whitespace, goes, outside strings.
 func stripTrailingCommas(r []rune) string {
 	var result []rune
 	inString := false

@@ -50,8 +50,6 @@ func cookieHeaderDetails(request http.Header, response http.Header, at time.Time
 	return Object{"sent": sent, "received": received}
 }
 
-// ResponseCookies includes redirects and authentication exchanges when the
-// request recorded them, and can still read responses saved by earlier versions.
 func ResponseCookies(response Object) (sent, received []Object) {
 	history := objects(array(response, "cookieHistory"))
 	if len(history) == 0 {

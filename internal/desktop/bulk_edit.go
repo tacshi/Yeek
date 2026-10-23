@@ -8,7 +8,6 @@ import (
 	"uuid"
 )
 
-// bulkPreference names the editors whose bulk mode is remembered together, as Yaak's preferenceName does.
 func bulkPreference(name string) string {
 	switch name {
 	case "Header":
@@ -21,8 +20,6 @@ func bulkPreference(name string) string {
 	return "form"
 }
 
-// formatBulkPairs writes pairs as Yaak's bulk editor does: one "name: value"
-// per line, disabled pairs commented out as "# name: value", newlines escaped.
 func formatBulkPairs(rows []KV) string {
 	lines := []string{}
 	for _, row := range rows {
@@ -44,9 +41,6 @@ var (
 	bulkComment       = regexp.MustCompile(`^\s*#(?:\s+|$)`)
 )
 
-// parseBulkPairs reads Yaak's bulk format. A "# " line is a disabled pair
-// when the rest parses as one, else a comment that is dropped; "#foo: bar"
-// stays an enabled pair named "#foo". A line without ": " is a name alone.
 func parseBulkPairs(text string) []KV {
 	rows := []KV{}
 	for line := range strings.SplitSeq(text, "\n") {
@@ -72,8 +66,6 @@ func parseBulkPairs(text string) []KV {
 	return rows
 }
 
-// bulkEditor edits rows as text. The text is kept while it parses back to the
-// same rows, so typing is not reformatted under the caret.
 func (a *App) bulkEditor(c *ui.Context, p colors, rows *[]KV, name string, dirty *bool) {
 	if a.bulkText == nil {
 		a.bulkText = map[string]string{}
@@ -92,8 +84,6 @@ func (a *App) bulkEditor(c *ui.Context, p colors, rows *[]KV, name string, dirty
 	a.bulkText[key] = text
 }
 
-// pairOrBulkEditor is Yaak's PairOrBulkEditor: the row editor or the bulk
-// text, switched by a button in the corner that shows on hover.
 func (a *App) pairOrBulkEditor(c *ui.Context, p colors, rows *[]KV, name, value string, dirty *bool) {
 	preference := bulkPreference(name)
 	bulk := a.bulkEdit[preference]

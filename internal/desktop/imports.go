@@ -15,8 +15,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// importSource is Yaak's ImportSourcePath: a file, a folder or a URL (kind
-// "" lets the engine tell a path's), or Yeek's pasted text, which has no path.
 type importSource struct {
 	path, kind, content string
 }
@@ -32,13 +30,10 @@ func (s importSource) input() engine.ImportInput {
 	return engine.ImportInput{Kind: kind, Origin: s.path}
 }
 
-// importDetection is Yaak's ImportSourceDetection of a source's format.
 type importDetection struct {
 	status, importer, message string
 }
 
-// importDialog is Yaak's ImportDataDialog: sources, a destination and a
-// preview of the plan to commit.
 type importDialog struct {
 	sources        []importSource
 	detections     map[string]*importDetection
@@ -70,7 +65,6 @@ func (a *App) openImport(inputs []engine.ImportInput, destination engine.ImportD
 		state.choice = "current"
 	}
 	if inputs == nil && a.workspace != "" {
-		// The current workspace's linked sources, ready to import again.
 		for _, source := range a.list("import_source") {
 			if s(source, "workspaceId") == a.workspace {
 				inputs = append(inputs, engine.ImportInput{Origin: s(source, "origin")})
@@ -88,7 +82,6 @@ func (a *App) openImport(inputs []engine.ImportInput, destination engine.ImportD
 	a.addImportSources(state, added)
 }
 
-// sourcePath is Yaak's toSourcePath: a URL unless it looks like a local path.
 func sourcePath(path string) importSource {
 	if isImportFilePath(path) {
 		return importSource{path: path}
@@ -96,8 +89,6 @@ func sourcePath(path string) importSource {
 	return importSource{path: path, kind: "url"}
 }
 
-// isImportFilePath is Yaak's: a bare hostname is a URL, a local path needs
-// an absolute or explicitly relative start.
 func isImportFilePath(value string) bool {
 	for _, prefix := range []string{"/", "./", "../", "~/", `\\`} {
 		if strings.HasPrefix(value, prefix) {
@@ -107,7 +98,6 @@ func isImportFilePath(value string) bool {
 	return len(value) > 2 && (value[0] >= 'a' && value[0] <= 'z' || value[0] >= 'A' && value[0] <= 'Z') && value[1] == ':' && (value[2] == '\\' || value[2] == '/')
 }
 
-// addImportSources adds the sources not in the list yet and detects their formats.
 func (a *App) addImportSources(state *importDialog, added []importSource) {
 	state.error = ""
 	for _, source := range added {
@@ -143,8 +133,6 @@ func (a *App) removeImportSource(state *importDialog, path string) {
 	a.findImportOrigins(state)
 }
 
-// findImportOrigins looks up the linked sources of the dialog's sources,
-// for the destination they were last imported into.
 func (a *App) findImportOrigins(state *importDialog) {
 	var origins []string
 	for _, source := range state.sources {
@@ -175,7 +163,6 @@ func (a *App) findImportOrigins(state *importDialog) {
 	})
 }
 
-// linkedWorkspace is the one workspace the sources were last imported into, if one.
 func (a *App) linkedWorkspace(state *importDialog) engine.Object {
 	var ids []string
 	for _, source := range state.originSources {
@@ -192,9 +179,6 @@ func (a *App) linkedWorkspace(state *importDialog) engine.Object {
 	return nil
 }
 
-// importDestinationKind is the destination chosen, else Yaak's default:
-// back into the current workspace when the sources are linked to it, a new
-// one otherwise.
 func (a *App) importDestinationKind(state *importDialog) string {
 	if state.choice != "" {
 		return state.choice
@@ -280,7 +264,6 @@ func (a *App) applyImport() {
 			}
 		}
 		if workspace == "" {
-			// An import into a workspace that was there writes no workspace.
 			workspace = plan.Destination.WorkspaceID
 		}
 		var models []engine.Object
@@ -308,7 +291,6 @@ func (a *App) applyImport() {
 				} else if a.drafts[a.active] == nil {
 					a.drafts[a.active] = newDraft(a.models[a.active])
 				}
-				// Yaak opens the workspace at the first environment imported.
 				if a.models[environment] != nil {
 					a.environment = environment
 				}
@@ -336,9 +318,7 @@ func (a *App) importDialog(c *ui.Context, p colors) {
 	})
 }
 
-// importSourcesStep is the dialog's first step: the sources, where they go.
 func (a *App) importSourcesStep(c *ui.Context, p colors, state *importDialog) {
-	// The empty drop zone fills the dialog, as Yaak's flex-1 does; a list scrolls.
 	body := ui.Column(c)
 	if len(state.sources) > 0 {
 		body = ui.Scroll(c)
@@ -419,7 +399,6 @@ func (a *App) importSourcesStep(c *ui.Context, p colors, state *importDialog) {
 	})
 }
 
-// importSourceList is Yaak's ImportSourceList.
 func (a *App) importSourceList(c *ui.Context, p colors, state *importDialog) {
 	pick := func(directory bool) {
 		a.background(func() (func(), error) {
@@ -490,7 +469,6 @@ func (a *App) importSourceList(c *ui.Context, p colors, state *importDialog) {
 				if hovering {
 					ui.Text(c, "Drop to add").FontSize(13).TextColor(p.muted)
 				} else {
-					// A text's own end spaces don't lay out, so a space is a margin.
 					const space = 3.6
 					ui.Row(c).Gap(0).Children(func() {
 						ui.Text(c, "Choose").FontSize(13).TextColor(p.muted).Margin(0, space, 0, 0)
@@ -575,7 +553,6 @@ func importSourceIcon(source importSource) string {
 	return "import"
 }
 
-// inlineLink is Yaak's InlineButton: underlined text that acts.
 func inlineLink(c *ui.Context, p colors, label string, disabled bool, size float32) ui.Element {
 	link := ui.ButtonBase(c).Label(label).Disabled(disabled)
 	link.Children(func() {
@@ -589,8 +566,6 @@ func inlineLink(c *ui.Context, p colors, label string, disabled bool, size float
 	return link
 }
 
-// dialogFooter is Yaak's DialogFooter: an optional left slot, then the
-// actions at the end, under a rule.
 func dialogFooter(c *ui.Context, p colors, left, actions func()) {
 	ui.Row(c).Padding(12, 24).Gap(12).BorderWidth(1, 0, 0, 0).BorderColor(p.border).Children(func() {
 		if left != nil {
@@ -601,8 +576,6 @@ func dialogFooter(c *ui.Context, p colors, left, actions func()) {
 	})
 }
 
-// importTreeNode is a row of the preview's tree (Yaak's TreeRow): the
-// destination workspace, the group of its environments, or a plan item.
 type importTreeNode struct {
 	key, kind, label string
 	isNew            bool
@@ -610,12 +583,10 @@ type importTreeNode struct {
 	children         []*importTreeNode
 }
 
-// importPreview is the dialog's second step: the plan, to check and apply.
 func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 	plan := state.plan
 	var items []*engine.ImportItem
 	for _, item := range plan.Items {
-		// The workspace roots the tree; commit always applies it.
 		if item.Kind != "workspace" {
 			items = append(items, item)
 		}
@@ -633,7 +604,6 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 		}
 		return out
 	}
-	// Deleting a folder takes its contents with it, leaving them nothing to decide.
 	disabled := map[*engine.ImportItem]bool{}
 	for _, item := range items {
 		if item.Action != "delete" {
@@ -710,7 +680,6 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 			targets[item] = true
 		}
 		if checked && n.item != nil {
-			// Checking anything brings back the folders it lives in.
 			for _, parent := range ancestors(n.item) {
 				if parent.Kind == "folder" && (parent.Action == "create" || parent.Action == "ignored") {
 					targets[parent] = true
@@ -785,8 +754,6 @@ func (a *App) importPreview(c *ui.Context, p colors, state *importDialog) {
 	})
 }
 
-// importItemTree is Yaak's buildItemTree: items under their folders, the
-// environments of the workspace grouped under "Variables".
 func importItemTree(items []*engine.ImportItem) []*importTreeNode {
 	byID := map[string]*engine.ImportItem{}
 	for _, item := range items {
@@ -839,8 +806,6 @@ func importItemTree(items []*engine.ImportItem) []*importTreeNode {
 	return append([]*importTreeNode{{key: "group:environments", kind: "group", label: "Variables", children: environments}}, others...)
 }
 
-// importTogglable is Yaak's togglableItems: what a row's checkbox decides,
-// its own item and those below; unchanged and conflicting ones decide nothing.
 func importTogglable(n *importTreeNode) []*engine.ImportItem {
 	var out []*engine.ImportItem
 	if n.item != nil && n.item.Action != "unchanged" && n.item.Action != "conflict" {
@@ -852,8 +817,6 @@ func importTogglable(n *importTreeNode) []*engine.ImportItem {
 	return out
 }
 
-// importRelevant is Yaak's isRelevant: a heading, or a change; a row shows
-// when it or one below it is relevant.
 func importRelevant(n *importTreeNode) bool {
 	if n.kind == "destination" || n.item != nil && n.item.Action != "unchanged" {
 		return true
@@ -861,7 +824,6 @@ func importRelevant(n *importTreeNode) bool {
 	return slices.ContainsFunc(n.children, importRelevant)
 }
 
-// importTreeRow is Yaak's CheckboxTree, a row and then its children.
 func (a *App) importTreeRow(c *ui.Context, p colors, state *importDialog, n *importTreeNode, depth int, collapsed func(*importTreeNode) bool, toggle func(*importTreeNode, bool), disabled map[*engine.ImportItem]bool) {
 	if !importRelevant(n) {
 		return
@@ -940,7 +902,6 @@ func (a *App) importTreeRow(c *ui.Context, p colors, state *importDialog, n *imp
 	})
 }
 
-// importChip is Yaak's Chip with an IconTooltip, as ActionChip.
 func importChip(c *ui.Context, p colors, label, help string, color ui.Color) {
 	chip := ui.Row(c).Gap(4).Padding(2, 8).Radius(6).Background(color.Alpha(.1)).Border(1, color.Alpha(.1)).Shrink(0)
 	chip.Children(func() {
@@ -967,12 +928,10 @@ func importActionColor(p colors, item *engine.ImportItem) ui.Color {
 	return p.muted
 }
 
-// importActionLabel is Yaak's actionLabel.
 func importActionLabel(item *engine.ImportItem) string {
 	return map[string]string{"create": "new", "update": "updated", "delete": "removed", "keep_local": "edited", "ignored": "ignored"}[item.Action]
 }
 
-// importActionHelp is Yaak's actionHelp, with the fields that changed.
 func importActionHelp(item *engine.ImportItem) string {
 	help := func(text string) string {
 		if len(item.ChangedFields) == 0 {
@@ -1006,12 +965,10 @@ func importActionHelp(item *engine.ImportItem) string {
 
 var upperLetter = regexp.MustCompile(`([A-Z])`)
 
-// importFieldLabel is Yaak's fieldLabel: urlParameters as "url parameters".
 func importFieldLabel(field string) string {
 	return strings.ToLower(upperLetter.ReplaceAllString(field, " $1"))
 }
 
-// importCompleteDialog is Yaak's Import Complete dialog: what was imported.
 func (a *App) importCompleteDialog(c *ui.Context, p colors) {
 	ui.Column(c).Padding(8, 24, 16, 24).Gap(12).Children(func() {
 		ui.Column(c).Gap(4).Padding(0, 0, 0, 12).Children(func() {
@@ -1032,9 +989,6 @@ func (a *App) importCompleteDialog(c *ui.Context, p colors) {
 	})
 }
 
-// ImportDeepLink is Yaak's import-data deep link: a file at fileURL, once
-// confirmed, or at path, imported as it is, then the first workspace it
-// imported opened with its first environment.
 func (a *App) ImportDeepLink(fileURL, path, name string) {
 	if a.deferUntilInputs(func() { a.ImportDeepLink(fileURL, path, name) }) {
 		return
@@ -1099,8 +1053,6 @@ func (a *App) ImportDeepLink(fileURL, path, name string) {
 	})
 }
 
-// confirmNative asks with the system's message box, as Yaak's deep links
-// do: true when the confirm button is chosen.
 func (a *App) confirmNative(message, confirm string) bool {
 	if a.confirmMessage != nil {
 		return a.confirmMessage(message, confirm)
@@ -1109,8 +1061,6 @@ func (a *App) confirmNative(message, confirm string) bool {
 	return err == nil && result.Button == 0
 }
 
-// checkbox is Yaak's Checkbox: a box, checked, unchecked or mixed
-// ("indeterminate"), titled label for assistive technology.
 func checkbox(c *ui.Context, p colors, checked *bool, mixed bool, label string) ui.Element {
 	box := ui.CheckboxBase(c, checked).Label(label).Size(16, 16).Radius(4).Shrink(0).Border(1, p.border)
 	if mixed {

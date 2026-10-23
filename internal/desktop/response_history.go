@@ -12,7 +12,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// requestResponses lists a request's responses, newest first.
 func (a *App) requestResponses(requestID string) []engine.Object {
 	var responses []engine.Object
 	for _, response := range a.list("http_response") {
@@ -24,8 +23,6 @@ func (a *App) requestResponses(requestID string) []engine.Object {
 	return responses
 }
 
-// pinKey is Yaak's key for the response pinned while latest is the newest:
-// a newer response unpins it.
 func pinKey(latest string) string { return "pinned_http_response_id::" + latest }
 
 func (a *App) pinnedResponseID(latest string) string {
@@ -39,8 +36,6 @@ func (a *App) pinnedResponseID(latest string) string {
 	return ""
 }
 
-// activeResponse is Yaak's usePinnedHttpResponse: the pinned response,
-// else the latest.
 func (a *App) activeResponse(requestID string) engine.Object {
 	latest := a.responses[requestID]
 	if latest == nil {
@@ -53,7 +48,6 @@ func (a *App) activeResponse(requestID string) engine.Object {
 	return latest
 }
 
-// pinResponse pins a response, or unpins the one pinned.
 func (a *App) pinResponse(requestID, id string) {
 	latest := s(a.responses[requestID], "id")
 	if latest == "" {
@@ -71,7 +65,6 @@ func (a *App) pinResponse(requestID, id string) {
 	})
 }
 
-// deleteResponses deletes responses, and finds each request's latest again.
 func (a *App) deleteResponses(responses []engine.Object) {
 	for _, response := range responses {
 		id, request := s(response, "id"), s(response, "requestId")
@@ -89,7 +82,6 @@ func (a *App) deleteResponses(responses []engine.Object) {
 	}
 }
 
-// formatMillis is Yaak's formatMillis.
 func formatMillis(ms float64) string {
 	switch {
 	case ms < 1000:
@@ -103,7 +95,6 @@ func formatMillis(ms float64) string {
 	return fmt.Sprintf("%dm %ds", int(ms/60_000), int(math.Round(math.Mod(ms, 60_000)/1000)))
 }
 
-// historyGroup is how long ago Yaak's response history says a response came.
 func historyGroup(created, now time.Time) string {
 	ago := now.Sub(created)
 	switch {
@@ -131,7 +122,6 @@ func historyGroup(created, now time.Time) string {
 	return created.Format("Jan 2, 2006")
 }
 
-// responseHistoryMenu is Yaak's RecentHttpResponsesDropdown.
 func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Object) {
 	responses := a.requestResponses(requestID)
 	latest := ""
@@ -182,7 +172,6 @@ func (a *App) responseHistoryMenu(m *ui.Menu, requestID string, active engine.Ob
 	}
 }
 
-// historyIcon is a pin while an earlier response is pinned.
 func (a *App) historyIcon(c *ui.Context, requestID string, active engine.Object) ui.Element {
 	glyph := "history"
 	if latest := a.responses[requestID]; latest != nil && s(latest, "id") != s(active, "id") {

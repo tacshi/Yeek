@@ -126,7 +126,6 @@ func TestGitPushPullAndDiverged(t *testing.T) {
 	if r, err := e.GitPull(t.Context(), local); err != nil || r.Kind != "up_to_date" {
 		t.Fatal(r, err)
 	}
-	// Both sides commit: the pull diverges, and a merge resolves it.
 	commitFile(t, e, other, "c.yaml", "c", "other again")
 	if _, err := e.GitPush(t.Context(), other); err != nil {
 		t.Fatal(err)
@@ -170,7 +169,6 @@ func TestGitStatusAndCommitStayInSyncDir(t *testing.T) {
 	if err != nil || len(status.Files) != 1 || status.Files[0].Path != "yaak/a.yaml" {
 		t.Fatal(status.Files, err)
 	}
-	// Staged from the sync directory, by paths in the repository.
 	if err := e.GitStage(sync, []string{"yaak/a.yaml"}, true); err != nil {
 		t.Fatal(err)
 	}
@@ -186,8 +184,6 @@ func TestGitStatusAndCommitStayInSyncDir(t *testing.T) {
 	}
 }
 
-// Yaak's git_clone: a local repository clones into a new folder whose
-// parent is made; a failure says why.
 func TestGitClone(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
@@ -212,9 +208,6 @@ func TestGitClone(t *testing.T) {
 	}
 }
 
-// The commit dialog's diff panel: a file's model at HEAD and in the
-// worktree, in YAML; Discard Changes puts back HEAD's, or removes a new
-// file.
 func TestGitFileVersionsAndRestore(t *testing.T) {
 	gitFixture(t)
 	e := testEngine(t)
@@ -230,7 +223,6 @@ func TestGitFileVersionsAndRestore(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(sync, "yaak.rq_1.yaml"), []byte("model: http_request\nid: rq_1\nname: After\nurl: https://example.com\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	// A JSON model shows as YAML; a file without a model shows nothing.
 	if err := os.WriteFile(filepath.Join(sync, "yaak.fl_1.json"), []byte(`{"model":"folder","id":"fl_1","name":"New","headers":[{"name":"A"}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -273,8 +265,6 @@ func TestGitFileVersionsAndRestore(t *testing.T) {
 	}
 }
 
-// Yaak's FileHistoryDialog: the commits that change a file, its text
-// before and after each, and restoring it from one.
 func TestGitFileHistory(t *testing.T) {
 	gitFixture(t)
 	e := testEngine(t)
@@ -312,7 +302,6 @@ func TestGitFileHistory(t *testing.T) {
 	if data, _ := os.ReadFile(filepath.Join(sync, "yaak.rq_1.yaml")); string(data) != "name: One\n" { // #nosec G304 -- a file of the test's directory.
 		t.Fatalf("not restored: %q", data)
 	}
-	// A commit without the file removes it.
 	unrelated, _, _ := gitCommand(t.Context(), repo, "", "rev-list", "--max-count=1", "--skip=1", "HEAD")
 	if err := os.Remove(filepath.Join(sync, "yaak.rq_1.yaml")); err != nil {
 		t.Fatal(err)
@@ -326,7 +315,6 @@ func TestGitFileHistory(t *testing.T) {
 	}
 }
 
-// Yaak's git_init starts repositories on main, not master.
 func TestGitInitOnMain(t *testing.T) {
 	gitFixture(t)
 	e := testEngine(t)

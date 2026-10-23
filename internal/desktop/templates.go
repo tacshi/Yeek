@@ -21,10 +21,8 @@ type templateVariableCache struct {
 	variables map[string]string
 }
 type templateOption struct {
-	name     string
-	function *engine.TemplateDefinition
-	// A preset (genericOptions) or a message field (jsonSchemaOptions)
-	// replaces from up to end with apply; detail, when set, says what it is.
+	name        string
+	function    *engine.TemplateDefinition
 	generic     bool
 	apply, info string
 	detail      string
@@ -81,9 +79,6 @@ func templateWord(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || strings.ContainsRune("_.-", r)
 }
 
-// completionRange includes only an adjacent opener/closer, never a neighboring
-// template or existing function arguments. All offsets belong to the native
-// editor's rune-based selection model.
 func completionRange(source string, caret int, explicit bool) (start, end int, prefix string, ok bool) {
 	r := []rune(source)
 	caret = max(0, min(caret, len(r)))
@@ -125,12 +120,6 @@ func completionRange(source string, caret int, explicit bool) (start, end int, p
 	return start, end, prefix, true
 }
 
-// templateTags is Yaak's findTemplateTags (#710): every ${[ … ]} in order,
-// in runes. A tag closes at the first ]} outside a terminated '…' string,
-// where \ escapes what follows it; an unterminated quote is an ordinary
-// character, and a ${[ with no ]} after it is no tag. The scan is linear:
-// closing quotes are found once, right to left, and a scan that walks into
-// a position an earlier one ran off the end from stops there.
 func templateTags(source string) []ui.TextRange {
 	r := []rune(source)
 	var out []ui.TextRange
@@ -172,7 +161,6 @@ func templateTags(source string) []ui.TextRange {
 			k++
 		}
 		if end < 0 {
-			// No tag. One may start inside a string this scan stepped over.
 			if deadEnds == nil {
 				deadEnds = map[int]bool{}
 			}
@@ -188,8 +176,6 @@ func templateTags(source string) []ui.TextRange {
 	return out
 }
 
-// closingQuotes is Yaak's closingQuoteTable: for each rune, the ' that
-// closes a string whose body starts there, or -1.
 func closingQuotes(r []rune) []int {
 	table := make([]int, len(r)+2)
 	table[len(r)], table[len(r)+1] = -1, -1
@@ -206,8 +192,6 @@ func closingQuotes(r []rune) []int {
 	return table
 }
 
-// templateOpenAt reports whether caret is in a template tag, or after a
-// ${[ that isn't closed yet, as while one is typed.
 func templateOpenAt(source string, caret int) bool {
 	if _, ok := templateTagAt(source, caret); ok {
 		return true
@@ -248,7 +232,6 @@ func templateOptions(prefix string, variables map[string]string, definitions []e
 	return options
 }
 
-// templateDoc is the editor state of the template input with key, in the open dialog's context.
 func (a *App) templateDoc(key string) *documentEditor {
 	context := ""
 	if a.dialogOpen {
@@ -257,7 +240,6 @@ func (a *App) templateDoc(key string) *documentEditor {
 	return a.editorDocument("input:" + context + ":" + key)
 }
 
-// revealRow shows or masks one obscured value.
 func (a *App) revealRow(id string, on bool) {
 	if a.revealed == nil {
 		a.revealed = map[string]bool{}
@@ -303,9 +285,6 @@ func (a *App) templateInput(c *ui.Context, p colors, value *string, key, label, 
 	return input
 }
 
-// templateTag is a tag as Yaak's templateTagsPlugin shows it: a variable
-// or a function it knows, or one that's invalid as it finds neither. A tag
-// that spans lines is no chip.
 type templateTag struct {
 	ui.TextRange
 	kind, name string
@@ -327,7 +306,6 @@ func (a *App) templateTagKinds(source string) []templateTag {
 		if m := templateFunctionName.FindStringSubmatch(inner); m != nil {
 			name = m[1]
 		}
-		// Yaak's beta named the response function Response.
 		if name == "Response" {
 			name = "response"
 		}
@@ -344,8 +322,6 @@ func (a *App) templateTagKinds(source string) []templateTag {
 
 var templateFunctionName = regexp.MustCompile(`([\w.]+)[(]`)
 
-// templateTagColor is the color of a tag: Yaak's primary for a variable,
-// info for a function and danger for one it doesn't find.
 func templateTagColor(p colors, kind string) ui.Color {
 	switch kind {
 	case "variable":
@@ -356,9 +332,6 @@ func templateTagColor(p colors, kind string) ui.Color {
 	return p.red
 }
 
-// templateChips are the chips of Yaak's TemplateTagWidget, in its
-// templateTagColorVariables: a translucent surface and border in the tag's
-// color, which strengthen on hover.
 func templateChips(tags []templateTag, p colors) []ui.CodeChip {
 	var chips []ui.CodeChip
 	for _, tag := range tags {
@@ -371,15 +344,10 @@ func templateChips(tags []templateTag, p colors) []ui.CodeChip {
 	return chips
 }
 
-// templateSyntaxKey is what a document's tag colors depend on besides its
-// text.
 func (a *App) templateSyntaxKey(p colors) string {
 	return fmt.Sprint(p.accent, p.blue, p.red, a.modelVersion, a.templateScope())
 }
 
-// templateChipClicked is Yaak's click on a tag: a function opens its
-// dialog, a variable the environment that has it, and a tag it doesn't find
-// the active environment with a variable of its name added.
 func (a *App) templateChipClicked(doc *documentEditor, source string) {
 	chip, ok := doc.state.ChipClicked()
 	if !ok {
@@ -434,8 +402,6 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor ui.Element, doc
 		v.explicit = true
 		v.isSuppressed = false
 	}
-	// While a function's dialog is open, its own fields complete, as
-	// Yaak's DynamicForm inputs do; the field it edits waits.
 	if !doc.state.Focused || editor.Composing() || a.templateForm != nil && a.templateForm.doc == doc || doc.state.Anchor != doc.state.Caret || (v.isSuppressed && v.suppressed == source && v.suppressedCaret == doc.state.Caret) {
 		doc.state.Completions("", 0)
 		return
@@ -472,7 +438,6 @@ func (a *App) templateCompletion(c *ui.Context, p colors, editor ui.Element, doc
 				row.Children(func() {
 					label := option.name
 					if option.function != nil {
-						// Yaak's completion label: name(…), or name() without arguments.
 						label += "()"
 						if len(option.function.Fields) > 0 {
 							label = option.name + "(…)"
@@ -512,7 +477,6 @@ func (a *App) acceptTemplate(doc *documentEditor, source string, option template
 		doc.state.Replace(option.from, option.end, option.apply)
 		doc.state.Focus()
 		v.options, v.explicit = nil, false
-		// Until the field changes again, as the caret ends after the preset.
 		r := []rune(source)
 		v.suppressed = string(r[:option.from]) + option.apply + string(r[option.end:])
 		v.suppressedCaret = option.from + utf8.RuneCountInString(option.apply)
@@ -540,7 +504,6 @@ func (a *App) acceptTemplate(doc *documentEditor, source string, option template
 
 func templateFieldLabel(field engine.TemplateField) string { return cmp.Or(field.Label, field.Name) }
 
-// templateSyntax colors the tags in spans, each in the color of its kind.
 func templateSyntax(spans []ui.CodeSpan, tags []templateTag, p colors) []ui.CodeSpan {
 	if len(tags) == 0 {
 		return spans
@@ -570,8 +533,6 @@ func templateSyntax(spans []ui.CodeSpan, tags []templateTag, p colors) []ui.Code
 	return out
 }
 
-// completionOptions lists a field's presets, matching all of it, before
-// the variables and functions matching the word at the caret.
 func (a *App) completionOptions(doc *documentEditor, source string, caret int, explicit bool, scope templateScope) (options []templateOption, start, end int, ok bool) {
 	options = genericOptions(doc.presets, doc.presetMin, source, caret, explicit)
 	if doc.jsonSchema != nil {

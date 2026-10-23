@@ -340,8 +340,6 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 		}
 		values := actual.Query()
 		if values.Get("code") == "" && values.Get(authorization.TokenName) == "" && values.Get("error") == "" {
-			// RFC 9110 preserves the original fragment when Location has none.
-			// This delivers implicit tokens to the app without a JavaScript relay.
 			http.Redirect(w, r, returnURI, http.StatusFound)
 			return
 		}
@@ -376,7 +374,6 @@ func (e *Engine) authorizeOAuth(ctx context.Context, auth Object, options OAuthO
 	}
 }
 
-// HandleOAuthCallback handles only an active one-time app callback route.
 func (e *Engine) HandleOAuthCallback(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "yeek" || u.Host != "oauth" {

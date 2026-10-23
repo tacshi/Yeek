@@ -9,31 +9,22 @@ import (
 	"strings"
 )
 
-// TemplateField describes a function argument for native editors and Go plugins.
 type TemplateField struct {
 	Name, Label, Kind, Default string
 	Options                    []string
-	// OptionLabels name Options in a select, when they differ.
-	OptionLabels []string
-	Placeholder  string
-	Secret       bool
-	// Advanced fields are under Yaak's Advanced accordion; Visible, when
-	// set, shows the field only for some values of the others.
-	Advanced bool
-	Visible  func(values map[string]string) bool
-	// Describe, when set, names the field for the others' values, or hides it.
-	Describe func(values map[string]string) (label, description string, secret, visible bool)
-	// Dynamic, when set, lists a select's options, and their labels, for
-	// the others' values (rendered); it hides the select while it fails.
-	Dynamic func(ctx context.Context, values map[string]string) (options, labels []string, err error)
+	OptionLabels               []string
+	Placeholder                string
+	Secret                     bool
+	Advanced                   bool
+	Visible                    func(values map[string]string) bool
+	Describe                   func(values map[string]string) (label, description string, secret, visible bool)
+	Dynamic                    func(ctx context.Context, values map[string]string) (options, labels []string, err error)
 }
 type TemplateDefinition struct {
 	Name, Description string
 	Fields            []TemplateField
 	Preview           bool
-	// Banner, when set, explains the values below the fields, or what is
-	// wrong with them.
-	Banner func(values map[string]string) (text string, danger bool)
+	Banner            func(values map[string]string) (text string, danger bool)
 }
 
 func templateField(name, label string) TemplateField {
@@ -143,7 +134,6 @@ func (e *Engine) TemplateDefinitions() []TemplateDefinition {
 	return result
 }
 
-// TemplateExpression is an editable expression tree for a template argument or tag.
 type TemplateExpression struct {
 	Kind, Value string
 	Arguments   map[string]TemplateExpression
@@ -190,7 +180,6 @@ func FormatTemplateExpression(value TemplateExpression) string {
 	case "function":
 		parts := []string{}
 		for _, key := range slices.Sorted(maps.Keys(value.Arguments)) {
-			// Like Yaak, null arguments are left out.
 			if value.Arguments[key].Kind == "null" {
 				continue
 			}
@@ -221,7 +210,6 @@ func isTemplatePreview(ctx context.Context) bool {
 	return value
 }
 
-// promptTextDefinition is the prompt.text of Yaak's prompt plugin.
 func promptTextDefinition() TemplateDefinition {
 	storing := func(v map[string]string) bool { return promptStore(v) != promptStoreNone }
 	return TemplateDefinition{

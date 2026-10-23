@@ -135,7 +135,6 @@ func newOAuthToken(response Object, name string) (OAuthToken, error) {
 		}
 		token.ExpiresAt = token.ObtainedAt.Add(time.Duration(seconds * float64(time.Second)))
 	}
-	// JWT claims are used only for local expiry hints, not for identity verification.
 	if claims := oauthJWTClaims(token.Value()); claims != nil {
 		if expiration, ok := claims["exp"].(float64); ok && expiration > 0 && expiration < float64(math.MaxInt64)/1e9 {
 			expires := time.Unix(int64(expiration), 0).UTC()

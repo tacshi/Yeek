@@ -11,10 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Ported from Yaak's crates/yaak-sync/tests/sync_files.rs (#725): a tracked
-// sync file that can't be read as its model stops the sync, and changes
-// nothing, instead of deleting the model.
-
 type syncFixture struct {
 	t                   *testing.T
 	e                   *Engine
@@ -31,7 +27,6 @@ func newSyncFixture(t *testing.T, filename string) *syncFixture {
 	r := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "name": "Keep this request", "url": "https://example.com"})
 	f := &syncFixture{t: t, e: e, workspace: str(w, "id"), request: str(r, "id"), dir: t.TempDir(), json: strings.HasSuffix(filename, ".json")}
 	f.sync()
-	// Track the request under the fixture's file name.
 	generated := filepath.Join(f.dir, "yaak."+f.request+".yaml")
 	f.requestPath = filepath.Join(f.dir, filename)
 	if f.json {
@@ -60,7 +55,6 @@ func (f *syncFixture) sync() {
 	}
 }
 
-// changes are the plan's entries that would change something.
 func (f *syncFixture) changes() []SyncChange {
 	f.t.Helper()
 	plan, err := f.e.PlanSync(f.t.Context(), f.workspace, f.dir)
@@ -94,7 +88,6 @@ func (f *syncFixture) states() []Object {
 	return states
 }
 
-// edit rewrites the tracked file after edit changes its model.
 func (f *syncFixture) edit(edit func(Object)) {
 	f.t.Helper()
 	m := clone(f.dbRequest())
@@ -124,7 +117,6 @@ func (f *syncFixture) assertInvalidFile() string {
 	if !strings.HasPrefix(err.Error(), "Invalid sync file: ") || !strings.Contains(err.Error(), f.requestPath) {
 		f.t.Fatalf("error = %v", err)
 	}
-	// ApplySync plans again first, so it changes nothing either.
 	if err := f.e.ApplySync(f.t.Context(), f.workspace, f.dir, nil, ""); err == nil {
 		f.t.Fatal("apply went ahead")
 	}
@@ -202,7 +194,6 @@ func TestUnreadableTrackedFileAbortsSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(f.requestPath, 0600) })
-	// Root bypasses ordinary POSIX permission checks.
 	if _, err := os.ReadFile(f.requestPath); err == nil {
 		t.Skip("running as root")
 	}
@@ -267,15 +258,12 @@ func TestUnrelatedFilesAreStillIgnored(t *testing.T) {
 	}
 }
 
-// Yaak's write_tests: write_sync_file.
-
 func TestAtomicWriteKeepsThePreviousFileOnFailure(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "request.yaml")
 	if err := os.WriteFile(path, []byte("complete previous contents"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	// A directory where the file would go makes the rename fail.
 	blocked := filepath.Join(dir, "blocked")
 	if err := os.Mkdir(blocked, 0700); err != nil {
 		t.Fatal(err)
@@ -328,7 +316,6 @@ func TestAtomicWritePreservesExistingPermissionsAndNewFileDefaults(t *testing.T)
 	if a.Mode().Perm() != b.Mode().Perm() {
 		t.Fatalf("new file mode %v, default %v", a.Mode().Perm(), b.Mode().Perm())
 	}
-	// A read-only file isn't replaced.
 	if err := os.Chmod(path, 0o400); err != nil {
 		t.Fatal(err)
 	}

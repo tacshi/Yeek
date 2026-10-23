@@ -26,8 +26,6 @@ func (e *Engine) Variables(ctx context.Context, workspace, folder, environment s
 	return resolveVariables(envs, workspace, folder, environment, func(id string) (Object, error) { return e.Store.Get(ctx, id) })
 }
 
-// VariablesFromModels resolves the same inheritance as request execution from a
-// UI snapshot, without database access or evaluation of variable values.
 func VariablesFromModels(models []Object, workspace, folder, environment string) (map[string]string, error) {
 	index := map[string]Object{}
 	envs := []Object{}
@@ -46,7 +44,6 @@ func VariablesFromModels(models []Object, workspace, folder, environment string)
 }
 
 func resolveVariables(envs []Object, workspace, folder, environment string, lookup func(string) (Object, error)) (map[string]string, error) {
-	// Match the store's ordering even when the UI snapshot came from a map.
 	slices.SortFunc(envs, func(a, b Object) int {
 		if (a["sortPriority"] == nil) != (b["sortPriority"] == nil) {
 			if a["sortPriority"] == nil {
@@ -212,7 +209,6 @@ func (e *Engine) functions(ctx context.Context, workspace string, environmentIDs
 		environment = environmentIDs[0]
 	}
 	return func(name string, args map[string]string) (string, error) {
-		// Yaak's prompt plugin renders nothing but when sending.
 		if isTemplatePreview(ctx) && (name == "prompt.text" || name == "prompt") {
 			return "", nil
 		}

@@ -322,8 +322,6 @@ func (s *Store) Duplicate(ctx context.Context, id string, source Object) (result
 		if !slices.Contains(allowed, str(root, "model")) {
 			return errors.New("this model cannot be duplicated")
 		}
-		// Like Yaak, siblings are same-type models under the same parent;
-		// environments compare across the whole workspace.
 		var siblings []string
 		for _, m := range all {
 			if str(m, "model") != str(root, "model") || str(m, "workspaceId") != str(root, "workspaceId") {
@@ -376,9 +374,6 @@ func (s *Store) Duplicate(ctx context.Context, id string, source Object) (result
 	return
 }
 
-// conflictFreeName is Yaak's name for a duplicated model: the first of
-// name, "name Copy", "name Copy 2", ... that no sibling uses. Empty names
-// stay empty so the display falls back to the URL.
 func conflictFreeName(name string, siblings []string) string {
 	if name == "" {
 		return ""

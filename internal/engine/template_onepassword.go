@@ -14,8 +14,6 @@ import (
 	onepassword "github.com/1password/onepassword-sdk-go"
 )
 
-// onePasswordCache is the 1Password clients, and a minute of their
-// answers, as Yaak's 1Password plugin keeps them to avoid rate limits.
 type onePasswordCache struct {
 	mu      sync.Mutex
 	clients map[string]*onepassword.Client
@@ -51,28 +49,26 @@ func (c *onePasswordCache) set(key string, data any) {
 
 var onePassword onePasswordCache
 
-// onePasswordClient is Yaak's op(): a client for a service account token,
-// or for an account of the desktop app.
 func onePasswordClient(ctx context.Context, values map[string]string) (*onepassword.Client, string, error) {
 	var option onepassword.ClientOption
 	var source string
 	if strings.Contains(values["token"], "${[") {
 		values = maps.Clone(values)
-		values["token"] = "" // a variable that is not set
+		values["token"] = ""
 	}
 	switch values["authMethod"] {
 	case "desktop":
 		if values["token"] == "" {
-			return nil, "", errors.New("Missing account name") //nolint:staticcheck // Yaak's wording, shown as is.
+			return nil, "", errors.New("Missing account name") //nolint:staticcheck
 		}
 		source, option = "desktop:"+values["token"], onepassword.WithDesktopAppIntegration(values["token"])
 	case "token", "":
 		if values["token"] == "" {
-			return nil, "", errors.New("Missing service token") //nolint:staticcheck // Yaak's wording, shown as is.
+			return nil, "", errors.New("Missing service token") //nolint:staticcheck
 		}
 		source, option = "token:"+values["token"], onepassword.WithServiceAccountToken(values["token"])
 	default:
-		return nil, "", errors.New("Invalid authentication method") //nolint:staticcheck // Yaak's wording, shown as is.
+		return nil, "", errors.New("Invalid authentication method") //nolint:staticcheck
 	}
 	sum := sha256.Sum256([]byte(source))
 	hash := hex.EncodeToString(sum[:])
@@ -108,8 +104,6 @@ func cached[T any](key string, load func() (T, error)) (T, error) {
 	return value, err
 }
 
-// onePasswordOptions lists the vaults, the vault's items or the item's
-// fields, for the form of 1password.item.
 func onePasswordOptions(ctx context.Context, field string, values map[string]string) (options, labels []string, err error) {
 	client, hash, err := onePasswordClient(ctx, values)
 	if err != nil {
@@ -145,7 +139,6 @@ func onePasswordOptions(ctx context.Context, field string, values map[string]str
 	return nil, nil, fmt.Errorf("1password.item has no field %q", field)
 }
 
-// onePasswordValue is Yaak's getValue: the field's secret.
 func onePasswordValue(ctx context.Context, values map[string]string) (string, error) {
 	client, hash, err := onePasswordClient(ctx, values)
 	if err != nil {
@@ -154,18 +147,17 @@ func onePasswordValue(ctx context.Context, values map[string]string) (string, er
 	vault, item, field := values["vault"], values["item"], values["field"]
 	switch {
 	case vault == "":
-		return "", errors.New("No vault specified") //nolint:staticcheck // Yaak's wording, shown as is.
+		return "", errors.New("No vault specified") //nolint:staticcheck
 	case item == "":
-		return "", errors.New("No item specified") //nolint:staticcheck // Yaak's wording, shown as is.
+		return "", errors.New("No item specified") //nolint:staticcheck
 	case field == "":
-		return "", errors.New("No field specified") //nolint:staticcheck // Yaak's wording, shown as is.
+		return "", errors.New("No field specified") //nolint:staticcheck
 	}
 	return cached(hash+":item:"+vault+":"+item+":"+field, func() (string, error) {
 		return client.Secrets().Resolve(ctx, "op://"+vault+"/"+item+"/"+field)
 	})
 }
 
-// onePasswordDefinition is the 1password.item of Yaak's 1Password plugin.
 func onePasswordDefinition() TemplateDefinition {
 	dynamic := func(name string) func(context.Context, map[string]string) ([]string, []string, error) {
 		return func(ctx context.Context, values map[string]string) ([]string, []string, error) {

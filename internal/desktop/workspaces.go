@@ -9,9 +9,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// openWorkspace is Yaak's WorkspaceActionsDropdown choosing a workspace:
-// the active one opens in a new window; another opens as the Open
-// workspace behavior setting says, or as the user is asked.
 func (a *App) openWorkspace(id string) {
 	if id == a.workspace {
 		a.switchWorkspaceIn(id, true)
@@ -25,7 +22,6 @@ func (a *App) openWorkspace(id string) {
 	a.prompt("switch_workspace", "Switch Workspace", "", id)
 }
 
-// switchWorkspaceIn opens a workspace in this window or a new one.
 func (a *App) switchWorkspaceIn(id string, inNewWindow bool) {
 	if inNewWindow && a.OpenWorkspace != nil {
 		a.OpenWorkspace(id)
@@ -34,7 +30,6 @@ func (a *App) switchWorkspaceIn(id string, inNewWindow bool) {
 	a.switchWorkspace(id)
 }
 
-// switchWorkspaceDialog is Yaak's SwitchWorkspaceDialog.
 func (a *App) switchWorkspaceDialog(c *ui.Context, p colors) {
 	id := a.switchTarget
 	open := func(inNewWindow bool) {
@@ -67,7 +62,6 @@ func (a *App) switchWorkspaceDialog(c *ui.Context, p colors) {
 	})
 }
 
-// moveToWorkspace is Yaak's moveToWorkspace, for requests.
 func (a *App) moveToWorkspace(requests []engine.Object) {
 	if len(requests) == 0 {
 		return
@@ -80,7 +74,6 @@ func (a *App) moveToWorkspace(requests []engine.Object) {
 	a.prompt("move_workspace", title, "", "")
 }
 
-// moveToWorkspaceDialog is Yaak's MoveToWorkspaceDialog.
 func (a *App) moveToWorkspaceDialog(c *ui.Context, p colors) {
 	workspaces := a.list("workspace")
 	labels, ids := []string{}, []string{}

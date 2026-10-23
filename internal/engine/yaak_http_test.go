@@ -13,9 +13,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// Ported from yaak-http/src/types.rs build_url tests. Yaak's empty and
-// repeated fragment cases are left out: fragments never reach the wire and
-// Go's url.URL can't represent them verbatim.
 func TestBuildURLMatchesYaak(t *testing.T) {
 	param := func(name, value string) Object { return Object{"name": name, "value": value, "enabled": true} }
 	for _, c := range []struct {
@@ -65,7 +62,6 @@ func TestBuildURLGraphQLGetReplacesOperationName(t *testing.T) {
 	}
 }
 
-// Ported from yaak-http/src/decompress.rs.
 func TestDecodeContentMatchesYaak(t *testing.T) {
 	original := []byte("hello world, this is a test of compression")
 	compress := func(w io.WriteCloser, buf *bytes.Buffer) []byte {
@@ -110,7 +106,6 @@ func TestDecodeContentMatchesYaak(t *testing.T) {
 	}
 }
 
-// Ported from yaak-models/src/queries/duplicate_name.rs.
 func TestDuplicateNamesMatchYaak(t *testing.T) {
 	for name, want := range map[string]string{"Foo": "Foo Copy", "Foo Copy": "Foo Copy 2", "Foo Copy 2": "Foo Copy 3", "Foo Copy 99": "Foo Copy 100", "Copy": "Copy Copy", "Foo Copy x": "Foo Copy x Copy"} {
 		if got := nextCopyName(name); got != want {
@@ -128,7 +123,6 @@ func TestDuplicateNamesMatchYaak(t *testing.T) {
 	w := saveTest(t, e, Object{"model": "workspace", "name": "W"})
 	folder := saveTest(t, e, Object{"model": "folder", "workspaceId": str(w, "id"), "name": "Folder"})
 	request := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "name": "Foo"})
-	// Same name in another folder and as another model type don't count.
 	saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "folderId": str(folder, "id"), "name": "Foo Copy"})
 	saveTest(t, e, Object{"model": "grpc_request", "workspaceId": str(w, "id"), "name": "Foo Copy"})
 	names := []string{}

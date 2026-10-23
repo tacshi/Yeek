@@ -15,7 +15,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// syncDir is the active workspace's sync directory.
 func (a *App) syncDir() string {
 	for _, meta := range a.list("workspace_meta") {
 		if s(meta, "workspaceId") == a.workspace {
@@ -25,8 +24,6 @@ func (a *App) syncDir() string {
 	return ""
 }
 
-// keepSyncing syncs the active workspace with its directory while it has
-// one, as Yaak does: once now, then whenever either side changes.
 func (a *App) keepSyncing() {
 	dir, workspace := a.syncDir(), a.workspace
 	if a.testMode || dir+"\x00"+workspace == a.syncing {
@@ -55,13 +52,8 @@ func (a *App) keepSyncing() {
 	})
 }
 
-// maxSyncAttempts is Yaak's MAX_SYNC_ATTEMPTS: files can keep changing
-// under a plan, so stop planning again after a few stale applies.
 const maxSyncAttempts = 3
 
-// syncNow syncs the workspace with its directory without asking, the copy
-// updated last winning a conflict, as Yaak's sync({ force: true }) does
-// after Git changed the files.
 func (a *App) syncNow(workspace, dir string) error {
 	for attempt := 1; ; attempt++ {
 		plan, err := a.Engine.PlanSync(a.ctx, workspace, dir)
@@ -75,23 +67,18 @@ func (a *App) syncNow(workspace, dir string) error {
 	}
 }
 
-// syncReview is the plan the Changes Detected dialog shows.
 type syncReview struct {
 	workspace, dir string
 	plan           []engine.SyncChange
 	attempt        int
-	// shown is false while another dialog is open; the review waits for it.
-	shown bool
+	shown          bool
 }
 
-// incomingSyncChanges are the changes of a plan that change the workspace
-// from its directory, Yaak's db ops.
 func incomingSyncChanges(plan []engine.SyncChange) []engine.SyncChange {
 	var incoming []engine.SyncChange
 	for _, c := range plan {
 		direction := c.Direction
 		if c.Conflict {
-			// As engine.SyncNewest resolves it: the copy updated last wins.
 			direction = "push"
 			if s(c.Remote, "updatedAt") > s(c.Local, "updatedAt") {
 				direction = "pull"
@@ -104,9 +91,6 @@ func incomingSyncChanges(plan []engine.SyncChange) []engine.SyncChange {
 	return incoming
 }
 
-// reviewSync is Yaak's syncWorkspace: changes going out to the directory
-// apply at once, and changes coming in from it are shown in the Changes
-// Detected dialog first.
 func (a *App) reviewSync(workspace, dir string, attempt int) {
 	a.background(func() (func(), error) {
 		plan, err := a.Engine.PlanSync(a.ctx, workspace, dir)
@@ -129,8 +113,6 @@ func (a *App) reviewSync(workspace, dir string, attempt int) {
 	})
 }
 
-// applySync applies a plan, planning (and asking) again when it went
-// stale, up to maxSyncAttempts times.
 func (a *App) applySync(workspace, dir string, plan []engine.SyncChange, attempt int) (func(), error) {
 	err := a.Engine.ApplySync(a.ctx, workspace, dir, plan, engine.SyncNewest)
 	switch {
@@ -151,8 +133,6 @@ func (a *App) showStaleSyncToast() {
 	a.showToast("sync-stale", engine.ErrSyncStale.Error(), "warning", 5*time.Second)
 }
 
-// showSyncReview opens the Changes Detected dialog for the review waiting,
-// unless another dialog is open.
 func (a *App) showSyncReview() {
 	r := a.syncReview
 	if r == nil || r.shown || a.dialogOpen && a.dialog != "commit_sync" {
@@ -162,8 +142,6 @@ func (a *App) showSyncReview() {
 	a.prompt("commit_sync", "Changes Detected", "", "")
 }
 
-// hideSyncReview closes the Changes Detected dialog, as Yaak's
-// hideDialog("commit-sync") does.
 func (a *App) hideSyncReview() {
 	a.syncReview = nil
 	if a.dialog == "commit_sync" {
@@ -171,7 +149,6 @@ func (a *App) hideSyncReview() {
 	}
 }
 
-// syncReviewDialog is the Changes Detected dialog of Yaak's syncWorkspace.
 func (a *App) syncReviewDialog(c *ui.Context, p colors) {
 	r := a.syncReview
 	if r == nil {
@@ -228,8 +205,6 @@ func (a *App) syncReviewDialog(c *ui.Context, p colors) {
 	})
 }
 
-// syncModelName is Yaak's resolvedModelNameWithFolders: the model's name
-// after those of the folders it is in.
 func (a *App) syncModelName(m engine.Object) string {
 	names := []string{requestName(m)}
 	seen := map[string]bool{}
@@ -245,8 +220,6 @@ func (a *App) syncModelName(m engine.Object) string {
 	return strings.Join(names, " / ")
 }
 
-// setSyncDir is Yaak's SyncToFilesystemSetting: the workspace syncs with
-// the directory chosen, or stops syncing.
 func (a *App) setSyncDir(workspace, dir string) {
 	var meta engine.Object
 	for _, m := range a.list("workspace_meta") {
@@ -288,8 +261,6 @@ func (a *App) refreshGit() {
 	})
 }
 
-// hiddenSetup reports whether a setup message was hidden for the
-// workspace, as Yaak keeps them by key.
 func (a *App) hiddenSetup(key string) bool {
 	for _, m := range a.list("key_value") {
 		if s(m, "namespace") == "global" && s(m, "key") == key {
@@ -317,7 +288,6 @@ func (a *App) hideSetup(key string) {
 	})
 }
 
-// gitMenuButton is Yaak's GitMenuButton, the sidebar's footer.
 func gitMenuButton(c *ui.Context, p colors, label string, content func()) ui.Element {
 	button := ui.ButtonBase(c).Label(label).Height(32).Shrink(0).Padding(0, 12).Gap(8).BorderWidth(1, 0, 0, 0).BorderColor(p.border)
 	if button.Hovered() {
@@ -327,7 +297,6 @@ func gitMenuButton(c *ui.Context, p colors, label string, content func()) ui.Ele
 	return button
 }
 
-// gitButton is Yaak's GitDropdown, or its setup messages.
 func (a *App) gitButton(c *ui.Context, p colors) {
 	a.keepSyncing()
 	dir := a.syncDir()
@@ -375,7 +344,7 @@ func (a *App) gitButton(c *ui.Context, p colors) {
 	}
 	info := a.gitInfo
 	if info == nil {
-		return // still loading
+		return
 	}
 	gitMenuButton(c, p, "Git: "+info.Head, func() {
 		ui.Row(c).Gap(4).Padding(1, 5).Radius(3).Background(p.border.Alpha(.4)).Shrink(1).MinWidth(0).Children(func() {
@@ -398,7 +367,6 @@ func (a *App) gitButton(c *ui.Context, p colors) {
 	}).Menu(func(m *ui.Menu) { a.gitMenu(m, dir, info) })
 }
 
-// gitMenu is GitDropdown's items.
 func (a *App) gitMenu(m *ui.Menu, dir string, info *engine.GitBranchInfo) {
 	current := info.Head
 	if m.Item("View History...").Chosen() {
@@ -435,7 +403,7 @@ func (a *App) gitMenu(m *ui.Menu, dir string, info *engine.GitBranchInfo) {
 		here := branch == current
 		label := branch
 		if here {
-			label = "✓ " + branch // a native submenu cannot show a check mark
+			label = "✓ " + branch
 		}
 		m.Submenu(label, func(sub *ui.Menu) {
 			if !here && sub.Item("Checkout").Chosen() {
@@ -485,8 +453,6 @@ func (a *App) gitMenu(m *ui.Menu, dir string, info *engine.GitBranchInfo) {
 	}
 }
 
-// gitOp runs a Git operation, then shows how it went, and syncs the
-// workspace with what it changed on disk.
 func (a *App) gitOp(failure string, op func() (string, error)) {
 	workspace, dir := a.workspace, a.syncDir()
 	a.background(func() (func(), error) {
@@ -602,9 +568,6 @@ func (a *App) gitPull() {
 	})
 }
 
-// gitResult is Yaak's handling of a push or pull: credentials are asked
-// for, diverged branches resolved and uncommitted changes reset, then it
-// tries again.
 func (a *App) gitResult(r engine.GitResult, retry func()) {
 	dir := a.syncDir()
 	switch r.Kind {
@@ -631,7 +594,6 @@ func (a *App) gitResult(r engine.GitResult, retry func()) {
 
 var githubRemote = regexp.MustCompile(`(?i)github\.com`)
 
-// askCredentials is Yaak's promptCredentials.
 func (a *App) askCredentials(remote, failure string, done func(user, password string)) {
 	user, pass := askInput{label: "Username"}, askInput{label: "Password / Token", description: "Enter your password or access token for this Git server.", password: true}
 	if githubRemote.MatchString(remote) {
@@ -645,7 +607,6 @@ func (a *App) askCredentials(remote, failure string, done func(user, password st
 	a.ask("Credentials Required", description, "Submit", false, []askInput{user, pass}, func(v []string) { done(v[0], v[1]) })
 }
 
-// addGitRemote asks for the origin to push to or pull from, then retries.
 func (a *App) addGitRemote(retry func()) {
 	dir := a.syncDir()
 	a.ask("Add Remote", "", "Add", false, []askInput{{label: "Name", value: "origin"}, {label: "URL"}}, func(v []string) {
@@ -675,7 +636,6 @@ func (a *App) loadGitRemotes() {
 	})
 }
 
-// gitRemotesDialog is Yaak's GitRemotesDialog.
 func (a *App) gitRemotesDialog(c *ui.Context, p colors) {
 	dir := a.syncDir()
 	ui.Column(c).Padding(16, 20).Gap(10).Children(func() {
@@ -700,7 +660,6 @@ func (a *App) gitRemotesDialog(c *ui.Context, p colors) {
 	})
 }
 
-// gitHistoryDialog is Yaak's HistoryDialog.
 func (a *App) gitHistoryDialog(c *ui.Context, p colors) {
 	ui.Column(c).Height(420).Padding(8, 20, 12, 20).Children(func() {
 		ui.Row(c).Height(30).Gap(12).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
@@ -731,7 +690,6 @@ func (a *App) gitHistoryDialog(c *ui.Context, p colors) {
 	})
 }
 
-// timeAgo is date-fns' formatDistanceToNowStrict.
 func timeAgo(t time.Time) string {
 	d := time.Since(t)
 	unit := func(n int, word string) string {
@@ -755,9 +713,6 @@ func timeAgo(t time.Time) string {
 	return unit(int(d.Hours()/24/365), "year")
 }
 
-// gitCommitDialog is Yaak's GitCommitDialog: the changes to stage over
-// the message, and Commit or Commit and Push, beside the diff of the
-// change selected.
 func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 	dir, workspace := a.syncDir(), a.workspace
 	if a.gitState == nil {
@@ -771,8 +726,6 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 		ui.Column(c).Grow(1).Padding(12, 20, 16, 20).Children(func() { emptyState(c, p, "No changes since last commit") })
 		return
 	}
-	// Yaak's split layouts: the diff takes 60% of the width, the message
-	// 35% of the height beside it.
 	w, h := c.Size()
 	if a.gitCommitSplit == 0 {
 		a.gitCommitSplit = w * .9 * .4
@@ -784,7 +737,6 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 		ui.Scroll(c).Fill().Padding(0, 2, 12, 0).Children(func() {
 			a.commitTreeView(c, p, dir, tree, 0)
 			if len(external) > 0 {
-				// Yaak's Separator with a label.
 				ui.Row(c).Gap(8).Padding(12, 0, 4, 0).AlignItems(ui.Center).Children(func() {
 					ui.Box(c).Height(1).Grow(1).Background(p.border)
 					ui.Text(c, "Other files").FontSize(12).TextColor(p.subtle)
@@ -848,17 +800,13 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 	})
 }
 
-// gitEntry is Yaak's GitStatusEntry: a file, its status, whether it is
-// staged, and the model it holds, or held.
 type gitEntry struct {
 	path   string
-	status string // untracked, conflict, current, modified, removed, renamed or type_change
+	status string
 	staged bool
 	model  engine.Object
 }
 
-// gitEntryOf is Yaak's git_status_from_raw: the index's status when the
-// change is staged, else the worktree's.
 func gitEntryOf(f engine.GitFile) gitEntry {
 	if f.Staging == "U" || f.Worktree == "U" {
 		return gitEntry{path: f.Path, status: "conflict", staged: true, model: f.Model}
@@ -886,16 +834,11 @@ func gitEntryOf(f engine.GitFile) gitEntry {
 	return gitEntry{path: f.Path, status: worktree, model: f.Model}
 }
 
-// commitNode is Yaak's CommitTreeNode: a model's entry and those of the
-// models in it.
 type commitNode struct {
 	entry    gitEntry
 	children []*commitNode
 }
 
-// commitTree is the tree of Yaak's commit dialog, from the workspace
-// down, and the changed files holding no model: the changes, among the
-// models they are in, which are current where unchanged.
 func (a *App) commitTree() (*commitNode, []gitEntry) {
 	var entries, external []gitEntry
 	changed := map[string]bool{}
@@ -908,13 +851,11 @@ func (a *App) commitTree() (*commitNode, []gitEntry) {
 		changed[s(entry.model, "id")] = true
 		entries = append(entries, entry)
 	}
-	// The unchanged models changes can be in.
 	for id, m := range a.models {
 		if kind := s(m, "model"); !changed[id] && (kind == "workspace" && id == a.workspace || kind == "folder" && s(m, "workspaceId") == a.workspace) {
 			entries = append(entries, gitEntry{status: "current", model: m})
 		}
 	}
-	// In the order of their files, as git's status lists them.
 	slices.SortFunc(entries, func(x, y gitEntry) int { return strings.Compare(s(x.model, "id"), s(y.model, "id")) })
 	var next func(m engine.Object, depth int) *commitNode
 	next = func(m engine.Object, depth int) *commitNode {
@@ -944,8 +885,6 @@ func (a *App) commitTree() (*commitNode, []gitEntry) {
 	return next(ws, 0), external
 }
 
-// checkedStatus is Yaak's nodeCheckedStatus: checked when every change
-// below is staged, mixed when some are.
 func (n *commitNode) checkedStatus() (checked, mixed bool) {
 	var visited, staged, current int
 	var visit func(n *commitNode)
@@ -968,13 +907,10 @@ func (n *commitNode) checkedStatus() (checked, mixed bool) {
 	return false, staged > 0
 }
 
-// relevant reports whether the node or one below it is changed: Yaak's
-// tree shows only those.
 func (n *commitNode) relevant() bool {
 	return n.entry.status != "current" || slices.ContainsFunc(n.children, (*commitNode).relevant)
 }
 
-// commitTreeView is Yaak's CheckboxTree of the commit dialog.
 func (a *App) commitTreeView(c *ui.Context, p colors, dir string, n *commitNode, depth int) {
 	if !n.relevant() {
 		return
@@ -1068,15 +1004,12 @@ func (a *App) commitTreeView(c *ui.Context, p colors, dir string, n *commitNode,
 		ui.Column(c).Key(key).FillWidth().Children(body)
 		return
 	}
-	// Yaak's pl-4 ml-2 and dashed left border.
 	ui.Row(c).Key(key).FillWidth().Children(func() {
 		ui.Box(c).Width(8).Shrink(0)
 		ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, 16).BorderWidth(0, 0, 0, 1).BorderStyle(ui.BorderDashed).BorderColor(p.border).Children(body)
 	})
 }
 
-// stageCommitNode is Yaak's setCheckedAndChildren: it stages, or
-// unstages, the changes of the node and those below it.
 func (a *App) stageCommitNode(dir string, n *commitNode, staged bool) {
 	var paths []string
 	var visit func(n *commitNode)
@@ -1094,8 +1027,6 @@ func (a *App) stageCommitNode(dir string, n *commitNode, staged bool) {
 	}
 }
 
-// externalCommitRow is Yaak's ExternalTreeNode: a changed file holding
-// no model, by its path in the sync directory.
 func (a *App) externalCommitRow(c *ui.Context, p colors, dir string, entry gitEntry) {
 	display := entry.path
 	if rel := a.gitState.RelaDir; rel != "" {
@@ -1121,7 +1052,6 @@ func (a *App) externalCommitRow(c *ui.Context, p colors, dir string, entry gitEn
 	})
 }
 
-// statusChip is Yaak's Chip of a change's status, in its statusColor.
 func statusChip(c *ui.Context, p colors, status string) ui.Element {
 	color := p.muted
 	switch status {
@@ -1139,17 +1069,12 @@ func statusChip(c *ui.Context, p colors, status string) ui.Element {
 	return chip
 }
 
-// gitDiffPanel is the change the commit dialog's diff panel shows: its
-// model at HEAD and now, as YAML, loaded for the status the dialog shows.
 type gitDiffPanel struct {
-	path string
-	// loaded is the status the texts were loaded for; another reloads them.
+	path   string
 	loaded *engine.GitStatus
 	diff   *editor.DiffState
 }
 
-// gitDiffPanel is Yaak's DiffPanel: the change selected, Discard Changes,
-// and its DiffViewer.
 func (a *App) gitDiffPanel(c *ui.Context, p colors, dir, workspace string) {
 	d := a.gitDiff
 	var file *gitEntry
@@ -1192,8 +1117,6 @@ func (a *App) gitDiffPanel(c *ui.Context, p colors, dir, workspace string) {
 	})
 }
 
-// setYAMLDiff shows prev and next in d, or in a new diff of YAML when d
-// is nil, keeping where it is scrolled to when only the texts change.
 func setYAMLDiff(d *editor.DiffState, prev, next string) *editor.DiffState {
 	if d == nil {
 		d = &editor.DiffState{Old: editor.NewBuffer(""), New: editor.NewBuffer("")}
@@ -1212,10 +1135,6 @@ func setYAMLDiff(d *editor.DiffState, prev, next string) *editor.DiffState {
 	return d
 }
 
-// gitDiffView is Yaak's DiffViewer, CodeMirror's MergeView of the two
-// texts side by side: YAML, wrapped, read only, line numbers, unchanged
-// lines collapsed but for 2 around changes, and changed lines tinted with
-// no highlight of the words changed in them.
 func (a *App) gitDiffView(c *ui.Context, p colors, d *editor.DiffState) {
 	font := cmp.Or(s(a.settings, "editorFont"), "monospace")
 	size := float32(n(a.settings, "editorFontSize"))
@@ -1226,8 +1145,6 @@ func (a *App) gitDiffView(c *ui.Context, p colors, d *editor.DiffState) {
 	d.Wrap, d.ContextLines, d.Inline = true, 2, editor.DiffInlineNone
 	d.Theme = diffTheme(p)
 	d.RenderSeparator = func(c *ui.Context, sep ui.Element, s *editor.DiffSeparator) {
-		// Yaak's .cm-collapsedLines: a bordered bar on the surface, which a
-		// click expands.
 		sep.Padding(4, 2)
 		sep.Children(func() {
 			bar := ui.ButtonBase(c).Grow(1).AlignSelf(ui.Stretch).Center().Radius(3).Background(p.sidebar).Border(1, p.border).
@@ -1250,10 +1167,6 @@ func (a *App) gitDiffView(c *ui.Context, p colors, d *editor.DiffState) {
 	editor.DiffView(c, d).Grow(1).MinHeight(0).FillWidth()
 }
 
-// diffTheme colors a diff as Yaak's editors: its syntaxHighlightStyle,
-// and changes in the theme's success and danger colors. Plain YAML values,
-// which the tokenizer makes variables, keep the text's color, as Yaak's
-// YAML content does.
 func diffTheme(p colors) *editor.Theme {
 	t := &editor.Theme{Background: p.background, Text: p.text, LineNumber: p.subtle, ActiveLineNumber: p.muted, Added: p.green, Deleted: p.red, Modified: p.blue}
 	tok := func(color ui.Color, kinds ...editor.TokenKind) {
@@ -1270,9 +1183,6 @@ func diffTheme(p colors) *editor.Theme {
 	return t
 }
 
-// discardGitChange is Yaak's handleDiscardChanges: it asks, discards the
-// change, syncs the workspace from its files, and comes back to the
-// commit dialog.
 func (a *App) discardGitChange(dir, workspace, path string) {
 	back := func() {
 		a.refreshGit()
@@ -1291,7 +1201,6 @@ func (a *App) discardGitChange(dir, workspace, path string) {
 	a.asking.cancel = back
 }
 
-// gitDivergedDialog is Yaak's DivergedDialog.
 func (a *App) gitDivergedDialog(c *ui.Context, p colors) {
 	r := a.diverged
 	if r == nil {
@@ -1353,7 +1262,6 @@ func (a *App) gitDivergedDialog(c *ui.Context, p colors) {
 	})
 }
 
-// warningButton is Yaak's warning-colored border button, 2xs.
 func warningButton(c *ui.Context, p colors, label string) ui.Element {
 	b := ui.ButtonBase(c).Label(label).Height(22).Padding(0, 8).Radius(4).Border(1, p.orange).Center().Shrink(0)
 	if b.Hovered() {
@@ -1363,8 +1271,6 @@ func warningButton(c *ui.Context, p colors, label string) ui.Element {
 	return b
 }
 
-// gitModelPaths returns the paths in the repository of the changed files
-// of models, by their IDs.
 func (a *App) gitModelPaths() map[string]string {
 	paths := map[string]string{}
 	if a.gitState == nil {
@@ -1378,9 +1284,6 @@ func (a *App) gitModelPaths() map[string]string {
 	return paths
 }
 
-// gitTreeMenu adds the git items of Yaak's sidebar context menu: View
-// History of one item, and Restore Changes of those changed, after a
-// separator when separate is set.
 func (a *App) gitTreeMenu(menu *ui.Menu, items []engine.Object, separate bool) {
 	dir, workspace := a.syncDir(), a.workspace
 	if dir == "" || a.gitNoRepo {
@@ -1405,7 +1308,6 @@ func (a *App) gitTreeMenu(menu *ui.Menu, items []engine.Object, separate bool) {
 		a.background(func() (func(), error) {
 			var err error
 			if !ok {
-				// Yaak's syncPathForModel.
 				path, err = a.Engine.GitRepoPath(dir, "yaak."+id+".yaml")
 			}
 			return func() { a.openFileHistory(dir, path) }, err
@@ -1429,17 +1331,14 @@ func (a *App) gitTreeMenu(menu *ui.Menu, items []engine.Object, separate bool) {
 	}
 }
 
-// fileHistory is Yaak's FileHistoryDialog's state: the commits changing a
-// file, the one selected, and its diff.
 type fileHistory struct {
 	dir, path string
 	loading   bool
 	commits   []engine.GitCommit
 	selected  string
-	// diffOf is the commit whose diff was asked for.
-	diffOf string
-	diff   *editor.DiffState
-	split  float32
+	diffOf    string
+	diff      *editor.DiffState
+	split     float32
 }
 
 func (a *App) openFileHistory(dir, path string) {
@@ -1457,8 +1356,6 @@ func (a *App) openFileHistory(dir, path string) {
 	})
 }
 
-// fileHistoryDialog is Yaak's FileHistoryDialog: the commits changing a
-// file beside the diff of the one selected, which Restore File restores.
 func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 	h := a.fileHistory
 	if h == nil {
@@ -1485,7 +1382,6 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 			}, err
 		})
 	}
-	// Yaak's split layout: the diff takes 60% of the width.
 	if h.split == 0 {
 		w, _ := c.Size()
 		h.split = min(1120, w*.9) * .4
@@ -1520,7 +1416,6 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 	})
 }
 
-// fileHistoryCommit is Yaak's CommitListItem.
 func (a *App) fileHistoryCommit(c *ui.Context, p colors, h *fileHistory, commit engine.GitCommit) {
 	item := ui.ButtonBase(c).Key(commit.Hash).Label(cmp.Or(commit.Message, "No message")).FillWidth().Padding(6, 8).Radius(3).Column().Gap(1)
 	switch {
@@ -1541,9 +1436,6 @@ func (a *App) fileHistoryCommit(c *ui.Context, p colors, h *fileHistory, commit 
 	}
 }
 
-// restoreFileFromCommit is Yaak's handleRestoreCommit: it asks, restores
-// the file from the commit, syncs the workspace from its files, and comes
-// back to the file's history.
 func (a *App) restoreFileFromCommit(h *fileHistory, hash string) {
 	workspace := a.workspace
 	back := func() {

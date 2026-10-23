@@ -50,7 +50,6 @@ func (e *Engine) ExportWorkspaces(ctx context.Context, options ExportOptions) ([
 			}
 			copy := clone(model)
 			if kind == "environment" && !options.IncludePrivateEnvironments {
-				// Keep public descendants usable without exporting a private ancestor's variables.
 				seen := map[string]bool{str(model, "id"): true}
 				for parentID := str(copy, "parentId"); str(copy, "parentModel") == "environment" && parentID != ""; parentID = str(copy, "parentId") {
 					parent := models[parentID]

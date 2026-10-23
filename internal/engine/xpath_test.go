@@ -2,9 +2,6 @@ package engine
 
 import "testing"
 
-// Yaak's xml.xpath tests (template-function-xml/tests/xpath.test.ts, #723),
-// then cases whose expected values come from running Yaak's filterXPath
-// (xmldom 0.9.12, xpath 0.0.34) on the same inputs.
 func TestFilterXPathMatchesYaak(t *testing.T) {
 	for _, c := range []struct{ body, path, result, want string }{
 		{`<users><user id="42"><name>Alice</name></user><user id="7"><name>Bob</name></user></users>`, `//user/name`, "first", `Alice`},

@@ -8,7 +8,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// Folder settings tabs, in Yaak's order.
 const (
 	folderTabGeneral = iota
 	folderTabSettings
@@ -25,7 +24,6 @@ func (a *App) openFolderSettings(m engine.Object, tab int) {
 	a.prompt("scope", "", "", s(m, "id"))
 }
 
-// folderEnvironment is the environment that overrides variables for a folder's requests.
 func (a *App) folderEnvironment(folder string) engine.Object {
 	for _, env := range a.list("environment") {
 		if s(env, "parentModel") == "folder" && s(env, "parentId") == folder {
@@ -35,8 +33,6 @@ func (a *App) folderEnvironment(folder string) engine.Object {
 	return nil
 }
 
-// scopeDialog is Yaak's FolderSettingsDialog: a breadcrumb title over tabs
-// down the left, saving each change as it is made.
 func (a *App) scopeDialog(c *ui.Context, p colors) {
 	d := a.scopeDraft
 	if d == nil || a.models[d.ID] == nil {
@@ -149,7 +145,6 @@ func (a *App) folderGeneral(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// folderVariables is the Variables tab: the folder's environment, or a way to create one.
 func (a *App) folderVariables(c *ui.Context, p colors, d *Draft, env engine.Object) {
 	if env == nil {
 		ui.Column(c).Grow(1).Center().Gap(10).Children(func() {

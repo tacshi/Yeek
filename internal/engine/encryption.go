@@ -17,20 +17,13 @@ const encryptionTag = "yA4k3nC\x01"
 
 var keyEncoding = base32.NewEncoding("0123456789ABCDEFGHJKMNPQRSTVWXYZ").WithPadding(base32.NoPadding)
 
-// SecretStore keeps secrets in the system's credential store, by service
-// and account, as the app provides it (mygo.Secrets), so that the engine
-// needs no UI. Get fails with ErrSecretNotFound for a secret not stored.
 type SecretStore interface {
 	Get(service, account string) (string, error)
 	Set(service, account, value string) error
 }
 
-// ErrSecretNotFound is what a SecretStore's Get fails with when it has no
-// secret for the service and account.
 var ErrSecretNotFound = errors.New("secret not found in the OS keychain")
 
-// The service and account of the key that encrypts workspace keys, which
-// is Yeek's own secret, unlike those the keychain template function reads.
 const (
 	EncryptionKeyService = "app.yeek.desktop.EncryptionKey"
 	EncryptionKeyAccount = "encryption-key"

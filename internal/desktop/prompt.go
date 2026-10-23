@@ -9,7 +9,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// valuePrompt is a pending prompt.text question from a request being sent.
 type valuePrompt struct {
 	engine.TemplatePrompt
 	value string
@@ -21,7 +20,6 @@ type valuePromptResult struct {
 	err   error
 }
 
-// templatePrompter shows a prompt.text dialog and blocks the sending goroutine until it is answered.
 func (a *App) templatePrompter(ctx context.Context, prompt engine.TemplatePrompt) (string, error) {
 	if a.Window == nil || a.Window.IsDestroyed() {
 		return "", errors.New("prompt.text needs an open Yeek window")

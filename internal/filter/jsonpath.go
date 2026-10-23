@@ -11,20 +11,9 @@ import (
 	"github.com/dlclark/regexp2/v2"
 )
 
-// A port of jsonpath-plus 11.0.0 (JSONPath({ path, json }) with its default
-// options and safe evaluator), so expressions written for Yaak's former
-// JavaScript filter plugin keep their results: Yaak's
-// crates/yaak-filter/src/jsonpath/mod.rs. Where it differs on purpose:
-// quoted bracket names are always literal keys, and some RFC 9535 syntax
-// that jsonpath-plus finds nothing for works ([-1], [::-1], [?@.a > 1],
-// length(), count(), match(), search(), value()).
-
 const (
-	// maxTraceDepth is the nesting of trace calls allowed.
 	maxTraceDepth = 180
-	// maxSteps is the steps a single evaluation may take; .. after ..
-	// grows exponentially with nesting.
-	maxSteps = 20_000_000
+	maxSteps      = 20_000_000
 )
 
 var (
@@ -37,7 +26,7 @@ func isLineTerminator(c rune) bool { return c == '\n' || c == '\r' || c == '\u20
 func evaluateJSONPath(text, q string) (string, error) {
 	root, err := parseJSON(text)
 	if err != nil {
-		return "", fmt.Errorf("Invalid JSON: %w", err) //nolint:staticcheck // Yaak's message, shown as is
+		return "", fmt.Errorf("Invalid JSON: %w", err) //nolint:staticcheck
 	}
 	if keys, ok := literalKeys(q); ok {
 		v := fromDoc(root)
@@ -50,7 +39,7 @@ func evaluateJSONPath(text, q string) (string, error) {
 	}
 	values, err := newEngine(root).run(q, fromDoc(root))
 	if err != nil {
-		return "", fmt.Errorf("Invalid filter: %w", err) //nolint:staticcheck // Yaak's message, shown as is
+		return "", fmt.Errorf("Invalid filter: %w", err) //nolint:staticcheck
 	}
 	return stringifyResults(values), nil
 }
@@ -77,8 +66,6 @@ func (p pathElem) text() string {
 	return p.s
 }
 
-// pathNode is a step from the root, newest first and shared, as
-// jsonpath-plus copies its arrays.
 type pathNode struct {
 	elem pathElem
 	prev *pathNode
@@ -86,7 +73,6 @@ type pathNode struct {
 
 func pushPath(path *pathNode, elem pathElem) *pathNode { return &pathNode{elem: elem, prev: path} }
 
-// pathString is JSONPath.toPathString.
 func pathString(path *pathNode) string {
 	var elems []string
 	for n := path; n != nil; n = n.prev {
@@ -108,15 +94,12 @@ func pathString(path *pathNode) string {
 }
 
 type traceResult struct {
-	path  *pathNode
-	value jsValue
-	// selector is the steps after a ^, to trace again from the parent,
-	// when selected.
+	path     *pathNode
+	value    jsValue
 	selector []loc
 	selected bool
 }
 
-// traced is one result, or several, some of which may be missing.
 type traced struct {
 	one  *traceResult
 	many []*traceResult
@@ -132,9 +115,6 @@ func addTraced(ret *[]*traceResult, t traced) {
 	}
 }
 
-// filterPlan is a ?(...) step: jsonpath-plus spots @.key[?(...)] in a
-// filter and keeps the items whose key the inner filter selects anything
-// from, ignoring the rest; anything else is a script.
 type filterPlan struct {
 	nested bool
 	key    string
@@ -175,7 +155,6 @@ func newEngine(root *jsonNode) *engine {
 	}
 }
 
-// run is JSONPath.evaluate from start, as values.
 func (e *engine) run(q string, start jsValue) ([]jsValue, error) {
 	locs, err := e.path(q)
 	if err != nil {
@@ -236,8 +215,6 @@ func (e *engine) path(q string) ([]loc, error) {
 	return locs, nil
 }
 
-// check compiles what a step will evaluate, so a malformed or unsupported
-// expression is an error even when no node reaches it.
 func (e *engine) check(l loc) error {
 	switch l.kind {
 	case locStr, locPart:
@@ -332,7 +309,6 @@ func (e *engine) runScript(s *compiledScript, value, property jsValue, path func
 	return v, nil
 }
 
-// frame is one _trace call's arguments.
 type frame struct {
 	expr            []loc
 	val             jsValue
@@ -349,7 +325,6 @@ func (f frame) rest() []loc {
 	return f.expr[1:]
 }
 
-// own is val && Object.hasOwn(val, key), and the property.
 func (f frame) own(key string) (jsValue, bool) {
 	if !f.val.truthy() {
 		return undefined, false
@@ -370,7 +345,6 @@ func (e *engine) trace(f frame) (traced, error) {
 	return e.traceInner(f)
 }
 
-// child traces the rest of the path from a child of the frame's value.
 func (e *engine) child(f frame, child jsValue, elem pathElem, literalPriority bool, ret *[]*traceResult) error {
 	next := frame{expr: f.rest(), val: child, path: pushPath(f.path, elem), parent: f.val, parentProp: elem.toJS(), literalPriority: literalPriority}
 	t, err := e.trace(next)
@@ -381,7 +355,6 @@ func (e *engine) child(f frame, child jsValue, elem pathElem, literalPriority bo
 	return nil
 }
 
-// again traces other steps from the frame's own value.
 func (e *engine) again(f frame, expr []loc, ret *[]*traceResult) error {
 	f.expr, f.literalPriority = expr, false
 	t, err := e.trace(f)
@@ -458,8 +431,6 @@ func (e *engine) traceInner(f frame) (traced, error) {
 	return traced{many: ret}, nil
 }
 
-// resolveParentSelectors resolves a ^ below this frame here, by tracing
-// what follows it from this frame's value.
 func (e *engine) resolveParentSelectors(f frame, ret []*traceResult) ([]*traceResult, error) {
 	for t := 0; t < len(ret); t++ {
 		r := ret[t]
@@ -488,9 +459,6 @@ func (e *engine) resolveParentSelectors(f frame, ret []*traceResult) ([]*traceRe
 	return ret, nil
 }
 
-// traceStr is _trace for a text step, in jsonpath-plus's order of tests.
-// It returns the result itself for the steps that end the trace (^, ~, a
-// type).
 func (e *engine) traceStr(f frame, s string, rfcAdditions bool, ret *[]*traceResult) (*traced, error) {
 	if child, ok := f.own(s); ok && f.literalPriority {
 		return nil, e.child(f, child, strElem(s), false, ret)
@@ -616,7 +584,7 @@ func (e *engine) traceFilter(f frame, l string, ret *[]*traceResult) error {
 			nested := w.value
 			if plan.key != "" {
 				if w.value.kind == jsNull {
-					return fmt.Errorf("Cannot read properties of null (reading '%s')", plan.key) //nolint:staticcheck // JavaScript's message
+					return fmt.Errorf("Cannot read properties of null (reading '%s')", plan.key) //nolint:staticcheck
 				}
 				nested, _ = ownProperty(w.value, plan.key)
 			}
@@ -671,7 +639,6 @@ type walked struct {
 	value jsValue
 }
 
-// walk is _walk: array indexes, or object keys in JSON.parse order.
 func walk(v jsValue) []walked {
 	if v.kind != jsDoc {
 		return nil
@@ -689,8 +656,6 @@ func walk(v jsValue) []walked {
 	return out
 }
 
-// sliceIndexes is _slice: Python-style start:end:step with jsonpath-plus's
-// defaults.
 func sliceIndexes(l string, length int) []float64 {
 	n := float64(length)
 	parts := strings.Split(l, ":")
@@ -745,7 +710,6 @@ func parseInt(s string) (int64, bool) {
 	return n, true
 }
 
-// negativeIndex is RFC 9535 [-n], which jsonpath-plus looks up as the key "-n".
 func negativeIndex(l string, length int) (float64, bool) {
 	n, ok := parseInt(l)
 	if !ok || n >= 0 || strings.HasPrefix(l, "-0") {
@@ -755,8 +719,6 @@ func negativeIndex(l string, length int) (float64, bool) {
 	return float64(index), index >= 0
 }
 
-// reverseSliceIndexes is an RFC 9535 slice with a negative step, which
-// jsonpath-plus does not read as a slice.
 func reverseSliceIndexes(l string, length int) ([]float64, bool) {
 	parts := strings.Split(l, ":")
 	if len(parts) != 3 {
@@ -819,8 +781,6 @@ const (
 
 var valueTypeNames = []string{"scalar", "boolean", "string", "undefined", "function", "integer", "number", "nonFinite", "object", "array", "null"}
 
-// valueTypeOf reads an @string()-style step, by jsonpath-plus's
-// loc.slice(1, -2).
 func valueTypeOf(l string) (valueType, error) {
 	chars := []rune(l)
 	name := ""
@@ -835,7 +795,7 @@ func valueTypeOf(l string) (valueType, error) {
 	if name == "other" {
 		return 0, errors.New("@other() needs an otherTypeCallback, which filters cannot supply")
 	}
-	return 0, fmt.Errorf("Unknown value type %s", name) //nolint:staticcheck // jsonpath-plus's message
+	return 0, fmt.Errorf("Unknown value type %s", name) //nolint:staticcheck
 }
 
 func (t valueType) matches(v jsValue) bool {

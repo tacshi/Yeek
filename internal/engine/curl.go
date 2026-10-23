@@ -112,7 +112,6 @@ func (e *Engine) Curl(ctx context.Context, id, environment string) (string, erro
 	case "", "none", "basic", "bearer", "apikey", "oauth2", "oauth1", "jwt":
 		authModel := model
 		if authKind == "apikey" && cmp.Or(str(auth, "key"), str(auth, "name")) == "" {
-			// Yaak's Copy as cURL names an unnamed key X-Api-Key, or token in the query.
 			key := "X-Api-Key"
 			if cmp.Or(str(auth, "location"), str(auth, "in")) == "query" {
 				key = "token"

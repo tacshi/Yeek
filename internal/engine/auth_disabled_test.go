@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// authentication.disabled is Yaak's Enabled / Disabled / "Enabled when..."
-// switch: true skips auth, and a template skips it when it renders empty.
 func TestAuthenticationDisabled(t *testing.T) {
 	var requests []http.Header
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +25,7 @@ func TestAuthenticationDisabled(t *testing.T) {
 		requests = nil
 		var authType any = kind
 		if kind == "" {
-			authType = nil // inherit
+			authType = nil
 		}
 		r := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "method": "GET", "url": server.URL, "authenticationType": authType, "authentication": auth})
 		if _, err := e.SendHTTP(t.Context(), str(r, "id"), SendOptions{EnvironmentID: str(env, "id")}); err != nil {
@@ -108,8 +106,6 @@ func TestAuthenticationDisabled(t *testing.T) {
 	})
 }
 
-// Ported from Yaak's action-copy-curl "Basic auth disabled", plus the
-// "Enabled when..." form.
 func TestCurlExportSkipsDisabledAuth(t *testing.T) {
 	received := make(chan http.Header, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

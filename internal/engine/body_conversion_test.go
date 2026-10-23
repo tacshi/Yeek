@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// Ported from Yaak's requestBodyConversion.test.ts. JSON.stringify(v, null, 2)
-// results are written out, in the order JavaScript keeps their members.
-
 func TestConvertRequestBody(t *testing.T) {
 	form := func(rows ...Object) Object {
 		list := []any{}

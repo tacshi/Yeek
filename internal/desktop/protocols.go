@@ -13,8 +13,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// protocolTabs are Yaak's request tabs for a gRPC request (Metadata, no
-// Params) and a WebSocket request.
 func (a *App) protocolTabs(d *Draft) []tabItem {
 	tabs := []tabItem{{Label: "Message"}}
 	if d.Kind == "grpc_request" {
@@ -29,8 +27,6 @@ func (a *App) protocolTabs(d *Draft) []tabItem {
 	)
 }
 
-// protocolRequest is Yaak's GrpcRequestPane or WebsocketRequestPane, under
-// the URL bar.
 func (a *App) protocolRequest(c *ui.Context, p colors, d *Draft) {
 	tabs := a.protocolTabs(d)
 	d.Tab = max(0, min(d.Tab, len(tabs)-1))
@@ -51,10 +47,7 @@ func (a *App) protocolRequest(c *ui.Context, p colors, d *Draft) {
 	}
 }
 
-// messageEditor is the Message tab; a gRPC request's has Yaak's schema
-// menu in its corner.
 func (a *App) messageEditor(c *ui.Context, p colors, d *Draft) {
-	// A gRPC message completes and checks its method's input fields.
 	doc := a.editorDocument("Message body")
 	doc.jsonSchema = nil
 	if m := a.grpcMethod(d); d.Kind == "grpc_request" && m != nil {
@@ -131,8 +124,6 @@ func (a *App) messageEditor(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// protoFiles are a gRPC request's proto files and import folders, kept as
-// Yaak keeps them.
 func (a *App) protoFiles(id string) []string {
 	for _, m := range a.list("key_value") {
 		if s(m, "namespace") == "global" && s(m, "key") == "proto_files::"+id {
@@ -158,8 +149,6 @@ func (a *App) setProtoFiles(id string, files []string) {
 	})
 }
 
-// grpcSchemaState is what reflection found for a gRPC request, as Yaak's
-// grpc_reflect query keeps it, by the URL and proto files it is of.
 type grpcSchemaState struct {
 	key, wanted   string
 	wantedAt      time.Time
@@ -174,8 +163,6 @@ func (s *grpcSchemaState) unimplemented() bool {
 	return strings.Contains(strings.ToLower(s.err), "unimplemented")
 }
 
-// grpcSchema reflects the request's schema when its URL or proto files
-// change, half a second after the last change.
 func (a *App) grpcSchema(d *Draft) *grpcSchemaState {
 	if a.grpcSchemas == nil {
 		a.grpcSchemas = map[string]*grpcSchemaState{}
@@ -193,7 +180,6 @@ func (a *App) grpcSchema(d *Draft) *grpcSchemaState {
 		s.wanted, s.wantedAt = key, time.Now()
 	}
 	if wait := 500*time.Millisecond - time.Since(s.wantedAt); wait > 0 && s.reflectedOnce && !a.testMode {
-		// One frame after the wait reflects, if nothing changed since.
 		if !s.scheduled && a.Window != nil {
 			s.scheduled = true
 			go func() {
@@ -233,8 +219,6 @@ func (a *App) reflect(d *Draft, s *grpcSchemaState, key string) {
 			if s.services == nil {
 				s.services = []engine.GRPCService{}
 			}
-			// Yaak selects the first service and method the schema has
-			// when the request's are not in it.
 			if draft := a.drafts[id]; draft != nil && len(services) > 0 {
 				service := slices.IndexFunc(services, func(sv engine.GRPCService) bool { return sv.Name == draft.Service })
 				if service < 0 {
@@ -255,7 +239,6 @@ func (a *App) reflect(d *Draft, s *grpcSchemaState, key string) {
 	})
 }
 
-// grpcMethod is the request's method in its schema.
 func (a *App) grpcMethod(d *Draft) *engine.GRPCMethod {
 	s := a.grpcSchemas[d.ID]
 	if s == nil {
@@ -273,7 +256,6 @@ func (a *App) grpcMethod(d *Draft) *engine.GRPCMethod {
 	return nil
 }
 
-// grpcMethodType is Yaak's methodType.
 func (a *App) grpcMethodType(d *Draft) string {
 	s := a.grpcSchemas[d.ID]
 	if s == nil || s.services == nil {
@@ -310,7 +292,6 @@ func (a *App) generateExample(d *Draft) {
 	})
 }
 
-// grpcControls are the method menu and buttons beside a gRPC request's URL.
 func (a *App) grpcControls(c *ui.Context, p colors, d *Draft) {
 	schema := a.grpcSchema(d)
 	running := a.running[d.ID]
@@ -367,13 +348,11 @@ func (a *App) grpcControls(c *ui.Context, p colors, d *Draft) {
 	}
 }
 
-// connected reports whether a WebSocket or gRPC request has a connection open.
 func (a *App) connected(d *Draft) bool {
 	conn := a.connections[d.ID]
 	return conn != nil && s(conn, "state") != "closed" && a.running[d.ID]
 }
 
-// sendMessage sends the Message tab on the open connection.
 func (a *App) sendMessage(d *Draft) {
 	conn := a.connections[d.ID]
 	if conn == nil {
@@ -396,7 +375,6 @@ func (a *App) finishGRPC(d *Draft) {
 	}
 }
 
-// grpcSchemaDialog is Yaak's GrpcProtoSelectionDialog.
 func (a *App) grpcSchemaDialog(c *ui.Context, p colors) {
 	d := a.drafts[a.dialogID]
 	if d == nil {
@@ -435,7 +413,6 @@ func (a *App) grpcSchemaDialog(c *ui.Context, p colors) {
 		case len(files) == 0 && len(schema.services) > 0:
 			banner(p.border, "Server reflection found services "+names()+". You can override this schema by manually selecting *.proto files.")
 		}
-		// Yaak's PathList of the proto files and import folders.
 		var items []pathListItem
 		for _, path := range files {
 			glyph := "fileCode"
@@ -494,7 +471,6 @@ func (a *App) chooseProtoFiles(id string, directory bool) {
 	})
 }
 
-// requestConnections lists a request's connections, newest first.
 func (a *App) requestConnections(d *Draft) []engine.Object {
 	kind := "websocket_connection"
 	if d.Kind == "grpc_request" {
@@ -510,7 +486,6 @@ func (a *App) requestConnections(d *Draft) []engine.Object {
 	return out
 }
 
-// activeConnection is the pinned connection, else the latest.
 func (a *App) activeConnection(d *Draft) engine.Object {
 	connections := a.requestConnections(d)
 	if len(connections) == 0 {
@@ -526,7 +501,6 @@ func (a *App) activeConnection(d *Draft) engine.Object {
 	return connections[0]
 }
 
-// connectionEvents are a connection's events, oldest first.
 func (a *App) connectionEvents(d *Draft, conn engine.Object) []engine.Object {
 	kind := "websocket_event"
 	if d.Kind == "grpc_request" {
@@ -542,7 +516,6 @@ func (a *App) connectionEvents(d *Draft, conn engine.Object) []engine.Object {
 	return out
 }
 
-// protocolResponse is Yaak's GrpcResponsePane or WebsocketResponsePane.
 func (a *App) protocolResponse(c *ui.Context, p colors, d *Draft) {
 	ui.Column(c).Fill().MinWidth(0).Background(p.response).Radius(6).Border(1, p.border).Children(func() {
 		conn := a.activeConnection(d)
@@ -572,7 +545,6 @@ func (a *App) protocolResponse(c *ui.Context, p colors, d *Draft) {
 			ui.Spacer(c)
 			a.connectionHistoryButton(c, d, conn)
 		})
-		// A unary call shows the first message received.
 		if d.ConnEvent < 0 && d.ConnEventFor != s(conn, "id") && a.grpcMethodType(d) == "unary" {
 			if i := slices.IndexFunc(events, func(e engine.Object) bool { return s(e, "eventType") == "server_message" }); i >= 0 {
 				d.ConnEvent, d.ConnEventFor = i, s(conn, "id")
@@ -582,7 +554,6 @@ func (a *App) protocolResponse(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// websocketStatus is Yaak's WebsocketStatusTag.
 func websocketStatus(conn engine.Object, p colors) (string, ui.Color) {
 	switch {
 	case s(conn, "error") != "":
@@ -597,8 +568,6 @@ func websocketStatus(conn engine.Object, p colors) (string, ui.Color) {
 	return "CONNECTING", p.muted
 }
 
-// connectionHistoryButton is Yaak's RecentGrpcConnectionsDropdown (and
-// its WebSocket one).
 func (a *App) connectionHistoryButton(c *ui.Context, d *Draft, active engine.Object) {
 	connections := a.requestConnections(d)
 	glyph := "history"
@@ -662,7 +631,6 @@ func (a *App) deleteConnections(d *Draft, connections []engine.Object) {
 	d.ConnEvent = -1
 }
 
-// eventDisplay of a gRPC or WebSocket event: its icon, color and row text.
 func connectionEventDisplay(d *Draft, e engine.Object, p colors) (glyph string, color ui.Color, content string, italic bool) {
 	if d.Kind == "grpc_request" {
 		content = s(e, "content")
@@ -708,7 +676,6 @@ func connectionEventDisplay(d *Draft, e engine.Object, p colors) (glyph string, 
 	return "arrowUp", p.accent, message, false
 }
 
-// websocketBytes is a WebSocket event's message.
 func websocketBytes(e engine.Object) []byte {
 	values, _ := e["message"].([]any)
 	data := make([]byte, 0, len(values))
@@ -727,8 +694,6 @@ func websocketBytes(e engine.Object) []byte {
 	return data
 }
 
-// eventViewer is Yaak's EventViewer: the events, and the one chosen in a
-// panel below them.
 func (a *App) eventViewer(c *ui.Context, p colors, d *Draft, conn engine.Object, events []engine.Object) {
 	if len(events) == 0 && s(conn, "error") == "" {
 		ui.Text(c, "No events recorded").Italic().FontSize(13).TextColor(p.subtle).Padding(12)
@@ -744,7 +709,6 @@ func (a *App) eventViewer(c *ui.Context, p colors, d *Draft, conn engine.Object,
 			}
 			for i, e := range events {
 				glyph, color, content, italic := connectionEventDisplay(d, e, p)
-				// A row shows its text on one line, as HTML folds whitespace.
 				content = strings.Join(strings.Fields(content), " ")
 				row := ui.ButtonBase(c).Key(s(e, "id")).Label(content).FillWidth().Height(24).Padding(0, 6).Gap(8).Radius(3).Justify(ui.Start)
 				if i == d.ConnEvent {
@@ -782,7 +746,6 @@ func (a *App) eventViewer(c *ui.Context, p colors, d *Draft, conn engine.Object,
 	}).Grow(1).MinHeight(0)
 }
 
-// eventDetail is Yaak's GrpcEventDetail or WebsocketEventDetail.
 func (a *App) eventDetail(c *ui.Context, p colors, d *Draft, e engine.Object) {
 	var title, body string
 	var metadata []keyValue
@@ -873,7 +836,6 @@ func (a *App) eventDetail(c *ui.Context, p colors, d *Draft, e engine.Object) {
 	a.eventBody(c, p, d, e, prettyMessage(body))
 }
 
-// prettyMessage formats a JSON message, as Yaak's useFormatText does.
 func prettyMessage(text string) string {
 	var v any
 	if json.Unmarshal([]byte(text), &v) != nil {
@@ -886,7 +848,6 @@ func prettyMessage(text string) string {
 	return string(out)
 }
 
-// eventHeader is Yaak's EventDetailHeader.
 func (a *App) eventHeader(c *ui.Context, p colors, d *Draft, title string, e engine.Object, copyText string, actions func()) {
 	ui.Row(c).Height(24).Shrink(0).Gap(8).Children(func() {
 		ui.Text(c, title).FontSize(13).FontWeight(600).SingleLine().Grow(1).MinWidth(0).Selectable()
@@ -903,8 +864,6 @@ func (a *App) eventHeader(c *ui.Context, p colors, d *Draft, title string, e eng
 	})
 }
 
-// eventBody shows a message, hiding one over a megabyte until asked, as
-// Yaak does.
 func (a *App) eventBody(c *ui.Context, p colors, d *Draft, e engine.Object, body string) {
 	if len(body) > 1000*1000 && !d.ShowLarge {
 		ui.Column(c).Gap(8).Children(func() {

@@ -5,8 +5,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// openFolder shows a folder's page in place of a request, as Yaak does
-// after duplicating a folder.
 func (a *App) openFolder(id string) {
 	if a.models[id] == nil {
 		return
@@ -17,14 +15,11 @@ func (a *App) openFolder(id string) {
 	a.revealInSidebar(id)
 }
 
-// folderLayout is Yaak's FolderLayout: the folder's name with Send All,
-// over a card for each of its children.
 func (a *App) folderLayout(c *ui.Context, p colors, folder engine.Object) {
 	id := s(folder, "id")
 	page := ui.Scroll(c).Fill().Padding(16, 24, 24, 24)
 	width := page.Bounds().W
 	if width == 0 {
-		// Its first frame: the window less the sidebar.
 		width, _ = c.Size()
 		if !a.hideSidebar {
 			width -= float32(a.sidebarWidth)
@@ -61,8 +56,6 @@ func (a *App) folderLayout(c *ui.Context, p colors, folder engine.Object) {
 	})
 }
 
-// folderChildren lists a folder's folders, then its requests, as Yaak's
-// FolderLayout does.
 func (a *App) folderChildren(id string) []engine.Object {
 	var folders, requests []engine.Object
 	for _, m := range a.treeItems(id) {
@@ -130,7 +123,6 @@ func (a *App) httpRequestCard(c *ui.Context, p colors, request engine.Object) {
 	}
 }
 
-// responsePreview is the response of a folder page's request, in a dialog.
 func (a *App) responsePreview(c *ui.Context, p colors) {
 	d := a.drafts[a.dialogID]
 	if d == nil {

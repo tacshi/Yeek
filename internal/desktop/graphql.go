@@ -197,8 +197,6 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 			a.fetchGraphQL(d, false)
 		}
 	}
-	// Yaak's GraphQLEditor actions: the operation, the schema menu, the
-	// documentation and Format.
 	if len(state.operations) > 0 {
 		name := d.OperationName
 		if name == "" {

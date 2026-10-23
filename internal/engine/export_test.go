@@ -42,7 +42,6 @@ func TestExportWorkspaceSelectionAndPrivateHierarchy(t *testing.T) {
 			t.Fatal("public child references excluded private parent", env)
 		}
 	}
-	// The saved public export is a valid collection in a clean profile.
 	other := testEngine(t)
 	if _, err = other.Import(t.Context(), data, ""); err != nil {
 		t.Fatal(err)

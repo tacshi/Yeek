@@ -10,7 +10,6 @@ func TestAuthEnabledControl(t *testing.T) {
 	a, d, tt := composerApp(t, "", nil)
 	d.AuthType, d.Auth, d.Tab = "basic", map[string]string{"username": "user", "password": "pass"}, 3
 	tt.Frame()
-	// typeUsername types into the field under the "Username" label.
 	typeUsername := func(text string) {
 		t.Helper()
 		label, ok := tt.Find("Username")
@@ -56,7 +55,6 @@ func TestAuthEnabledControl(t *testing.T) {
 	if auth := save(); auth["disabled"] != "yes" {
 		t.Fatalf("condition not saved: %v", auth)
 	}
-	// A reopened request keeps the condition out of the auth fields.
 	saved, _ := a.Engine.Store.Get(t.Context(), d.ID)
 	if fresh := newDraft(saved); fresh.AuthDisabled != "yes" || fresh.Auth["disabled"] != "" || fresh.Auth["username"] != "user" {
 		t.Fatalf("reloaded draft: %v %v", fresh.AuthDisabled, fresh.Auth)

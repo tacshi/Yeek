@@ -11,8 +11,6 @@ import (
 	"testing"
 )
 
-// Yaak's importer-insomnia fixtures (tests/fixtures, index.test.ts): each
-// input converts to its output's resources, compared as JSON.
 func TestInsomniaFixturesMatchYaak(t *testing.T) {
 	inputs, _ := filepath.Glob("testdata/insomnia/*.input.*")
 	if len(inputs) == 0 {
@@ -47,7 +45,6 @@ func TestInsomniaFixturesMatchYaak(t *testing.T) {
 			}
 			for collection, items := range want.Resources {
 				for _, item := range items {
-					// Yaak's "other" body type is Yeek's text/plain.
 					if item["bodyType"] == "other" {
 						item["bodyType"] = "text/plain"
 					}
@@ -78,7 +75,6 @@ func normalizeJSON(t *testing.T, value any) map[string]any {
 	return out
 }
 
-// Yaak's importer-insomnia tests/templates.test.ts (#693, #712).
 func TestInsomniaTemplatesMatchYaak(t *testing.T) {
 	ids := map[string]bool{"GENERATE_ID::req_login": true}
 	convert := func(text string) string { return convertTemplateSyntax(text, ids).(string) }
@@ -149,7 +145,6 @@ func TestInsomniaTemplatesMatchYaak(t *testing.T) {
 			t.Errorf("%s: %s", source, got)
 		}
 	}
-	// Insomnia's UTF-8 base64 filters decode; Yaak's arguments are URL-safe.
 	path := "$.clé[0].token"
 	b64 := "JC5jbMOpWzBdLnRva2Vu"
 	for _, input := range []string{"{% response 'body', 'req_login', 'b64::" + b64 + "::nonce', 'never', 0 %}", "{% response 'body', 'req_login', '" + path + "', 'never', 0 %}"} {
@@ -163,7 +158,6 @@ func TestInsomniaTemplatesMatchYaak(t *testing.T) {
 	if got := convert(`{% response 'header', 'req_login', 'x-\'quoted,header', 'never', 0 %}`); !strings.Contains(got, "header="+enc("x-'quoted,header")) {
 		t.Error(got)
 	}
-	// Nested fields convert into a copy.
 	input := Object{"authentication": Object{"token": "{{ _['token'] }}"}, "body": Object{"form": []any{Object{"value": "{% uuid 'v4' %}"}}}} // #nosec G101 -- Insomnia template text, no credential.
 	got := convertTemplateSyntax(input, nil).(map[string]any)
 	if str(obj(got, "authentication"), "token") != "${[ token ]}" || str(objects(array(obj(got, "body"), "form"))[0], "value") != "${[ uuid.v4() ]}" || str(obj(input, "authentication"), "token") != "{{ _['token'] }}" {
@@ -171,7 +165,6 @@ func TestInsomniaTemplatesMatchYaak(t *testing.T) {
 	}
 }
 
-// Yaak's importer-insomnia tests/body.test.ts.
 func TestInsomniaBodiesMatchYaak(t *testing.T) {
 	importBody := func(r Object) Object {
 		m := Object{}
@@ -223,7 +216,6 @@ func TestInsomniaBodiesMatchYaak(t *testing.T) {
 	}
 }
 
-// Yaak's importer-insomnia tests/migration.test.ts, for v4 and v5.
 func TestInsomniaMigrationMatchesYaak(t *testing.T) {
 	requests := []any{
 		Object{"_id": "req_query", "meta": Object{"id": "req_query"}, "_type": "request", "parentId": "wrk_test", "name": "Query", "method": "POST", "url": "{{ _['host'] }}/graphql",
@@ -274,7 +266,6 @@ func TestInsomniaMigrationMatchesYaak(t *testing.T) {
 	}
 }
 
-// Yaak's index.test.ts: resources keep their Insomnia IDs, whatever their names.
 func TestInsomniaKeysStayAcrossRenames(t *testing.T) {
 	collection := func(name string) []Object {
 		text := "type: collection.insomnia.rest/5.0\nname: Keys\nmeta: {id: wrk_1}\nenvironments: {meta: {id: env_1}, name: Base, data: {}}\ncollection:\n  - meta: {id: fld_1}\n    name: Folder\n    children:\n      - meta: {id: req_1}\n        name: " + name + "\n        method: GET\n        url: https://yaak.app\n"
@@ -295,7 +286,6 @@ func TestInsomniaKeysStayAcrossRenames(t *testing.T) {
 	}
 }
 
-// jsStringify against Node's JSON.stringify(JSON.parse(input), null, 2).
 func TestJSStringifyMatchesNode(t *testing.T) {
 	for _, c := range []struct{ input, want string }{
 		{"{\"a\":{\"b\":[1,2.50,{\"c\":null}],\"d\":[]},\"e\":{},\"f\":\"x\\\"y\\\\z\\n\\u0001\u00e9\u2028</>\",\"g\":1e21,\"h\":-0,\"i\":0.1,\"j\":true,\"k\":[[]]}", "{\n  \"a\": {\n    \"b\": [\n      1,\n      2.5,\n      {\n        \"c\": null\n      }\n    ],\n    \"d\": []\n  },\n  \"e\": {},\n  \"f\": \"x\\\"y\\\\z\\n\\u0001\u00e9\u2028</>\",\n  \"g\": 1e+21,\n  \"h\": 0,\n  \"i\": 0.1,\n  \"j\": true,\n  \"k\": [\n    []\n  ]\n}"},
@@ -312,8 +302,6 @@ func TestJSStringifyMatchesNode(t *testing.T) {
 	}
 }
 
-// Yaak's detect_import_source: what no importer reads is "Not a supported
-// format"; a source that can't be read says why.
 func TestDetectImportSource(t *testing.T) {
 	e := testEngine(t)
 	if format, err := e.DetectImportSource(t.Context(), ImportInput{Kind: "text", Content: "<html>hello</html>"}); err == nil || err.Error() != "Not a supported format" {

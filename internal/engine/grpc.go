@@ -28,8 +28,7 @@ type GRPCMethod struct {
 	Name                             string
 	ClientStreaming, ServerStreaming bool
 	Example                          string
-	// Input is the shape of the request message.
-	Input *GRPCMessage
+	Input                            *GRPCMessage
 }
 type GRPCService struct {
 	Name    string

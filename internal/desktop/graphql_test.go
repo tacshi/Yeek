@@ -211,7 +211,6 @@ func TestGraphQLDocsExplorerPane(t *testing.T) {
 	if !tt.HasText("Root Types") || !tt.HasText("All Schema Types") || !tt.HasText("Hide Documentation") {
 		t.Fatal(tt.Texts())
 	}
-	// The request and response stay beside it.
 	if !tt.HasText("Send Active Request") && !tt.HasText("Request URL") {
 		t.Fatal(tt.Texts())
 	}

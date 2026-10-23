@@ -11,9 +11,6 @@ import (
 	"unicode/utf8"
 )
 
-// The response document as JSON.parse builds it, and JSON.stringify(_, null, 2):
-// Yaak's crates/yaak-filter/src/jsonpath/json.rs.
-
 const maxJSONDepth = 128
 
 type jsonKind uint8
@@ -27,15 +24,12 @@ const (
 	jsonObject
 )
 
-// jsonNode is a value of the document. Arrays and objects are compared by
-// identity, so they are always used by pointer.
 type jsonNode struct {
-	kind  jsonKind
-	b     bool
-	n     float64
-	s     string
-	items []*jsonNode
-	// keys are an object's keys in JSON.parse's order, values by key.
+	kind   jsonKind
+	b      bool
+	n      float64
+	s      string
+	items  []*jsonNode
 	keys   []string
 	values map[string]*jsonNode
 }
@@ -181,7 +175,6 @@ func (p *jsonParser) object(depth int) (*jsonNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		// A repeated key keeps its first place and its last value.
 		if _, exists := node.values[key]; !exists {
 			node.keys = append(node.keys, key)
 		}
@@ -233,8 +226,6 @@ func (p *jsonParser) number() (*jsonNode, error) {
 	return &jsonNode{kind: jsonNumber, n: parseFloat(p.text[start:p.pos])}, nil
 }
 
-// parseFloat is Rust's str::parse::<f64> of text already checked to be a
-// number: out of range is an infinity or zero, never an error.
 func parseFloat(text string) float64 {
 	n, err := strconv.ParseFloat(text, 64)
 	if err != nil && !errors.Is(err, strconv.ErrRange) {
@@ -329,8 +320,6 @@ func (p *jsonParser) string() (string, error) {
 	}
 }
 
-// jsKeyOrder puts array-index keys first, ascending, then the rest in
-// document order, as JSON.parse does.
 func jsKeyOrder(node *jsonNode) {
 	if !slices.ContainsFunc(node.keys, func(k string) bool { _, ok := arrayIndex(k); return ok }) {
 		return
@@ -351,8 +340,6 @@ func jsKeyOrder(node *jsonNode) {
 	node.keys = append(indexes, rest...)
 }
 
-// arrayIndex is the value of a canonical array-index string ("0", "17",
-// never "07" or "-1").
 func arrayIndex(key string) (uint32, bool) {
 	if key == "" || len(key) > 1 && key[0] == '0' {
 		return 0, false
@@ -371,13 +358,10 @@ func arrayIndex(key string) (uint32, bool) {
 
 func fromUTF16(units []uint16) string { return string(utf16.Decode(units)) }
 
-// stringifyResults is JSON.stringify(values, null, 2).
 func stringifyResults(values []jsValue) string {
 	return stringify(jsArrayValue(values), "  ")
 }
 
-// stringify is JSON.stringify(v, null, indent), "" for no indent, of a
-// value it does not drop.
 func stringify(v jsValue, indent string) string {
 	var out strings.Builder
 	w := jsonWriter{out: &out, indent: indent}
@@ -392,8 +376,6 @@ type jsonWriter struct {
 	indent string
 }
 
-// line starts a member of an array or object, or its close, on a line of
-// its own when indenting.
 func (w jsonWriter) line(depth int) {
 	if w.indent == "" {
 		return
@@ -423,8 +405,6 @@ func (w jsonWriter) values(items []jsValue, depth int) {
 	w.out.WriteByte(']')
 }
 
-// js writes the value and returns true, or false for what JSON.stringify
-// drops.
 func (w jsonWriter) js(v jsValue, depth int) bool {
 	switch v.kind {
 	case jsUndefined, jsFunction:
@@ -530,7 +510,6 @@ func writeString(out *strings.Builder, s string) {
 	out.WriteByte('"')
 }
 
-// numberToString is Number.prototype.toString() for radix 10.
 func numberToString(n float64) string {
 	switch {
 	case math.IsNaN(n):

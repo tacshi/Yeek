@@ -52,7 +52,6 @@ func TestResponseHistoryPinsAndDeletes(t *testing.T) {
 	if s(a.activeResponse(rid), "id") != s(newer, "id") {
 		t.Fatal("not unpinned")
 	}
-	// A pin lasts until a newer response comes.
 	a.pinResponse(rid, s(older, "id"))
 	time.Sleep(2 * time.Millisecond)
 	newest := respond(201)

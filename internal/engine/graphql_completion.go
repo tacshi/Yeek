@@ -13,8 +13,7 @@ import (
 type GraphQLSuggestion struct {
 	Label, Insert, Detail, Description, TypeName, ParentType string
 	Deprecated                                               bool
-	// Caret is relative to Insert, in runes. -1 puts it at the end.
-	Caret int
+	Caret                                                    int
 }
 type GraphQLCompletion struct {
 	Start, End int
@@ -62,9 +61,6 @@ func graphQLTokens(source string, caret int) ([]lexer.Token, bool) {
 	return tokens, true
 }
 
-// Complete tolerates unfinished selections, argument lists, input objects, and
-// variable declarations. It never requires the user to finish a valid query
-// before names from its schema become available.
 func (g *GraphQLIndex) Complete(source string, caret int) GraphQLCompletion {
 	runes := []rune(source)
 	caret = max(0, min(caret, len(runes)))

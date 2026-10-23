@@ -58,8 +58,6 @@ func (e *Engine) GraphQLSchema(ctx context.Context, id, environment string) (Obj
 	return obj(obj(result, "data"), "__schema"), nil
 }
 
-// IntrospectGraphQL uses the request draft and inherited transport settings,
-// without replacing the saved query or adding an entry to response history.
 func (e *Engine) IntrospectGraphQL(ctx context.Context, original Object, options SendOptions) (content []byte, fetchErr error) {
 	ctx = context.WithValue(ctx, selectedCookieJarKey{}, options.CookieJarID)
 	request := clone(original)

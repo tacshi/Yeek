@@ -25,16 +25,13 @@ type Engine struct {
 	websockets       map[string]*websocketSession
 	Store            *Store
 	DataDir          string
-	// Secrets is the system's credential store, as the app provides it.
-	Secrets SecretStore
-	// WatchDir watches a sync directory for WatchSync, as the app
-	// provides it (mygo.WatchFiles), so that the engine needs no UI.
-	WatchDir  DirWatcher
-	mu        sync.Mutex
-	listeners map[chan []Object]struct{}
-	pending   map[string]context.CancelFunc
-	ctx       context.Context
-	cancel    context.CancelFunc
+	Secrets          SecretStore
+	WatchDir         DirWatcher
+	mu               sync.Mutex
+	listeners        map[chan []Object]struct{}
+	pending          map[string]context.CancelFunc
+	ctx              context.Context
+	cancel           context.CancelFunc
 }
 
 func Open(dir string) (*Engine, error) {
@@ -168,8 +165,6 @@ func (e *Engine) Body(id string) ([]byte, error) {
 	return e.bodies.ReadFile(id)
 }
 
-// OpenBody opens a response's stored body for reading, as a web view
-// streams media from it.
 func (e *Engine) OpenBody(id string) (*os.File, error) {
 	if !validBodyID(id) {
 		return nil, errors.New("invalid response ID")

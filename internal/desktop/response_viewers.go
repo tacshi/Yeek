@@ -24,7 +24,6 @@ func responseMIME(response engine.Object) string {
 	return kind
 }
 
-// responseHeader is the value of a response's header named name, or "".
 func responseHeader(response engine.Object, name string) string {
 	for _, header := range oslice(response, "headers") {
 		if strings.EqualFold(s(header, "name"), name) {
@@ -34,7 +33,6 @@ func responseHeader(response engine.Object, name string) string {
 	return ""
 }
 
-// responseContentType is the media type of a response and its parameters, such as a boundary.
 func responseContentType(response engine.Object) (string, map[string]string) {
 	for _, header := range oslice(response, "headers") {
 		if strings.EqualFold(s(header, "name"), "Content-Type") {
@@ -54,8 +52,6 @@ var (
 	pdfMIME   = regexp.MustCompile(`(?i)pdf`)
 )
 
-// responseBody is Yaak's Response tab: the viewer is chosen from the
-// response's state and content type, in Yaak's order. Raw mode shows text.
 func (a *App) responseBody(c *ui.Context, p colors, d *Draft, response engine.Object) {
 	pretty := d.ResponseMode != "Raw"
 	id := s(response, "id")
@@ -97,7 +93,6 @@ func emptyState(c *ui.Context, p colors, text string) {
 	ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, text).FontSize(13).TextColor(p.subtle) })
 }
 
-// imageView shows an image, decoded once per key.
 func (a *App) imageView(c *ui.Context, p colors, key, kind string, data []byte) {
 	if a.images == nil {
 		a.images = map[string]ui.ImageSource{}
@@ -121,7 +116,6 @@ func (a *App) imageView(c *ui.Context, p colors, key, kind string, data []byte) 
 	})
 }
 
-// csvView is Yaak's CsvViewer: the first row as the header, as many columns as the widest row.
 func csvView(c *ui.Context, p colors, text string, tabs bool) {
 	reader := csv.NewReader(strings.NewReader(text))
 	reader.FieldsPerRecord = -1
@@ -158,7 +152,6 @@ func csvView(c *ui.Context, p colors, text string, tabs bool) {
 	}).Grow(1)
 }
 
-// slicesDeleteEmpty drops blank lines, as Papa Parse's skipEmptyLines does.
 func slicesDeleteEmpty(rows [][]string) [][]string {
 	result := rows[:0]
 	for _, row := range rows {
@@ -170,7 +163,6 @@ func slicesDeleteEmpty(rows [][]string) [][]string {
 	return result
 }
 
-// binaryView is Yaak's BinaryViewer for a body that is not text.
 func (a *App) binaryView(c *ui.Context, p colors, response engine.Object, kind string) {
 	if kind == "" {
 		kind = "unknown"
@@ -182,16 +174,12 @@ func (a *App) binaryView(c *ui.Context, p colors, response engine.Object, kind s
 	})
 }
 
-// webPageView is Yaak's WebPageViewer: the page in a sandboxed frame,
-// its relative URLs resolving against the response's URL.
 func (a *App) webPageView(c *ui.Context, p colors, response engine.Object) {
 	id := s(response, "id")
 	kind := cmp.Or(responseHeader(response, "Content-Type"), "text/html")
 	a.webPreview(c, p, id+":html:"+s(response, "state"), &previewItem{kind: "html", mimeType: kind, baseURL: s(response, "url"), open: a.openBody(id)}, true)
 }
 
-// mediaView is Yaak's audio, video and PDF viewers, which wait for the
-// whole body (EnsureCompleteResponse).
 func (a *App) mediaView(c *ui.Context, p colors, response engine.Object, kind string) {
 	if s(response, "state") != "closed" {
 		ui.Column(c).Grow(1).Center().Children(func() { ui.Spinner(c).Size(14, 14).TextColor(p.subtle) })
@@ -201,7 +189,6 @@ func (a *App) mediaView(c *ui.Context, p colors, response engine.Object, kind st
 	a.webPreview(c, p, id+":"+mediaKind(kind), &previewItem{kind: mediaKind(kind), mimeType: kind, color: cssColor(p.text), open: a.openBody(id)}, false)
 }
 
-// mediaKind is the preview of an audio, video or PDF content type.
 func mediaKind(kind string) string {
 	switch {
 	case audioMIME.MatchString(kind):
@@ -212,7 +199,6 @@ func mediaKind(kind string) string {
 	return "pdf"
 }
 
-// cssColor is c as CSS's #rrggbb.
 func cssColor(c ui.Color) string { return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B) }
 
 func (a *App) openBody(id string) func() (io.ReadSeekCloser, error) {
@@ -226,7 +212,6 @@ func banner(c *ui.Context, p colors, message string, actions func()) {
 	})
 }
 
-// multipartPart is one part of a multipart response.
 type multipartPart struct {
 	name, filename, kind string
 	header               textproto.MIMEHeader
@@ -253,8 +238,6 @@ func parseMultipart(body []byte, boundary string) ([]multipartPart, error) {
 	}
 }
 
-// multipartView is Yaak's MultipartViewer: the parts listed on the left, the
-// chosen one shown by its own content type on the right.
 func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body []byte, boundary string) {
 	parts, err := parseMultipart(body, boundary)
 	if err != nil && len(parts) == 0 {
@@ -309,8 +292,6 @@ func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body [
 
 func slicesClone(b []byte) []byte { return append([]byte(nil), b...) }
 
-// eventStreamView is Yaak's EventStreamViewer: the events listed as they
-// arrived, with the chosen one's data below.
 func (a *App) eventStreamView(c *ui.Context, p colors, d *Draft, raw string) {
 	events := engine.ParseSSE(raw)
 	if len(events) == 0 {

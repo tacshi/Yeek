@@ -7,7 +7,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// The cases of Yaak's BulkPairEditor.test.ts.
 func TestParseBulkPairLines(t *testing.T) {
 	for _, tc := range []struct {
 		line, name, value string

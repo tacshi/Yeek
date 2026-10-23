@@ -11,16 +11,12 @@ import (
 	"yeek/internal/engine"
 )
 
-// keyCombo is one key with its modifiers; ui.Cmd is Command on macOS and
-// Control elsewhere.
 type keyCombo struct {
 	mods ui.Modifiers
 	key  ui.Key
-	name string // how the key is shown, as "K" or "↩"
+	name string
 }
 
-// hotkey mirrors an entry of Yaak's hotkey table: the action, its label in
-// Yaak's words, and its keys (the first is the one shown).
 type hotkey struct {
 	action, label string
 	keys          []keyCombo
@@ -64,8 +60,6 @@ func findHotkey(action string) (hotkey, bool) {
 	return hotkey{}, false
 }
 
-// hotkeyKeys are the action's keys: the user's from Settings → Shortcuts
-// when set (an empty list turns the action off), else the defaults.
 func (a *App) hotkeyKeys(action string) []keyCombo {
 	if custom, ok := o(a.settings, "hotkeys")[action].([]any); ok {
 		keys := []keyCombo{}
@@ -81,8 +75,6 @@ func (a *App) hotkeyKeys(action string) []keyCombo {
 	return h.keys
 }
 
-// hotkeyText shows the action's first key as the platform writes it: the
-// symbols ⌃ ⌥ ⇧ ⌘ on macOS, words joined with + elsewhere.
 func (a *App) hotkeyText(action string) string {
 	keys := a.hotkeyKeys(action)
 	if len(keys) == 0 {
@@ -112,8 +104,6 @@ func comboText(k keyCombo) string {
 	return strings.Join(parts, "+")
 }
 
-// pressed reports whether one of the action's keys was pressed this frame,
-// unless a focused element took it first.
 func (a *App) pressed(c *ui.Context, action string) bool {
 	hit := false
 	for _, k := range a.hotkeyKeys(action) {
@@ -124,7 +114,6 @@ func (a *App) pressed(c *ui.Context, action string) bool {
 	return hit
 }
 
-// hotkeyTable lists actions with their keys, as Yaak's HotkeyList does.
 func hotkeyTable(actions ...string) []hotkey {
 	result := make([]hotkey, 0, len(actions))
 	for _, action := range actions {
@@ -135,7 +124,6 @@ func hotkeyTable(actions ...string) []hotkey {
 	return result
 }
 
-// handleHotkeys runs the window's shortcuts while no dialog is open.
 func (a *App) handleHotkeys(c *ui.Context) {
 	if len(a.toasts) > 0 && c.Shortcut(0, ui.KeyEscape) {
 		a.toasts = nil
@@ -143,7 +131,6 @@ func (a *App) handleHotkeys(c *ui.Context) {
 	if a.pressed(c, "command_palette.toggle") {
 		a.togglePalette()
 	}
-	// Yaak's useZoom.
 	scale := cmp.Or(n(a.settings, "interfaceScale"), 1)
 	if a.pressed(c, "app.zoom_in") {
 		a.saveSetting("interfaceScale", min(1.8, scale*1.1))
@@ -163,7 +150,6 @@ func (a *App) handleHotkeys(c *ui.Context) {
 	if a.workspace == "" {
 		return
 	}
-	// The focused sidebar sends and duplicates its selected rows instead.
 	tree := a.tree.focused && a.tree.renaming == ""
 	if a.pressed(c, "request.send") {
 		if requests := a.selectedTreeModels(); tree && len(requests) > 0 {
@@ -233,7 +219,6 @@ func (a *App) handleHotkeys(c *ui.Context) {
 	}
 }
 
-// keyNames are the key names of Yaak's hotkey strings, such as "Meta+Shift+k".
 var keyNames = func() map[string]ui.Key {
 	names := map[string]ui.Key{"Enter": ui.KeyEnter, "Escape": ui.KeyEscape, "Backspace": ui.KeyBackspace, "Tab": ui.KeyTab, "Space": ui.KeySpace, "Delete": ui.KeyDelete,
 		"ArrowUp": ui.KeyUp, "ArrowDown": ui.KeyDown, "ArrowLeft": ui.KeyLeft, "ArrowRight": ui.KeyRight, "Home": ui.KeyHome, "End": ui.KeyEnd, "PageUp": ui.KeyPageUp, "PageDown": ui.KeyPageDown,
@@ -251,11 +236,8 @@ var keyNames = func() map[string]ui.Key {
 	return names
 }()
 
-// displayNames show a key as Yaak's Hotkey component does.
 var displayNames = map[string]string{"Enter": "↩", "Escape": "Esc", "Backspace": "⌫", "Delete": "⌦", "ArrowUp": "↑", "ArrowDown": "↓", "ArrowLeft": "←", "ArrowRight": "→", "Equal": "=", "Minus": "-", "BracketLeft": "[", "BracketRight": "]", "Backquote": "`"}
 
-// parseHotkey reads a hotkey string. "Meta" is Command on macOS and Control
-// elsewhere, as Yaak's defaults use it.
 func parseHotkey(text string) (keyCombo, bool) {
 	parts := strings.Split(text, "+")
 	if len(parts) == 0 {
@@ -291,7 +273,6 @@ func parseHotkey(text string) (keyCombo, bool) {
 	return keyCombo{mods, key, shown}, true
 }
 
-// formatHotkey writes a key as a hotkey string, modifiers in Yaak's order.
 func formatHotkey(mods ui.Modifiers, key ui.Key) (string, bool) {
 	name := ""
 	for n, k := range keyNames {

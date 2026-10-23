@@ -23,8 +23,6 @@ func TestExtractRepoNameMatchesYaak(t *testing.T) {
 	}
 }
 
-// Yaak's CloneGitRepositoryDialog: the directory follows the URL until
-// typed, a subdirectory can hold the workspace, and the clone opens it.
 func TestCloneGitRepositoryDialog(t *testing.T) {
 	a, _ := cookieApp(t)
 	tt := ui.NewTester(a.View, 1360, 860)

@@ -30,7 +30,6 @@ func (a *App) copyCurl() {
 	})
 }
 
-// copyGrpcurl is Yaak's Copy as gRPCurl.
 func (a *App) copyGrpcurl(id string) {
 	a.saveActive()
 	env := a.environment
@@ -52,7 +51,6 @@ func (a *App) copiedToast() {
 	a.showToast("", "Command copied to clipboard", "success", 5*time.Second)
 }
 
-// newGraphQL is Yaak's GraphQL item of the create menu.
 func (a *App) newGraphQL(folder string) {
 	a.createRequest(engine.Object{"model": "http_request", "folderId": nilIfEmpty(folder), "method": "POST", "bodyType": "graphql",
 		"headers": []any{engine.Object{"name": "Content-Type", "value": "application/json", "enabled": true, "id": uuid.NewV4().String()}}})
@@ -83,7 +81,6 @@ func (a *App) chooseBodyFile(d *Draft) {
 	})
 }
 
-// chooseSyncDir picks the directory the workspace syncs with.
 func (a *App) chooseSyncDir(workspace string) {
 	a.background(func() (func(), error) {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: "Workspace Directory", Directory: true})
@@ -124,8 +121,6 @@ func (a *App) pickFormFile(rows *[]KV, id string, dirty *bool) {
 	})
 }
 
-// ImportPath adds a file opened with Yeek to the Import Data dialog, as a
-// source to preview, opening the dialog when it isn't.
 func (a *App) ImportPath(path string) {
 	if a.deferUntilInputs(func() { a.ImportPath(path) }) {
 		return

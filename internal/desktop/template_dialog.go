@@ -14,46 +14,37 @@ import (
 	"yeek/internal/engine"
 )
 
-// templateArgument is a value of Yaak's DynamicForm: text, which may hold
-// template tags, or a boolean.
 type templateArgument struct {
 	text, kind string
 }
 type templateForm struct {
-	open, busy     bool
-	doc            *documentEditor
-	source         string
-	start, end     int
-	scope          templateScope
-	definitions    []engine.TemplateDefinition
-	variables      map[string]string
-	name, kind     string
-	definition     engine.TemplateDefinition
-	args           map[string]*templateArgument
-	error          string
-	secureExisting string
-	revision       uint64
-	// advanced opens Yaak's Advanced accordion; rendered is the values
-	// with their tags rendered, for the banner, as of renderedAt.
-	advanced   bool
-	rendered   map[string]string
-	renderedAt uint64
-	// dynamic is the options of selects that list them for the other values.
-	dynamic map[string]dynamicOptions
-	// Yaak's Rendered Preview: the revision rendered, when it last changed,
-	// whether a refresh asked for one, and whether to show secrets in it.
+	open, busy       bool
+	doc              *documentEditor
+	source           string
+	start, end       int
+	scope            templateScope
+	definitions      []engine.TemplateDefinition
+	variables        map[string]string
+	name, kind       string
+	definition       engine.TemplateDefinition
+	args             map[string]*templateArgument
+	error            string
+	secureExisting   string
+	revision         uint64
+	advanced         bool
+	rendered         map[string]string
+	renderedAt       uint64
+	dynamic          map[string]dynamicOptions
 	previewRevision  uint64
 	changedAt        time.Time
 	refresh, secrets bool
 	rendering        bool
 	previewText      string
-	// focusFirst focuses the first argument once, as AutoFocus does.
-	focusFirst bool
+	focusFirst       bool
 }
 
 type dynamicOptions struct{ options, labels []string }
 
-// shown reports whether a field shows for the form's values.
 func (f *templateForm) shown(field engine.TemplateField, values map[string]string) bool {
 	if field.Visible != nil && !field.Visible(values) {
 		return false
@@ -66,7 +57,6 @@ func (f *templateForm) shown(field engine.TemplateField, values map[string]strin
 	return field.Dynamic == nil || len(f.dynamic[field.Name].options) > 0
 }
 
-// values are the form's arguments as entered.
 func (f *templateForm) values() map[string]string {
 	values := map[string]string{}
 	for name, arg := range f.args {
@@ -75,8 +65,6 @@ func (f *templateForm) values() map[string]string {
 	return values
 }
 
-// openTemplateForm is Yaak's TemplateFunctionDialog.show, for a function's
-// tag between start and end.
 func (a *App) openTemplateForm(doc *documentEditor, source string, start, end int, value *engine.TemplateExpression) {
 	if value == nil || value.Kind != "function" {
 		return
@@ -89,7 +77,6 @@ func (a *App) openTemplateForm(doc *documentEditor, source string, start, end in
 	a.templateForm = f
 	doc.state.Completions("", 0)
 	if f.name == "secure" && f.secureExisting != "" {
-		// Yaak's dialog shows secure()'s value decrypted, to edit.
 		encrypted, workspace := f.secureExisting, scope.workspace
 		a.run(func() (func(), error) {
 			plain, err := a.Engine.DecryptValue(a.ctx, workspace, encrypted)
@@ -103,9 +90,6 @@ func (a *App) openTemplateForm(doc *documentEditor, source string, start, end in
 	}
 }
 
-// editVariable is Yaak's onClickVariable and onClickMissingVariable: the
-// environment that has the variable, or the active one with it added, in
-// the environment editor.
 func (a *App) editVariable(name string) {
 	base, subs := a.environmentsBreakdown()
 	var candidates []engine.Object
@@ -163,7 +147,6 @@ func (f *templateForm) selectExpression(value engine.TemplateExpression) {
 		entry := &templateArgument{text: arg.Value, kind: arg.Kind}
 		switch arg.Kind {
 		case "variable", "function":
-			// A nested value is text with its tag, which renders the same.
 			entry.text, entry.kind = engine.FormatTemplateTag(arg), "string"
 		case "null":
 			entry.text, entry.kind = f.args[key].text, "string"
@@ -193,13 +176,10 @@ func (f *templateForm) expression() (engine.TemplateExpression, error) {
 			value.Arguments[key] = engine.TemplateExpression{Kind: arg.kind, Value: arg.text}
 		}
 	}
-	// Validate variable names and custom arguments before inserting a tag.
 	_, err := engine.ParseTemplateExpression(engine.FormatTemplateExpression(value))
 	return value, err
 }
 
-// templateDialog is Yaak's TemplateFunctionDialog: the function's form,
-// its Rendered Preview, and Save.
 func (a *App) templateDialog(c *ui.Context, p colors) {
 	f := a.templateForm
 	if f == nil {
@@ -208,7 +188,6 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 	ui.DialogBase(c, &f.open, func(back, panel ui.Element) {
 		dialogEnter(back, panel)
 		back.Background(ui.RGBA(0, 0, 0, .4))
-		// Yaak's md dialog, h-240.
 		panel.Key("template-dialog").Width(800).HeightPercent(90).MaxHeight(960).MaxWidthPercent(92).Padding(0).Gap(0).Radius(9).Border(1, p.border).Background(p.background)
 		ui.Column(c).Padding(16, 24, 8, 24).Gap(8).Children(func() {
 			ui.Row(c).Gap(10).Children(func() {
@@ -228,7 +207,6 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 		})
 		ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 24).Gap(12).Children(func() {
 			if f.name == "secure" {
-				// Yaak's secure() form: one password input.
 				arg := f.args["value"]
 				if arg == nil {
 					arg = &templateArgument{kind: "string"}
@@ -257,7 +235,6 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 				a.renderTemplateValues(f)
 				a.templateBanner(c, p, f)
 				if hasAdvanced {
-					// Yaak's Advanced accordion.
 					toggle := ui.ButtonBase(c).Label("Advanced").Gap(6).AlignSelf(ui.Start)
 					toggle.Children(func() {
 						disclosure(c, f.advanced, 11, p.subtle)
@@ -279,7 +256,6 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 		a.templatePreview(c, p, f)
 		dialogFooter(c, p, nil, func() {
 			if f.name == "secure" && ui.Button(c, "Reveal Encryption Key").Clicked() {
-				// Yaak's setupOrConfigureEncryption.
 				f.open = false
 				a.prompt("workspace_encryption", "Workspace Encryption", "", f.scope.workspace)
 			}
@@ -294,8 +270,6 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 	}
 }
 
-// templatePreviewType is Yaak's previewType: prompt.text renders when asked
-// ("click"), the rest as their values change ("live").
 func templatePreviewType(name string) string {
 	if strings.HasPrefix(name, "prompt.") {
 		return "click"
@@ -303,9 +277,6 @@ func templatePreviewType(name string) string {
 	return "live"
 }
 
-// templatePreview is Yaak's Rendered Preview: the tag rendered as its
-// values change (400ms after), hiding values typed into password fields
-// until the lock shows them.
 func (a *App) templatePreview(c *ui.Context, p colors, f *templateForm) {
 	kind := templatePreviewType(f.name)
 	if f.revision != f.previewRevision {
@@ -320,7 +291,6 @@ func (a *App) templatePreview(c *ui.Context, p colors, f *templateForm) {
 			c.After(wait - elapsed)
 		} else if kind == "live" || f.refresh {
 			f.previewRevision, f.changedAt, f.refresh = f.revision, time.Time{}, false
-			// A "click" preview renders as sending does (Yaak's purpose "send"), prompting.
 			a.previewTemplate(f, kind == "click")
 		}
 	}
@@ -371,7 +341,6 @@ func (a *App) templatePreview(c *ui.Context, p colors, f *templateForm) {
 				}
 			})
 			if smallIconButton(c, "refresh", "Refresh preview").TextColor(p.muted).AlignSelf(ui.Center).Clicked() {
-				// Render now, whatever the preview type.
 				f.refresh = true
 				f.previewRevision = ^uint64(0)
 				f.changedAt = time.Unix(0, 0)
@@ -474,8 +443,6 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 					}
 				})
 			default:
-				// Yaak's DynamicForm text inputs take template tags, with
-				// their autocompletion.
 				before := arg.text
 				label := templateFieldLabel(field) + " argument"
 				first := len(f.definition.Fields) > 0 && f.definition.Fields[0].Name == field.Name
@@ -584,8 +551,6 @@ func (f *templateForm) insert(tag string) {
 	f.open = false
 }
 
-// renderTemplateValues renders the tags in a function's values once they
-// change, for its banner and the options its selects list.
 func (a *App) renderTemplateValues(f *templateForm) {
 	needed := f.definition.Banner != nil || slices.ContainsFunc(f.definition.Fields, func(field engine.TemplateField) bool { return field.Dynamic != nil })
 	if !needed || f.renderedAt == f.revision {
@@ -613,8 +578,6 @@ func (a *App) renderTemplateValues(f *templateForm) {
 	})
 }
 
-// loadDynamicOptions lists the options of selects such as 1password.item's
-// vaults, which fail quietly, as Yaak hides them.
 func (a *App) loadDynamicOptions(f *templateForm, values map[string]string) {
 	for _, field := range f.definition.Fields {
 		if field.Dynamic == nil {
@@ -641,8 +604,6 @@ func (a *App) loadDynamicOptions(f *templateForm, values map[string]string) {
 	}
 }
 
-// templateBanner shows a function's banner, as for where prompt.text
-// stores its value, with the values' tags rendered.
 func (a *App) templateBanner(c *ui.Context, p colors, f *templateForm) {
 	if f.definition.Banner == nil {
 		return

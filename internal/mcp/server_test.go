@@ -15,7 +15,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// fakeHost keeps models in memory, as Yaak's tests' hosts do.
 type fakeHost struct {
 	workspaces  []Workspace
 	environment string
@@ -103,8 +102,6 @@ func connect(t *testing.T, host Host) *mcp.ClientSession {
 	return client
 }
 
-// call is the text a tool gives, failing the test when its error state
-// is not wantError.
 func call(t *testing.T, c *mcp.ClientSession, name string, args map[string]any, wantError bool) string {
 	t.Helper()
 	res, err := c.CallTool(t.Context(), &mcp.CallToolParams{Name: name, Arguments: args})
@@ -249,7 +246,6 @@ func TestToolsAskWhichWorkspaceWhenSeveralAreOpen(t *testing.T) {
 
 const initialize = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}`
 
-// Ported from Yaak's crates/yaak-mcp/tests/http.rs.
 func TestHTTPRequiresTheBearerToken(t *testing.T) {
 	server, err := Serve(newFakeHost(), "test", "127.0.0.1:0", "secret")
 	if err != nil {

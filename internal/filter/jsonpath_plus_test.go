@@ -8,30 +8,15 @@ import (
 	"testing"
 )
 
-// Every case in testdata/jsonpath_plus.json, which Yaak's
-// crates/yaak-filter/tests/fixtures/generate-jsonpath-plus.mjs records from
-// jsonpath-plus 11.0.0 as the removed plugin ran it.
-
-// deviations are where this engine means to differ from jsonpath-plus; the
-// fixture holds the result each such case should give instead.
 var deviations = []string{
-	// ["a.b"] and ['a.b'] are literal keys, never operators or expressions.
 	"literal-key",
-	// RFC 9535 [-1], which jsonpath-plus looks up as the key "-1".
 	"rfc-negative-index",
-	// RFC 9535 [::-1], which jsonpath-plus does not read as a slice.
 	"rfc-negative-step",
-	// RFC 9535 [?@.a > 1], which jsonpath-plus looks up as a key.
 	"rfc-filter",
-	// RFC 9535 length(), count(), match(), search() and value() in ?(...).
 	"rfc-function",
-	// A call outside the allowlist, or several statements: an error, not JavaScript.
 	"unsupported",
-	// Filters are compiled up front, so a bad one fails even when no node reaches it.
 	"eager-parse",
-	// jsonpath-plus returns undefined for a root of 0, "", false or null.
 	"falsy-root",
-	// Indexing into a string can split a surrogate pair, which becomes U+FFFD here.
 	"lone-surrogate",
 }
 

@@ -23,11 +23,8 @@ func (a *App) View(c *ui.Context) {
 	if !a.dialogOpen && a.templateForm == nil && len(a.valuePrompts) == 0 && !a.palette.open && !a.switcher.open {
 		a.handleHotkeys(c)
 	}
-	// The sidebar sets this again while it builds, for the next frame's ⌘B and ⌘F.
 	a.sidebarFocused, a.tree.focused = false, false
 	root := ui.Column(c).Fill().Background(p.background)
-	// Yaak's sidebar grows and shrinks as it shows and hides
-	// (transition-grid), though not as it's resized.
 	target := float32(1)
 	if a.hideSidebar {
 		target = 0
@@ -91,8 +88,6 @@ func (a *App) View(c *ui.Context) {
 	}
 }
 
-// Widgets apply queued text while the view is built. Snapshotting or replacing
-// a draft before every input has run can lose the last keystroke in that frame.
 func (a *App) deferUntilInputs(action func()) bool {
 	if !a.inView {
 		return false
@@ -101,13 +96,11 @@ func (a *App) deferUntilInputs(action func()) bool {
 	return true
 }
 
-// headerHeight is the app header's height; the macOS traffic lights are centred in it.
 const headerHeight = 40
 
 func (a *App) header(c *ui.Context, p colors) {
 	bar := c.TitleBar()
 	ui.Row(c).Height(max(headerHeight, bar.Height)).Shrink(0).Padding(0, bar.Right+6, 0, bar.Left+6).Gap(2).Background(p.header).BorderWidth(0, 0, 1, 0).BorderColor(p.border).DragWindow().Children(func() {
-		// The active environment's color tints the header, as in Yaak.
 		if color, ok := envColor(s(a.models[a.environment], "color"), p); ok {
 			tint := func(alpha float32) ui.LinearGradient {
 				return ui.LinearGradient{From: color.Alpha(alpha), To: color.Alpha(0), Angle: 90, Start: .15, End: .4}
@@ -151,7 +144,6 @@ func (a *App) header(c *ui.Context, p colors) {
 					a.exportFile()
 				}
 				m.Separator()
-				// Yaak's New Workspace submenu.
 				m.Submenu("New Workspace", func(m *ui.Menu) {
 					if m.Item("Create Empty").Chosen() {
 						a.newWorkspace()
@@ -202,7 +194,6 @@ func (a *App) header(c *ui.Context, p colors) {
 			if iconButton(c, "search", "Search or execute a command ("+a.hotkeyText("command_palette.toggle")+")").Clicked() {
 				a.togglePalette()
 			}
-			// Yaak's SettingsDropdown, less its license, CLI and feedback items.
 			iconButton(c, "gear", "Settings").Menu(func(m *ui.Menu) {
 				if a.hotkeyItem(m.Item("Settings"), "settings.show").Chosen() {
 					a.prompt("settings", "Settings", "", "")
@@ -232,10 +223,6 @@ func (a *App) header(c *ui.Context, p colors) {
 	})
 }
 
-// environmentButton is Yaak's EnvironmentActionsDropdown: the active
-// environment's name, or "Environment" / "No Environment" when only the base
-// environment applies. It lists the sub-environments and opens the editor
-// directly when there are none.
 func (a *App) environmentButton(c *ui.Context, p colors) {
 	subs := []engine.Object{}
 	hasBaseVars := false
@@ -298,13 +285,10 @@ func (a *App) environmentButton(c *ui.Context, p colors) {
 	}
 }
 
-// headerMenu is the borderless dropdown button Yaak uses in its app header.
 func headerMenu(c *ui.Context, label string, build func(m *ui.Menu)) ui.Element {
 	return ui.MenuButton(c, label, build).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(13).Padding(4, 8)
 }
 
-// createMenu is Yaak's getCreateDropdownItems: what it creates goes inside
-// folder when it is set, and a folder is offered unless hideFolder.
 func (a *App) createMenu(m *ui.Menu, folder string, hideFolder ...bool) {
 	for _, item := range []struct{ name, kind string }{{"HTTP", "http_request"}, {"GraphQL", "graphql"}, {"gRPC", "grpc_request"}, {"WebSocket", "websocket_request"}} {
 		if m.Item(item.name).Chosen() {
@@ -386,14 +370,12 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 	})
 }
 
-// revealInSidebar expands the folders that contain id.
 func (a *App) revealInSidebar(id string) {
 	for parent, depth := s(a.models[id], "folderId"), 0; parent != "" && depth < 32; parent, depth = s(a.models[parent], "folderId"), depth+1 {
 		a.expanded[parent] = true
 	}
 }
 
-// treeMatch reports whether a sidebar item, or for a folder anything inside it, matches the filter.
 func (a *App) treeMatch(m engine.Object, depth int) bool {
 	query := strings.ToLower(strings.TrimSpace(a.search))
 	if query == "" {
@@ -417,7 +399,6 @@ func (a *App) treeMatch(m engine.Object, depth int) bool {
 	return false
 }
 
-// treeItems returns a parent's direct children in sidebar order.
 func (a *App) treeItems(parent string) []engine.Object {
 	items := []engine.Object{}
 	for _, kind := range []string{"folder", "http_request", "grpc_request", "websocket_request"} {
@@ -442,7 +423,6 @@ func (a *App) treeItems(parent string) []engine.Object {
 	return items
 }
 
-// folderRequests returns the HTTP requests under a folder, depth first, in sidebar order.
 func (a *App) folderRequests(folder string) []string {
 	var ids []string
 	var walk func(parent string, depth int)
@@ -512,7 +492,6 @@ func (a *App) workbench(c *ui.Context, p colors) {
 		panes()
 		return
 	}
-	// Yaak's GraphQL layout: the documentation explorer takes a third.
 	if a.docsSplit == 0 {
 		w, _ := c.Size()
 		if !a.hideSidebar {
@@ -546,7 +525,6 @@ func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 			}
 			input := a.templateInput(c, p, &d.URL, "url", "Request URL", placeholder, false).Grow(1).MinWidth(0).Height(28)
 			if a.focusURL {
-				// ⌘L focuses the URL and selects it, as Yaak's url_bar.focus does.
 				a.focusURL = false
 				doc := a.editorDocument("input::url")
 				doc.state.Focus()
@@ -561,7 +539,6 @@ func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 			}
 			switch d.Kind {
 			case "grpc_request":
-				// Its buttons are beside the bar (grpcControls).
 			case "websocket_request":
 				name, label := "arrowUpDown", "Connect"
 				if a.connected(d) {
@@ -590,23 +567,18 @@ func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// tabItem is one of Yaak's text tabs: an optional count badge, and a menu
-// (a chevron) that opens when the tab is already selected.
 type tabItem struct {
 	Label string
 	Badge *countBadge
 	Menu  func(m *ui.Menu)
 }
 
-// countBadge is Yaak's CountBadge: a number or a dot, optionally paired with a
-// second as "sent/received".
 type countBadge struct {
 	count, count2 int
 	dot, dot2     bool
 	pair          bool
 }
 
-// badgeCount is a badge for n, or none when it is zero.
 func badgeCount(n int) *countBadge {
 	if n == 0 {
 		return nil
@@ -614,7 +586,6 @@ func badgeCount(n int) *countBadge {
 	return &countBadge{count: n}
 }
 
-// badgeDot is a dot marking that something is set.
 func badgeDot(on bool) *countBadge {
 	if !on {
 		return nil
@@ -622,10 +593,8 @@ func badgeDot(on bool) *countBadge {
 	return &countBadge{dot: true}
 }
 
-// badgePair shows both counts, zeros included.
 func badgePair(a, b int) *countBadge { return &countBadge{count: a, count2: b, pair: true} }
 
-// viewSingle shows only the first count, zero included, as CountBadge's showZero.
 func (b *countBadge) viewSingle(c *ui.Context, p colors) {
 	(&countBadge{count: b.count}).view(c, p)
 }
@@ -717,12 +686,10 @@ func (a *App) requestPane(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// headerCount follows Yaak's Headers tab badge: inherited headers plus the draft's own, by name.
 func (a *App) headerCount(d *Draft) int {
 	return len(a.inheritedHeaders(d.Model)) + countNamed(d.Headers, true)
 }
 
-// overriddenSettings counts the settings a request or folder overrides, as Yaak's Settings badge does.
 func overriddenSettings(d *Draft) int {
 	keys := []string{"settingValidateCertificates"}
 	if d.Kind != "grpc_request" {
@@ -773,7 +740,6 @@ func countNamed(rows []KV, enabled bool) int {
 
 type bodyTypeOption struct{ label, short, value string }
 
-// bodyTypes mirrors the body menu of Yaak's request pane; an empty label is a separator.
 var bodyTypes = []bodyTypeOption{
 	{"Url Encoded", "", "application/x-www-form-urlencoded"},
 	{"Multi-Part", "", "multipart/form-data"},
@@ -849,7 +815,6 @@ func (a *App) authTypeMenu(m *ui.Menu, d *Draft) {
 	}
 	m.Separator()
 	if d.Kind == "workspace" {
-		// A workspace has nothing to inherit from: no type means no authentication.
 		if m.Item("No Auth").Checked(d.AuthType == "" || d.AuthType == "none").Chosen() {
 			choose("")
 		}
@@ -863,8 +828,6 @@ func (a *App) authTypeMenu(m *ui.Menu, d *Draft) {
 	}
 }
 
-// inheritedHeaders are the enabled headers a request or folder receives from
-// Yeek's defaults, its workspace and its folders, the innermost winning, as Yaak shows them.
 func (a *App) inheritedHeaders(m engine.Object) []KV {
 	if s(m, "model") == "workspace" {
 		return kvRows(engine.Object{"headers": a.Engine.DefaultHeaders()}, "headers")
@@ -891,8 +854,6 @@ func (a *App) inheritedHeaders(m engine.Object) []KV {
 	return merged
 }
 
-// headersEditor is the Headers tab: a collapsible list of inherited headers
-// that the draft does not override, above its own headers.
 func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 	own := map[string]bool{}
 	for _, h := range d.Headers {
@@ -946,8 +907,6 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// kvEditor edits name/value rows; text rows can switch to bulk editing as in
-// Yaak, while multipart rows, which can hold files, stay rows.
 func (a *App) kvEditor(c *ui.Context, p colors, rows *[]KV, name, value string, dirty *bool, files ...bool) {
 	if len(files) > 0 && files[0] {
 		a.pairEditor(c, p, rows, name, value, dirty, files...)
@@ -980,10 +939,7 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 			if empty {
 				border = p.border.Alpha(.6)
 			}
-			// Secret header values are obscured, as Yaak's password inputs are.
 			mask := a.kvMask || name == "Header" && secretHeader(row.Name)
-			// Yaak's PairEditor reorders rows dragged by their handle,
-			// marking where a row would go.
 			side := 0
 			if _, over := ui.DragOver[pairDrag](line); over {
 				side = dropSide(line)
@@ -1014,13 +970,11 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				nameBorder := border
 				if name == "Variable" {
 					nameInput = ui.TextInput(c, &row.Name).Label(fmt.Sprintf("%s %d", name, i+1)).Placeholder("VAR_NAME").Font("monospace").FontSize(12)
-					// Yaak's variable names: a letter or underscore, then letters, digits, _ . or -.
 					if row.Name != "" && !variableNameRaw.MatchString(row.Name) {
 						nameBorder = p.red
 					}
 				} else {
 					if name == "Header" {
-						// Yaak's header name and value completions.
 						doc := a.templateDoc(row.ID + ":name")
 						doc.presets, doc.presetMin = headerNameOptions, headerMinMatch
 						doc = a.templateDoc(row.ID + ":value")
@@ -1037,8 +991,6 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				if len(files) > 0 && files[0] {
 					a.multipartValue(c, p, rows, i, dirty)
 				} else if mask && !empty && !a.revealed[row.ID] && !a.templateDoc(row.ID+":value").state.Focused {
-					// A masked value, as in Yaak's environment editor until "Show Values":
-					// clicking it edits it as a template again.
 					masked := ui.ButtonBase(c).Label(fmt.Sprintf("%s value %d", name, i+1)).Grow(1).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, border).Background(p.background).Justify(ui.Start)
 					masked.Children(func() {
 						ui.Text(c, strings.Repeat("•", min(utf8.RuneCountInString(row.Value), 24))).Font("monospace").FontSize(12).TextColor(p.muted).SingleLine()
@@ -1086,7 +1038,6 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 					}
 					if m.Item("Encrypt value").Disabled(fieldValue == "").Chosen() {
 						id, value, workspace, file := row.ID, fieldValue, a.workspace, row.FileMode
-						// Yaak converts a field to encrypted through withEncryptionEnabled.
 						a.withEncryptionEnabled(workspace, func() {
 							a.run(func() (func(), error) {
 								secured, err := a.Engine.SecureValue(a.ctx, workspace, value)
@@ -1110,7 +1061,6 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 					}
 				})
 				if side != 0 {
-					// Yaak's DropMarker, between the rows.
 					marker := ui.Box(c).Key("drop").Absolute().Left(8).Right(8).Height(3).Radius(2).Background(p.accent)
 					if side == dropBefore {
 						marker.Top(-3.5)
@@ -1124,7 +1074,6 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 			*rows = slices.Delete(*rows, deleted, deleted+1)
 			*dirty = true
 		} else if moveFrom >= 0 && moveTo != moveFrom {
-			// The row for a new pair stays last.
 			moveTo = min(moveTo, len(*rows)-1)
 			moved := (*rows)[moveFrom]
 			*rows = slices.Delete(*rows, moveFrom, moveFrom+1)
@@ -1137,7 +1086,6 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 	})
 }
 
-// pairDrag is the pair a PairEditor row's handle drags.
 type pairDrag struct{ id string }
 
 func (a *App) bodyEditor(c *ui.Context, p colors, d *Draft) {
@@ -1175,8 +1123,6 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 	}
 	if d.BodyType == "graphql" {
 		a.graphQLQueryHeader(c, p, d)
-		// Yaak's GraphQLEditor: the query with its actions in the corner,
-		// then the variables under a dashed rule.
 		ui.Box(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 			a.codeInput(c, &d.Query, "GraphQL query", &d.Dirty)
 			ui.Row(c).Absolute().Top(4).Right(16).Gap(4).Children(func() {
@@ -1209,8 +1155,6 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 	a.codeInput(c, &d.Body, "Request body", &d.Dirty)
 }
 
-// descriptionEditor is Yaak's Info tab: the name as an editable heading over
-// the description.
 func (a *App) descriptionEditor(c *ui.Context, p colors, d *Draft, label string) {
 	ui.Column(c).Grow(1).MinHeight(0).Gap(4).Padding(4, 0, 0, 0).Children(func() {
 		name := ui.TextInput(c, &d.Name).Label("Name").Placeholder(requestName(d.Model)).FillWidth().Height(36).Padding(0, 4).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(19)
@@ -1221,8 +1165,6 @@ func (a *App) descriptionEditor(c *ui.Context, p colors, d *Draft, label string)
 	})
 }
 
-// markdownEditor is Yaak's MarkdownEditor: the description rendered until the
-// pencil switches to editing, which it starts in when there is none.
 func (a *App) markdownEditor(c *ui.Context, p colors, d *Draft, label string) {
 	if d.DescriptionMode == "" {
 		d.DescriptionMode = "preview"
@@ -1308,7 +1250,6 @@ func (a *App) authEditor(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// authFields is the form for the chosen authentication type.
 func (a *App) authFields(c *ui.Context, p colors, d *Draft) {
 	if d.AuthType == "oauth2" {
 		a.oauthEditor(c, p, d)
@@ -1440,7 +1381,6 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 			if _, loaded := a.bodies[rid]; !loaded {
 				a.bodies[rid] = ""
 				a.run(func() (func(), error) {
-					// A request sent without a body has no stored body file.
 					data, _, err := a.Engine.BodyPreview(rid, 2<<20)
 					if err != nil {
 						return nil, nil
@@ -1448,7 +1388,6 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 					return func() { a.bodies[rid] = string(data) }, nil
 				})
 			}
-			// Yaak's Request tab is the body that was sent; its URL and headers are under Headers.
 			if requestBody := a.bodies[rid]; requestBody == "" {
 				emptyState(c, p, "No request body")
 			} else {
@@ -1464,8 +1403,6 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 	})
 }
 
-// responseText is Yaak's HTMLOrTextViewer text path: the body, formatted
-// when pretty, with the filter, breadcrumb and floating actions.
 func responseBodyKey(response engine.Object) string {
 	return "Response body:" + s(response, "id")
 }
@@ -1484,12 +1421,10 @@ func (a *App) responseText(c *ui.Context, p colors, d *Draft, response engine.Ob
 	if pretty && language == "json" {
 		if d.PrettySource != body {
 			d.PrettySource = body
-			// Yaak's TextViewer: format_json, then \uXXXX escapes and \/ decoded.
 			d.PrettyBody = engine.PrettyJSONResponse(body)
 		}
 		body = d.PrettyBody
 	}
-	// Yaak filters JSON with JSONPath and XML or HTML with XPath.
 	filterable := language != ""
 	if filterable && d.ResponseFilter != "" {
 		source := body + "\x00" + d.ResponseFilter + "\x00" + d.FilterProvider
@@ -1522,8 +1457,6 @@ func (a *App) responseText(c *ui.Context, p colors, d *Draft, response engine.Ob
 
 	area := ui.Box(c).Grow(1).MinHeight(0)
 	area.Children(func() {
-		// Like Yaak's response.body.<id> state key, each response opens at
-		// the top and keeps its own scroll and caret.
 		a.keyedEditor(c, p, &body, "Response body", responseBodyKey(response), language, true)
 		if filterable {
 			a.responseBreadcrumbs(c, p, d, body, language, responseBodyKey(response))
@@ -1532,10 +1465,6 @@ func (a *App) responseText(c *ui.Context, p colors, d *Draft, response engine.Ob
 	})
 }
 
-// responseBreadcrumbs is Yaak's ResponseBreadcrumbBar: the JSON path of the
-// line under the caret, where a crumb filters the response to that path and
-// "$" clears the filter. An applied plain-path filter starts the trail, and
-// the bar is tinted while a filter applies.
 func (a *App) responseBreadcrumbs(c *ui.Context, p colors, d *Draft, body, language, stateKey string) {
 	var cursor []pathSegment
 	if language == "json" {
@@ -1554,7 +1483,6 @@ func (a *App) responseBreadcrumbs(c *ui.Context, p colors, d *Draft, body, langu
 	}
 	path := cursor
 	if plain {
-		// Filter output is an array of matches, so the caret's leading index is the match itself.
 		path = slices.Clone(appliedPath)
 		if len(cursor) > 1 {
 			path = append(path, cursor[1:]...)
@@ -1626,8 +1554,6 @@ func (a *App) responseBreadcrumbs(c *ui.Context, p colors, d *Draft, body, langu
 	})
 }
 
-// responseBodyActions are the buttons Yaak floats over the bottom-right of a
-// response body: save, copy and filter, which opens a filter field in their place.
 func (a *App) responseBodyActions(c *ui.Context, p colors, d *Draft, response engine.Object, filterable, hovered bool) {
 	if !hovered && !d.FilterOpen && d.ResponseFilter == "" {
 		return
@@ -1699,7 +1625,6 @@ func (a *App) responseBodyActions(c *ui.Context, p colors, d *Draft, response en
 	}
 }
 
-// responseModes are Yaak's Response tab views: formatted, and the raw text.
 var responseModes = []struct{ mode, label, short string }{
 	{"Pretty", "Response", "Response"},
 	{"Raw", "Response (Raw)", "Raw"},
@@ -1715,7 +1640,6 @@ func responseTabLabel(mode string) string {
 }
 func (a *App) responseViewMenu(c *ui.Context, m *ui.Menu, d *Draft, response engine.Object) {
 	for _, option := range responseModes {
-		// An image has no raw text to show.
 		if option.mode == "Raw" && strings.HasPrefix(responseMIME(response), "image/") {
 			continue
 		}
@@ -1732,7 +1656,6 @@ func (a *App) responseViewMenu(c *ui.Context, m *ui.Menu, d *Draft, response eng
 	}
 }
 
-// loadResponseBody loads the preview of a response's body once.
 func (a *App) loadResponseBody(response engine.Object) {
 	id := s(response, "id")
 	if _, loaded := a.bodies[id]; loaded {
@@ -1744,8 +1667,6 @@ func (a *App) loadResponseBody(response engine.Object) {
 	})
 }
 
-// hotkeyList is the shortcut table Yaak shows in empty panes, centred in
-// the room left, with bottom (when set) below it.
 func (a *App) hotkeyList(c *ui.Context, p colors, actions []string, bottom ...func()) {
 	ui.Column(c).Grow(1).MinHeight(0).Center().Gap(14).Children(func() {
 		ui.Column(c).Gap(8).Children(func() {

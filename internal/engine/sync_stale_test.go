@@ -12,13 +12,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Ported from Yaak's crates/yaak-sync/tests/sync_files.rs (#739): a plan
-// that was reviewed applies only while the workspace and its directory
-// still match it, so a stale confirmation never deletes or overwrites
-// newer data.
-
-// applyReviewed applies a reviewed plan as the app does, reporting false
-// when it has to be reviewed again.
 func (f *syncFixture) applyReviewed(plan []SyncChange) bool {
 	f.t.Helper()
 	err := f.e.ApplySync(f.t.Context(), f.workspace, f.dir, plan, SyncNewest)
@@ -64,7 +57,6 @@ func (f *syncFixture) dbWorkspace() Object {
 	return m
 }
 
-// writeModel writes m to path as a sync file.
 func (f *syncFixture) writeModel(path string, m Object) []byte {
 	f.t.Helper()
 	data, err := yaml.Marshal(m)
@@ -236,7 +228,6 @@ func TestUnchangedReviewedPlanAppliesInAnyOrderAndCannotBeReplayed(t *testing.T)
 	}
 }
 
-// directionsOnly keeps a plan's entries that change something.
 func directionsOnly(plan []SyncChange) []SyncChange {
 	var out []SyncChange
 	for _, c := range plan {
@@ -247,8 +238,6 @@ func directionsOnly(plan []SyncChange) []SyncChange {
 	return out
 }
 
-// Yeek's store has one connection, so a reviewed plan applied while another
-// writer holds it waits for that writer, then finds the database changed.
 func TestDatabaseChangesWhileWaitingForWriterInvalidateReviewedPlan(t *testing.T) {
 	f := newSyncFixture(t, "request.yaml")
 	f.edit(func(m Object) { m["name"] = "Incoming file version" })
@@ -396,8 +385,6 @@ func TestLaterFileEditsInvalidateReviewedOutboundOperations(t *testing.T) {
 			}
 			request, states := f.dbRequest(), f.statesJSON()
 
-			// Keep updatedAt older than the database's, so the conflict still
-			// resolves to the file.
 			edited := f.writeModel(f.requestPath, func() Object {
 				m := clone(request)
 				m["name"] = "Later external file edit"

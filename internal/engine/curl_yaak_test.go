@@ -13,11 +13,6 @@ type curlCapture struct {
 	Header            http.Header
 }
 
-// TestCurlExportMatchesYaakScenarios ports the cases in Yaak's
-// plugins/action-copy-curl tests. Yeek's command format differs on purpose
-// (one line, --url, --data-raw, --form-string, request settings), so each
-// case runs the copied command through sh and curl and checks what the
-// server receives.
 func TestCurlExportMatchesYaakScenarios(t *testing.T) {
 	received := make(chan curlCapture, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +151,6 @@ func TestCurlExportMatchesYaakScenarios(t *testing.T) {
 	}
 }
 
-// Yaak's digest and AWS cases check the flags, which curl then acts on.
 func TestCurlExportDigestAndAWSFlags(t *testing.T) {
 	e := testEngine(t)
 	w := saveTest(t, e, Object{"model": "workspace"})

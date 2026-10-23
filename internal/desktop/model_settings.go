@@ -10,8 +10,6 @@ import (
 	"yeek/internal/engine"
 )
 
-// requestSetting mirrors Yaak's request setting definitions: which models
-// have the setting, its title and description, and the kind of control.
 type requestSetting struct {
 	key, title, description, kind string
 	models                        []string
@@ -32,8 +30,6 @@ var httpVersionLabels, httpVersionValues = []string{"Automatic", "HTTP/1.1", "HT
 
 func (r requestSetting) supports(kind string) bool { return slices.Contains(r.models, kind) }
 
-// settingsSection is Yaak's SettingsSection: an optional title over rows
-// separated by rules. key tells sections apart when their titles are hidden.
 func settingsSection(c *ui.Context, p colors, key, title string, rows func()) {
 	ui.Column(c).Key(key).FillWidth().Children(func() {
 		if title != "" {
@@ -43,9 +39,6 @@ func settingsSection(c *ui.Context, p colors, key, title string, rows func()) {
 	})
 }
 
-// settingRow is Yaak's SettingRow: a title and description on the left and
-// the control on the right, over a rule. reset, when set, shows the button
-// that removes an override next to the title.
 func settingRow(c *ui.Context, p colors, title, description string, reset func(), control func()) {
 	ui.Row(c).Key(title).FillWidth().Padding(14, 0).Gap(16).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
@@ -63,12 +56,8 @@ func settingRow(c *ui.Context, p colors, title, description string, reset func()
 	})
 }
 
-// settingControlWidth keeps the controls of a settings list in one column.
 const settingControlWidth = 160
 
-// modelSettingsEditor is Yaak's ModelSettingsEditor for a workspace, folder or
-// request draft. A workspace holds plain values; folders and requests hold
-// overrides ({enabled, value}) that show the inherited value until changed.
 func (a *App) modelSettingsEditor(c *ui.Context, p colors, d *Draft, showSectionTitles bool) {
 	kind := d.Kind
 	requests := []requestSetting{settingRequestTimeout, settingRequestMessageSize, settingValidateCertificates, settingFollowRedirects, settingHTTPVersion}
@@ -153,16 +142,11 @@ func (a *App) requestSettingRow(c *ui.Context, p colors, d *Draft, setting reque
 	})
 }
 
-// Yaak's message sizes: bytes in MiB, at most what an int32 holds.
 const (
 	bytesPerMB       = 1 << 20
 	maxMessageSizeMB = 2147483647.0 / bytesPerMB
 )
 
-// numberUnitInput is Yaak's NumberUnitInput: a number field 192px wide
-// with its unit at its end, whose border turns red once what's typed isn't
-// valid. It returns what's typed when it changes, valid or not, as Yaak's
-// onChange does.
 func numberUnitInput(c *ui.Context, p colors, value, label, unit, placeholder string, valid func(string) bool) (string, bool) {
 	box := ui.Row(c).Key(label).Width(192).Height(28).Radius(4).Background(p.background).AlignItems(ui.Stretch)
 	text := ui.Local(box, "text", func() string { return value })
@@ -178,7 +162,6 @@ func numberUnitInput(c *ui.Context, p colors, value, label, unit, placeholder st
 			changed, *edited = true, true
 		}
 		if !in.Focused() && !changed {
-			// What the model holds, once it's not being typed.
 			*text, *edited = value, false
 		}
 		ui.Row(c).Padding(0, 8).AlignItems(ui.Center).BorderWidth(0, 0, 0, 1).BorderColor(p.border).Children(func() {
@@ -188,21 +171,16 @@ func numberUnitInput(c *ui.Context, p colors, value, label, unit, placeholder st
 	return *text, changed
 }
 
-// validInteger is Yaak's isValidInteger: empty, or a whole number of zero
-// or more.
 func validInteger(s string) bool {
 	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return s == "" || err == nil && v == math.Trunc(v) && v >= 0
 }
 
-// validMegabytes is Yaak's isValidMegabytes.
 func validMegabytes(s string) bool {
 	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return s == "" || err == nil && !math.IsInf(v, 0) && v >= 0 && v <= maxMessageSizeMB
 }
 
-// parseNumber is Yaak's parseInteger and parseMegabytes: what's typed,
-// converted, or 0 when it isn't a number.
 func parseNumber(s string, convert func(float64) float64) float64 {
 	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	if err != nil || math.IsInf(v, 0) {
@@ -211,8 +189,6 @@ func parseNumber(s string, convert func(float64) float64) float64 {
 	return convert(v)
 }
 
-// formatMegabytes is Yaak's: whole megabytes as they are, others to three
-// decimals at most.
 func formatMegabytes(bytes float64) string {
 	mb := bytes / bytesPerMB
 	if mb == math.Trunc(mb) {

@@ -6,37 +6,29 @@ import (
 	"github.com/egoist/mygo/yeekui"
 )
 
-// askInput is a field of an ask dialog.
 type askInput struct {
 	label, description, value string
 	password                  bool
 }
 
-// askState is Yaak's showConfirm, showPrompt and showPromptForm: a
-// description, the fields to fill, and what confirming does.
 type askState struct {
 	description, confirm string
 	danger               bool
-	alert                bool // Yaak's showAlert: one button, no Cancel
+	alert                bool
 	inputs               []askInput
 	done                 func(values []string)
-	// cancel, when set, runs on Cancel, as to go back to the dialog that
-	// asked.
-	cancel func()
+	cancel               func()
 }
 
-// ask opens a dialog that asks the user to confirm, or to fill inputs.
 func (a *App) ask(title, description, confirm string, danger bool, inputs []askInput, done func(values []string)) {
 	a.asking = &askState{description: description, confirm: confirm, danger: danger, inputs: inputs, done: done}
 	a.prompt("ask", title, "", "")
 }
 
-// confirmDialog is Yaak's showConfirm.
 func (a *App) confirmDialog(title, description, confirm string, danger bool, done func()) {
 	a.ask(title, description, confirm, danger, nil, func([]string) { done() })
 }
 
-// alertDialog is Yaak's showAlert: a message and an Okay button.
 func (a *App) alertDialog(title, body string) {
 	a.ask(title, body, "Okay", false, nil, func([]string) {})
 	a.asking.alert = true

@@ -12,12 +12,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Tests keep secrets in memory, never in the user's keychain.
 	newSecrets = func(string) engine.SecretStore { return &memorySecrets{} }
 	os.Exit(m.Run())
 }
 
-// memorySecrets is an engine.SecretStore in memory.
 type memorySecrets struct {
 	mu sync.Mutex
 	m  map[string]string
@@ -43,7 +41,6 @@ func (s *memorySecrets) Set(service, account, value string) error {
 	return nil
 }
 
-// fakeLegacy is go-keyring's store.
 type fakeLegacy struct {
 	m      map[string]string
 	getErr error
@@ -75,7 +72,6 @@ func (f *fakeLegacy) Delete(service, account string) error {
 	return nil
 }
 
-// fakeStore is mygo.Secrets.
 type fakeStore struct {
 	m      map[string][]byte
 	setErr error
@@ -111,8 +107,6 @@ func testKeychain(t *testing.T, legacy *fakeLegacy, store *fakeStore) *keychain 
 
 const ownKey = engine.EncryptionKeyService + "\x00" + engine.EncryptionKeyAccount
 
-// The key go-keyring kept moves to mygo.Secrets once, and is read there
-// after.
 func TestKeychainMovesOwnKeyOnce(t *testing.T) {
 	legacy := &fakeLegacy{m: map[string]string{ownKey: "YKM_KEY"}}
 	store := &fakeStore{m: map[string][]byte{}}
@@ -128,7 +122,6 @@ func TestKeychainMovesOwnKeyOnce(t *testing.T) {
 	}
 }
 
-// Without a key anywhere, the engine hears "not found" and makes one.
 func TestKeychainNoKeyIsNotFound(t *testing.T) {
 	k := testKeychain(t, &fakeLegacy{m: map[string]string{}}, &fakeStore{m: map[string][]byte{}})
 	if _, err := k.Get(engine.EncryptionKeyService, engine.EncryptionKeyAccount); !errors.Is(err, engine.ErrSecretNotFound) {
@@ -136,8 +129,6 @@ func TestKeychainNoKeyIsNotFound(t *testing.T) {
 	}
 }
 
-// A key that cannot be added anew is put back, used as it is, and moved
-// on a later read.
 func TestKeychainKeepsKeyWhenMoveFails(t *testing.T) {
 	legacy := &fakeLegacy{m: map[string]string{ownKey: "YKM_KEY"}}
 	store := &fakeStore{m: map[string][]byte{}, setErr: errors.New("keychain locked")}
@@ -152,8 +143,6 @@ func TestKeychainKeepsKeyWhenMoveFails(t *testing.T) {
 	}
 }
 
-// An old store that cannot be read is no "not found", which would make a
-// new key in place of the one there.
 func TestKeychainUnreadableOldKeyIsAnError(t *testing.T) {
 	legacy := &fakeLegacy{m: map[string]string{}, getErr: errors.New("user canceled")}
 	store := &fakeStore{m: map[string][]byte{}}
@@ -161,16 +150,12 @@ func TestKeychainUnreadableOldKeyIsAnError(t *testing.T) {
 	if _, err := k.Get(engine.EncryptionKeyService, engine.EncryptionKeyAccount); err == nil || errors.Is(err, engine.ErrSecretNotFound) {
 		t.Fatal(err)
 	}
-	// One already in the new store is read there.
 	store.m[ownKey] = []byte("YKM_NEW")
 	if v, err := k.Get(engine.EncryptionKeyService, engine.EncryptionKeyAccount); err != nil || v != "YKM_NEW" {
 		t.Fatal(v, err)
 	}
 }
 
-// Other apps' secrets, which the keychain template function reads, are
-// read where they are and never moved; values go-keyring encoded on macOS
-// read as go-keyring read them.
 func TestKeychainReadsOthersInPlace(t *testing.T) {
 	legacy := &fakeLegacy{m: map[string]string{"other\x00me": "old"}}
 	store := &fakeStore{m: map[string][]byte{"api\x00token": []byte("go-keyring-base64:c2VjcmV0"), "hex\x00token": []byte("go-keyring-encoded:736563726574")}}

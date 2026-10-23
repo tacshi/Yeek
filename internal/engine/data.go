@@ -59,7 +59,6 @@ func ParseImport(data []byte) ([]Object, error) {
 			return result, nil
 		}
 	}
-	// Insomnia: a v5 collection, or a v4 export's list of resources.
 	_, v5 := root["collection"].([]any)
 	_, v4 := root["resources"].([]any)
 	if v5 || v4 {
@@ -137,8 +136,6 @@ func MergeModel(base, patch Object) Object {
 	return result
 }
 
-// unsupportedImport is an error for text no importer reads, which Yaak's
-// import dialog reports as "Not a supported format".
 type unsupportedImport struct{ error }
 
 func (e unsupportedImport) Unwrap() error { return e.error }

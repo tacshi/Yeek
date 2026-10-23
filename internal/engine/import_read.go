@@ -361,13 +361,11 @@ func isList(value any) bool {
 	return ok
 }
 
-// DetectImportSource is Yaak's cmd_detect_import_source: the format a
-// source reads as, or why it can't be imported.
 func (e *Engine) DetectImportSource(ctx context.Context, input ImportInput) (string, error) {
 	document, err := e.ReadImport(ctx, input, "")
 	var unsupported unsupportedImport
 	if errors.As(err, &unsupported) {
-		return "", errors.New("Not a supported format") //nolint:staticcheck // Yaak's message, shown as it is
+		return "", errors.New("Not a supported format") //nolint:staticcheck
 	}
 	if err != nil {
 		return "", err
@@ -375,8 +373,6 @@ func (e *Engine) DetectImportSource(ctx context.Context, input ImportInput) (str
 	return document.Format, nil
 }
 
-// ImportSourcesForOrigin is Yaak's cmd_import_sources_for_origin: the
-// linked sources, in any workspace, last imported from origin.
 func (e *Engine) ImportSourcesForOrigin(ctx context.Context, origin string) ([]Object, error) {
 	sources, err := e.Store.List(ctx, "import_source", "")
 	if err != nil {

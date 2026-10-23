@@ -15,14 +15,12 @@ import (
 )
 
 type documentEditor struct {
-	completionProvider string
-	graphqlCompletion  graphQLCompletionState
-	completionSource   string
-	completion         templateCompletion
-	// presets complete the whole field once presetMin characters are typed.
-	presets   []completionPreset
-	presetMin int
-	// jsonSchema completes and checks a gRPC message's fields.
+	completionProvider                                     string
+	graphqlCompletion                                      graphQLCompletionState
+	completionSource                                       string
+	completion                                             templateCompletion
+	presets                                                []completionPreset
+	presetMin                                              int
 	jsonSchema                                             *engine.GRPCMessage
 	state                                                  ui.CodeEditorState
 	find, replace, goTo                                    bool
@@ -55,8 +53,6 @@ func (a *App) nativeEditor(c *ui.Context, p colors, value *string, label, langua
 	return a.keyedEditor(c, p, value, label, label, language, readOnly)
 }
 
-// keyedEditor is nativeEditor with its own editor state (caret, scroll,
-// folds, find) under stateKey, like a Yaak Editor's stateKey.
 func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKey, language string, readOnly bool) bool {
 	doc := a.editorDocument(stateKey)
 	changed := false
@@ -120,14 +116,12 @@ func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKe
 		options := ui.CodeEditorOptions{Font: font, FontSize: size, Wrap: b(a.settings, "editorSoftWrap"), ReadOnly: readOnly, LineNumbers: language != "markdown", TabSize: 2, AutoIndent: !readOnly, CloseBrackets: !readOnly && language != "text", CommentPrefix: commentPrefix(language)}
 		ui.Column(c).Key("document").Grow(1).MinHeight(0).MinWidth(0).Children(func() {
 			editor := ui.CodeEditor(c, value, &doc.state, options).Label(label).Grow(1).MinHeight(0)
-			// Yaak's message and GraphQL editors.
 			switch label {
 			case "Message body", "GraphQL query":
 				editor.Placeholder("...")
 			case "GraphQL variables":
 				editor.Placeholder("{}")
 			}
-			// Yaak's description editor takes no template tags.
 			templating := !readOnly && label != "Request description"
 			palette := fmt.Sprint(p.text, p.accent, p.orange, p.blue, p.muted)
 			if templating {

@@ -10,17 +10,12 @@ import (
 	"yeek/internal/mcp"
 )
 
-// agentClients are Yaak's AGENT_CLIENTS, the agents Connect an agent sets up.
 var agentClients = []struct{ label, value string }{
 	{"Claude Code", "claude_code"}, {"Codex", "codex"}, {"Cursor", "cursor"}, {"VS Code", "vscode"}, {"Other", "other"},
 }
 
-// agentSetup is where an agent's setup goes, as a sentence, and the
-// snippet to put there.
 type agentSetup struct{ where, snippet string }
 
-// appAgentSetup is Yaak's appSetup: an agent's setup for the app's MCP
-// server at url, which needs token as a bearer token.
 func appAgentSetup(client, url, token string) agentSetup {
 	authorization := "Bearer " + token
 	switch client {
@@ -44,8 +39,6 @@ func appAgentSetup(client, url, token string) agentSetup {
 	}}})}
 }
 
-// orderedSetup is a JSON object that keeps its members in the order given,
-// as the snippets JavaScript writes do.
 type orderedSetup []struct {
 	key   string
 	value any
@@ -73,8 +66,6 @@ func (o orderedSetup) MarshalJSON() ([]byte, error) {
 
 var plainArray = regexp.MustCompile(`\[\n\s*([^\[\]{}]*?)\n\s*\]`)
 
-// setupJSON is Yaak's json(): pretty JSON with arrays of plain values kept
-// on one line.
 func setupJSON(value any) string {
 	data, _ := json.MarshalIndent(value, "", "  ")
 	return plainArray.ReplaceAllStringFunc(string(data), func(m string) string {
@@ -83,8 +74,6 @@ func setupJSON(value any) string {
 	})
 }
 
-// agentClient is the agent last picked in Connect an agent, Yaak's
-// agents_setup_client key value.
 func (a *App) agentClient() string {
 	for _, kv := range a.list("key_value") {
 		if s(kv, "namespace") == "global" && s(kv, "key") == "agents_setup_client" {
@@ -111,8 +100,6 @@ func (a *App) setAgentClient(client string) {
 	a.saveModel(model)
 }
 
-// describedSection is Yaak's SettingsSection with a description under its
-// title.
 func describedSection(c *ui.Context, p colors, title, description string, rows func()) {
 	ui.Column(c).Key(title).FillWidth().Children(func() {
 		ui.Column(c).FillWidth().Gap(4).Padding(0, 0, 8, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
@@ -123,8 +110,6 @@ func describedSection(c *ui.Context, p colors, title, description string, rows f
 	})
 }
 
-// settingsAgents is Yaak's Agents settings. Its Yaak CLI section and the
-// setup through the CLI are left out: Yeek has no CLI.
 func (a *App) settingsAgents(c *ui.Context, p colors) {
 	settingsHeading(c, p, "Agents", "Connect AI coding agents like Claude Code and Cursor to Yeek, so they can read, edit, and send your requests.")
 	url := "http://" + mcp.DefaultAddr + mcp.Path

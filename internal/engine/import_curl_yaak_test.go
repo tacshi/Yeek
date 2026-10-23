@@ -7,9 +7,6 @@ import (
 	"testing"
 )
 
-// Ported from Yaak's plugins/importer-curl/tests. Requests compare on the
-// fields Yaak's baseRequest sets.
-
 func yaakCurlRequest(fields Object) Object {
 	request := Object{"authentication": Object{}, "authenticationType": nil, "body": Object{}, "bodyType": nil, "headers": []any{}, "method": "GET", "name": "", "url": "", "urlParameters": []any{}}
 	maps.Copy(request, fields)
@@ -135,7 +132,6 @@ func TestCurlImportEdgeCasesMatchYaak(t *testing.T) {
 	}
 }
 
-// Ported from Yaak's importer-curl graphql tests.
 func TestCurlGraphQLDetectionMatchesYaak(t *testing.T) {
 	enc := func(v any) string { data, _ := json.Marshal(v); return string(data) }
 	for _, c := range []struct {
@@ -162,8 +158,6 @@ func TestCurlGraphQLDetectionMatchesYaak(t *testing.T) {
 	}
 }
 
-// Yeek's Copy as cURL writes flags Yaak's importer doesn't read; they must
-// still import back.
 func TestCurlImportReadsYeekExportFlags(t *testing.T) {
 	m, err := ParseCurl(`curl --globoff -X 'PATCH' --insecure --max-time '2.5' --url 'https://a.test/x' --header 'Accept:' --header 'X-Empty;' --header 'X-Amz-Security-Token: st' --aws-sigv4 'aws:amz:eu-west-1:s3' --user 'ak:sk' -L --json '{"a":1}'`)
 	if err != nil {

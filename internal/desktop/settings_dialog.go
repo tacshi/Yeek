@@ -10,7 +10,6 @@ import (
 	"github.com/egoist/mygo/yeekui"
 )
 
-// Settings tabs, in Yaak's order. Yaak's License tab is left out on purpose.
 const (
 	settingsGeneral = iota
 	settingsTheme
@@ -27,7 +26,6 @@ var settingsTabs = []struct{ label, glyph string }{
 	{"Plugins", "puzzle"}, {"Agents", "sparkles"}, {"Certificates", "shield"}, {"Proxy", "wifi"},
 }
 
-// settingsDialog is Yaak's Settings: tabs with icons down the left.
 func (a *App) settingsDialog(c *ui.Context, p colors) {
 	selected := a.modalTab
 	ui.Row(c).Height(560).AlignItems(ui.Stretch).Children(func() {
@@ -95,7 +93,6 @@ func settingsHeading(c *ui.Context, p colors, title, description string) {
 	})
 }
 
-// settingValue is Yaak's SettingValue: a monospace value with a reveal and a copy button.
 func settingValue(c *ui.Context, p colors, value string, reveal func()) {
 	ui.Text(c, value).Font("monospace").FontSize(12).TextColor(p.muted).SingleLine().MaxWidth(320).Selectable()
 	if reveal != nil && smallIconButton(c, "folder", "Reveal in Finder").Clicked() {
@@ -109,7 +106,6 @@ func settingValue(c *ui.Context, p colors, value string, reveal func()) {
 func (a *App) settingsGeneral(c *ui.Context, p colors) {
 	settingsHeading(c, p, "General", "Configure general settings for update behavior and more.")
 	settingsSection(c, p, "Updates", "Updates", func() {
-		// Yeek publishes stable releases only: Yaak's Beta channel has no feed.
 		settingRow(c, p, "Update Channel", "Choose whether Yeek should use stable releases or beta releases.", nil, func() {
 			channel := "Stable"
 			ui.Select(c, &channel, []string{"Stable"}).Label("Update Channel").Width(192)
@@ -219,7 +215,6 @@ func cmpOrString(value, fallback string) string {
 	return value
 }
 
-// themeChoices lists Yaak's own theme first, then the built-in and plugin themes.
 func (a *App) themeChoices(dark bool) (names, ids []string) {
 	names, ids = []string{"Yaak"}, []string{"yaak-light"}
 	if dark {
@@ -247,18 +242,13 @@ func (a *App) activeThemeName(dark bool) string {
 	return names[max(0, slices.Index(ids, s(a.settings, key)))]
 }
 
-// systemDefaultFont is the option of Yaak's font selects for no font.
 const systemDefaultFont = "System default"
 
-// systemFonts is Yaak's useFonts: the system's font families, the
-// monospaced ones for the editor and the others for the interface.
 type systemFonts struct {
 	ui, editor []string
 	loaded     bool
 }
 
-// listFonts is Yaak's fonts list command, which lists the monospaced
-// families as editor fonts and the rest as interface fonts, each sorted.
 func listFonts() (uiFonts, editorFonts []string) {
 	for _, f := range ui.FontFamilies() {
 		switch {
@@ -310,7 +300,6 @@ func (a *App) settingsInterface(c *ui.Context, p colors) {
 				size = fallback
 			}
 			settingRow(c, p, title, description, nil, func() {
-				// Yaak's font select, once the fonts are listed.
 				if a.fonts.loaded {
 					options := append([]string{systemDefaultFont}, fonts...)
 					if !slices.Contains(options, font) {
@@ -342,7 +331,6 @@ func (a *App) settingsInterface(c *ui.Context, p colors) {
 	})
 }
 
-// booleanSetting is Yaak's ModelSettingRowBoolean for an app setting.
 func (a *App) booleanSetting(c *ui.Context, p colors, key, title, description string) {
 	settingRow(c, p, title, description, nil, func() {
 		value := b(a.settings, key)
@@ -352,8 +340,6 @@ func (a *App) booleanSetting(c *ui.Context, p colors, key, title, description st
 	})
 }
 
-// settingsShortcuts is Yaak's SettingsHotkeys: each action's keys, which
-// can be recorded anew or reset to the default.
 func (a *App) settingsShortcuts(c *ui.Context, p colors) {
 	settingsHeading(c, p, "Keyboard Shortcuts", "Click a shortcut to record new keys for it.")
 	ui.TextInput(c, &a.hotkeyFilter).Label("Filter shortcuts").Placeholder("Filter shortcuts").FillWidth()
@@ -388,8 +374,6 @@ func (a *App) settingsShortcuts(c *ui.Context, p colors) {
 						}
 						key := ev.Key
 						if key == ui.KeyUnknown {
-							// A layout without Latin letters, as Ctrl+ы: the
-							// key at that place, which shortcuts match too.
 							key = ev.PhysicalKey
 						}
 						if text, ok := formatHotkey(ev.Mods, key); ok {
@@ -411,7 +395,6 @@ func (a *App) settingsShortcuts(c *ui.Context, p colors) {
 	})
 }
 
-// setHotkey stores an action's keys, or removes them to restore the default.
 func (a *App) setHotkey(action string, keys []any) {
 	hotkeys := deepCopy(o(a.settings, "hotkeys"))
 	if keys == nil {
