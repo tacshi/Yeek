@@ -209,7 +209,7 @@ func (a *App) newPreviewView() (ui.NativeWebView, func(string), func(float64), e
 
 var errNoWindow = errors.New(locales.PreviewsNeedAWindow())
 
-func (a *App) webPreview(c *ui.Context, p colors, key string, item *previewItem, framed bool) {
+func (a *App) webPreview(c *ui.Context, p colors, key string, item *previewItem) {
 	if a.preview == nil {
 		pv := &responsePreview{}
 		open := a.openPreview
@@ -235,12 +235,7 @@ func (a *App) webPreview(c *ui.Context, p colors, key string, item *previewItem,
 		pv.key, pv.token = key, registerPreview(item)
 		pv.load(previewScheme + "://" + pv.token + "/")
 	}
-	ui.Column(c).Grow(1).MinHeight(0).Padding(0, 0, 12, 0).Children(func() {
-		view := ui.WebView(c, pv.view).Grow(1).MinHeight(0)
-		if framed {
-			view.Radius(8).Border(1, p.border)
-		}
-	})
+	ui.WebView(c, pv.view).Grow(1).MinHeight(0).Radius(0, 0, 5, 5)
 }
 
 func (a *App) closePreview() {

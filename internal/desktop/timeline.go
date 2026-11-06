@@ -199,7 +199,7 @@ func (a *App) timelineView(c *ui.Context, p colors, d *Draft, response engine.Ob
 		d.TimelineIndex = -1
 	}
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-		list := ui.Scroll(c).FillWidth().Padding(4, 12, 4, 0).Gap(1)
+		list := ui.Scroll(c).FillWidth().Padding(4, 12, 4, 12).Gap(1)
 		if d.TimelineIndex >= 0 {
 			list.Shrink(0).Height(220)
 		} else {

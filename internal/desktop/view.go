@@ -1359,7 +1359,7 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 		if d.ResponseMode == "" {
 			d.ResponseMode = "Pretty"
 		}
-		ui.Box(c).Padding(0, 8).Children(func() {
+		ui.Box(c).Padding(0, 8).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 			tabBar(c, p, &d.ResponseTab, []tabItem{
 				{Label: responseTabLabel(d.ResponseMode), Menu: func(m *ui.Menu) { a.responseViewMenu(c, m, d, response) }},
 				{Label: locales.Request(), Badge: badgeDot(n(response, "requestContentLength") > 0)},

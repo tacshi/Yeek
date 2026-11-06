@@ -525,7 +525,7 @@ func (a *App) protocolResponse(c *ui.Context, p colors, d *Draft) {
 			return
 		}
 		events := a.connectionEvents(d, conn)
-		ui.Row(c).Height(32).Shrink(0).Padding(0, 4, 0, 12).Gap(8).Children(func() {
+		ui.Row(c).Height(32).Shrink(0).Padding(0, 4, 0, 12).Gap(8).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 			mono := func(text string, color ui.Color) {
 				ui.Text(c, text).Font("monospace").FontSize(12).TextColor(color).SingleLine()
 			}
