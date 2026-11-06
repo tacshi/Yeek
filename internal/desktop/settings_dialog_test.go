@@ -27,8 +27,11 @@ func TestSettingsDialogTabsInOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	wrap := b(a.settings, "editorSoftWrap")
-	section, _ := tt.Find("Wrap editor lines")
-	tt.Scroll(section.X, section.Y, 0, 1000)
+	top, ok := tt.Find("Language")
+	if !ok {
+		t.Fatal(tt.Texts())
+	}
+	tt.Scroll(top.X, top.Y, 0, 1000)
 	tt.Advance(500 * time.Millisecond)
 	if err := tt.Click("Enable Wrap editor lines"); err != nil {
 		t.Fatal(err)
