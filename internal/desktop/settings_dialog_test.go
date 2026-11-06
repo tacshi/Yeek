@@ -89,6 +89,23 @@ func TestInterfaceZoomHotkeys(t *testing.T) {
 	}
 }
 
+func TestInterfaceZoomActions(t *testing.T) {
+	a, _ := cookieApp(t)
+	a.ZoomIn()
+	if got := n(a.settings, "interfaceScale"); got < 1.09 || got > 1.11 {
+		t.Fatal(got)
+	}
+	a.ResetZoom()
+	a.ZoomOut()
+	if got := n(a.settings, "interfaceScale"); got < 0.89 || got > 0.91 {
+		t.Fatal(got)
+	}
+	a.ResetZoom()
+	if n(a.settings, "interfaceScale") != 1 {
+		t.Fatal(a.settings["interfaceScale"])
+	}
+}
+
 func TestClicksLandUnderZoom(t *testing.T) {
 	a, _ := cookieApp(t)
 	a.settings["interfaceScale"] = 1.5
