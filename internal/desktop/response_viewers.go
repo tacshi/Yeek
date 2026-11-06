@@ -94,7 +94,36 @@ func emptyState(c *ui.Context, p colors, text string) {
 	ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, text).FontSize(13).TextColor(p.subtle) })
 }
 
+type gifPreview struct {
+	key    string
+	player *ui.VideoPlayer
+}
+
+func (a *App) gifPlayer(key string, data []byte) *ui.VideoPlayer {
+	if a.gif.key == key {
+		return a.gif.player
+	}
+	if a.gif.player != nil {
+		a.gif.player.Close()
+	}
+	a.gif = gifPreview{key: key}
+	if decoder, err := ui.NewGIFDecoder(data); err == nil {
+		if player, err := ui.NewVideoPlayer(decoder); err == nil {
+			a.gif.player = player.SetLoop(true)
+		}
+	}
+	return a.gif.player
+}
+
 func (a *App) imageView(c *ui.Context, p colors, key, kind string, data []byte) {
+	if strings.HasPrefix(kind, "image/gif") {
+		if player := a.gifPlayer(key, data); player != nil {
+			ui.Box(c).Grow(1).MinHeight(0).Padding(0, 0, 8, 0).Children(func() {
+				ui.Video(c, player).Label(locales.ResponsePreview()).Fill().Fit(ui.Contain)
+			})
+			return
+		}
+	}
 	if a.images == nil {
 		a.images = map[string]ui.ImageSource{}
 	}

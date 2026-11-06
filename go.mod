@@ -1,6 +1,6 @@
 module yeek
 
-go 1.27.1
+go 1.27.3
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -64,7 +64,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/dlclark/regexp2/v2 v2.2.1
 	github.com/ebitengine/purego v0.11.1
-	github.com/egoist/mygo v0.6.3
+	github.com/egoist/mygo v0.7.4
 	github.com/egoist/mygo/yeekui v0.0.0
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/golang-jwt/jwt/v5 v5.3.1

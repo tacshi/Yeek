@@ -1499,7 +1499,7 @@
   "useMethodSpecificColorsForHTTP": "HTTP 요청 메서드마다 고유한 색상을 사용합니다.",
   "usePKCE": "PKCE 사용",
   "username": "사용자 이름",
-  "usesHTTPPROXYHTTPSPROXYAnd": "환경의 HTTP_PROXY, HTTPS_PROXY, NO_PROXY를 사용합니다.",
+  "usesTheSystemProxySettings": "시스템 프록시 설정을 사용합니다. 환경의 HTTP_PROXY, HTTPS_PROXY, NO_PROXY가 우선합니다.",
   "useSourceFilename": "원본 파일 이름 사용",
   "useTextValue": "텍스트 값 사용",
   "useTheOperatingSystemsStandardTitle": "운영 체제의 표준 제목 표시줄과 창 컨트롤을 사용합니다. 다시 시작하면 적용됩니다.",

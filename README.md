@@ -11,8 +11,9 @@
 <p align="center">
   <a href="https://github.com/tacshi/Yeek/releases/latest"><img src="https://img.shields.io/github/v/release/tacshi/Yeek?label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/tacshi/Yeek" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/Go-1.27.1%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.27.1 or newer">
+  <img src="https://img.shields.io/badge/Go-1.27.3%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.27.3 or newer">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey" alt="macOS and Windows">
+  <a href="https://awesomemygo.dev/apps/yeek"><img src="https://awesomemygo.dev/badge.svg" height="20" alt="Listed on Awesome MyGo"></a>
 </p>
 
 ---
@@ -82,11 +83,11 @@ Download the latest release from the [Releases page](https://github.com/tacshi/Y
 
 | Platform | File |
 | --- | --- |
-| macOS (Apple silicon) | `Yeek.<version>.arm64.dmg` |
-| macOS (Intel) | `Yeek.<version>.amd64.dmg` |
-| macOS (universal) | `Yeek.<version>.dmg` |
-| Windows (x64) | `Yeek.Setup.<version>.amd64.exe` |
-| Windows (ARM64) | `Yeek.Setup.<version>.arm64.exe` |
+| macOS (Apple silicon) | `yeek-<version>-arm64.dmg` |
+| macOS (Intel) | `yeek-<version>-amd64.dmg` |
+| macOS (universal) | `yeek-<version>.dmg` |
+| Windows (x64) | `yeek-setup-<version>-amd64.exe` |
+| Windows (ARM64) | `yeek-setup-<version>-arm64.exe` |
 
 macOS builds are signed and notarized. The Windows installers install for the current user. They are not code-signed yet, so SmartScreen may ask you to confirm before running them. On both platforms Yeek updates itself.
 
@@ -94,7 +95,7 @@ macOS builds are signed and notarized. The Windows installers install for the cu
 
 Requirements:
 
-- Go 1.27.1 or newer
+- Go 1.27.3 or newer
 - Git, for Git sync features at runtime
 
 ```sh

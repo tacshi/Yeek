@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/i18n"
 
 	// MyGo's own strings in the app's languages.
+	_ "github.com/egoist/mygo/locales/ja"
 	_ "github.com/egoist/mygo/locales/zh-Hans"
 )
 
@@ -15527,14 +15528,14 @@ func (msgs Messages) Username() string {
 	return Catalog.Format(msgs.locale, "username", nil)
 }
 
-// UsesHTTPPROXYHTTPSPROXYAnd says "Uses HTTP_PROXY, HTTPS_PROXY, and NO_PROXY from the environment."
+// UsesTheSystemProxySettings says "Uses the system's proxy settings. HTTP_PROXY, HTTPS_PROXY, and NO_PROXY from the environment take priority."
 // in the language the app shows.
-func UsesHTTPPROXYHTTPSPROXYAnd() string { return In(i18n.Locale()).UsesHTTPPROXYHTTPSPROXYAnd() }
+func UsesTheSystemProxySettings() string { return In(i18n.Locale()).UsesTheSystemProxySettings() }
 
-// UsesHTTPPROXYHTTPSPROXYAnd says "Uses HTTP_PROXY, HTTPS_PROXY, and NO_PROXY from the environment."
+// UsesTheSystemProxySettings says "Uses the system's proxy settings. HTTP_PROXY, HTTPS_PROXY, and NO_PROXY from the environment take priority."
 // in the language of msgs.
-func (msgs Messages) UsesHTTPPROXYHTTPSPROXYAnd() string {
-	return Catalog.Format(msgs.locale, "usesHTTPPROXYHTTPSPROXYAnd", nil)
+func (msgs Messages) UsesTheSystemProxySettings() string {
+	return Catalog.Format(msgs.locale, "usesTheSystemProxySettings", nil)
 }
 
 // UseSourceFilename says "Use source filename"

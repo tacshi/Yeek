@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/egoist/mygo/netproxy"
 	xproxy "golang.org/x/net/proxy"
 
 	"yeek/locales"
@@ -219,7 +220,7 @@ func (t *networkTransport) proxyFor(target *url.URL) (*url.URL, error) {
 		if endpoint.Scheme == "ws" || endpoint.Scheme == "grpc" {
 			endpoint.Scheme = "http"
 		}
-		return http.ProxyFromEnvironment(&http.Request{URL: endpoint})
+		return netproxy.Proxy(&http.Request{URL: endpoint})
 	}
 	if str(settings, "type") == "disabled" || boolean(settings, "disabled") {
 		return nil, nil

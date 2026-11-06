@@ -89,7 +89,7 @@ try {
 # beside those folders are named by the usual ones.
 foreach ($a in $Arch) {
 	$goArch = if ($a -eq 'x64') { 'amd64' } else { 'arm64' }
-	$setup = Join-Path $Out "windows-$goArch/Yeek Setup $Version $goArch.exe"
+	$setup = Join-Path $Out "windows-$goArch/yeek-setup-$Version-$goArch.exe"
 	if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { Fail "expected $setup after the build" }
 	$target = Join-Path $Out "Yeek-$Version-$a-setup.exe"
 	Copy-Item -LiteralPath $setup -Destination $target -Force

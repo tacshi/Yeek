@@ -187,7 +187,7 @@ func (a *App) newPreviewView() (ui.NativeWebView, func(string), func(float64), e
 	if a.Window == nil {
 		return nil, nil, nil, errNoWindow
 	}
-	view, err := a.Window.NewWebView(mygo.WebViewOptions{Transparent: true})
+	view, err := a.Window.NewWebView(mygo.WebViewOptions{Transparent: true, Page: mygo.PageOptions{Untrusted: true, Session: mygo.NewEphemeralSession()}})
 	if err != nil {
 		return nil, nil, nil, err
 	}

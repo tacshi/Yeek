@@ -318,7 +318,7 @@ func (a *App) proxySettingsView(c *ui.Context, p colors) {
 	changed := ui.Select(c, &label, labels).Label(locales.ProxyMode()).Changed()
 	nextMode, nextAuth := modes[max(0, slices.Index(labels, label))], d.auth
 	if d.mode == "automatic" {
-		ui.Text(c, locales.UsesHTTPPROXYHTTPSPROXYAnd()).FontSize(12).TextColor(p.muted)
+		ui.Text(c, locales.UsesTheSystemProxySettings()).FontSize(12).TextColor(p.muted)
 	}
 	if d.mode == "enabled" {
 		if ui.Checkbox(c, &d.enabled, locales.EnableProxy()).Changed() {

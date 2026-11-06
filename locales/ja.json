@@ -1499,7 +1499,7 @@
   "useMethodSpecificColorsForHTTP": "HTTP リクエストメソッドごとの色を使います。",
   "usePKCE": "PKCE を使う",
   "username": "ユーザー名",
-  "usesHTTPPROXYHTTPSPROXYAnd": "環境変数の HTTP_PROXY、HTTPS_PROXY、NO_PROXY を使います。",
+  "usesTheSystemProxySettings": "システムのプロキシ設定を使います。環境変数の HTTP_PROXY、HTTPS_PROXY、NO_PROXY が優先されます。",
   "useSourceFilename": "元のファイル名を使う",
   "useTextValue": "テキストの値を使う",
   "useTheOperatingSystemsStandardTitle": "OS 標準のタイトルバーとウインドウのコントロールを使います。再起動後に反映されます。",

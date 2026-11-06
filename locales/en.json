@@ -1905,7 +1905,7 @@
   "useMethodSpecificColorsForHTTP": "Use method-specific colors for HTTP request methods.",
   "usePKCE": "Use PKCE",
   "username": "Username",
-  "usesHTTPPROXYHTTPSPROXYAnd": "Uses HTTP_PROXY, HTTPS_PROXY, and NO_PROXY from the environment.",
+  "usesTheSystemProxySettings": "Uses the system's proxy settings. HTTP_PROXY, HTTPS_PROXY, and NO_PROXY from the environment take priority.",
   "useSourceFilename": "Use source filename",
   "useTextValue": "Use text value",
   "useTheOperatingSystemsStandardTitle": "Use the operating system's standard title bar and window controls. Takes effect after restarting.",
