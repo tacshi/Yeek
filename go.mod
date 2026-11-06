@@ -56,7 +56,7 @@ require (
 	github.com/1password/onepassword-sdk-go v0.4.1
 	github.com/Azure/go-ntlmssp v0.1.1
 	github.com/alecthomas/chroma/v2 v2.27.0
-	github.com/andybalholm/brotli v1.2.6
+	github.com/andybalholm/brotli v1.2.7
 	github.com/antchfx/xmlquery v1.5.2
 	github.com/antchfx/xpath v1.3.9
 	github.com/aws/aws-sdk-go-v2 v1.47.1
@@ -70,7 +70,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/jsonschema-go v0.4.3
 	github.com/jhump/protoreflect/v2 v2.0.0-beta.2
-	github.com/klauspost/compress v1.20.0
+	github.com/klauspost/compress v1.20.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/traefik/yaegi v0.16.1
 	github.com/vektah/gqlparser/v2 v2.5.61
