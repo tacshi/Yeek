@@ -51,7 +51,7 @@ func TestTemplatePreviewRenders(t *testing.T) {
 	if err := os.WriteFile(path, []byte("from file"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := e.PreviewTemplate(t.Context(), "${[ fs.readFile(path='"+path+"') ]}", wid, "", "", ""); err != nil || got != "from file" {
+	if got, err := e.PreviewTemplate(t.Context(), "${[ fs.readFile(path='"+filepath.ToSlash(path)+"') ]}", wid, "", "", ""); err != nil || got != "from file" {
 		t.Fatalf("file preview %q %v", got, err)
 	}
 	if got, err := e.PreviewTemplate(t.Context(), "${[ prompt.text(label='Token') ]}", wid, "", "", ""); err != nil || got != "" {

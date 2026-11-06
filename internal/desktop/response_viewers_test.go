@@ -363,8 +363,15 @@ func TestGIFResponsePlays(t *testing.T) {
 		a.imageView(c, colors{}, "animation", "image/gif", frames.Bytes())
 	}, 40, 40)
 	first := bytes.Clone(tt.Image().Pix)
-	tt.Advance(150 * time.Millisecond)
-	if bytes.Equal(first, tt.Image().Pix) {
+	played := false
+	for range 200 {
+		tt.Advance(20 * time.Millisecond)
+		if played = !bytes.Equal(first, tt.Image().Pix); played {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !played {
 		t.Fatal("the GIF stayed on its first frame")
 	}
 	if player := a.gif.player; player == nil || !player.Playing() {

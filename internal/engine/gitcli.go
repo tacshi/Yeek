@@ -392,6 +392,7 @@ func (e *Engine) GitClone(ctx context.Context, address, dir string) (GitResult, 
 	if !ok {
 		lower := strings.ToLower(out)
 		switch {
+		case strings.Contains(lower, "does not appear to be a git repository"):
 		case strings.Contains(lower, "could not read"):
 			return GitResult{Kind: "needs_credentials", URL: address}, nil
 		case strings.Contains(lower, "unable to access") || strings.Contains(lower, "authentication failed"):

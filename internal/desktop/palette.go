@@ -219,14 +219,14 @@ func (a *App) paletteView(c *ui.Context, p colors) {
 						a.palette.selected = items[((index+delta)%len(items)+len(items))%len(items)].key
 					}
 				}
+				if input.Shortcut(ui.Cmd, ui.KeyK) {
+					a.palette.open = false
+				}
 				if input.Shortcut(0, ui.KeyDown) || input.Shortcut(ui.Ctrl, ui.KeyN) {
 					move(1)
 				}
 				if input.Shortcut(0, ui.KeyUp) || input.Shortcut(ui.Ctrl, ui.KeyK) {
 					move(-1)
-				}
-				if input.Shortcut(ui.Cmd, ui.KeyK) {
-					a.palette.open = false
 				}
 				if input.Submitted() && index >= 0 {
 					choose(items[index])

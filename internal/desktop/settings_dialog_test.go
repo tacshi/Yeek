@@ -3,6 +3,7 @@ package desktop
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/yeekui"
 )
@@ -26,6 +27,9 @@ func TestSettingsDialogTabsInOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	wrap := b(a.settings, "editorSoftWrap")
+	section, _ := tt.Find("Wrap editor lines")
+	tt.Scroll(section.X, section.Y, 0, 1000)
+	tt.Advance(500 * time.Millisecond)
 	if err := tt.Click("Enable Wrap editor lines"); err != nil {
 		t.Fatal(err)
 	}

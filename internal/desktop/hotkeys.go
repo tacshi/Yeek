@@ -300,11 +300,10 @@ func formatHotkey(mods ui.Modifiers, key ui.Key) (string, bool) {
 		return "", false
 	}
 	parts := []string{}
-	mac := runtime.GOOS == "darwin"
-	if mods&ui.Cmd != 0 && (mac || ui.Cmd != ui.Ctrl) {
+	if mods&ui.Cmd != 0 && ui.Cmd != ui.Ctrl {
 		parts = append(parts, "Meta")
 	}
-	if mods&ui.Ctrl != 0 && (mac || ui.Cmd == ui.Ctrl && mods&ui.Cmd == 0) {
+	if mods&ui.Ctrl != 0 {
 		parts = append(parts, "Control")
 	}
 	if mods&ui.Alt != 0 {
