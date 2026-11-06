@@ -179,7 +179,7 @@ func (a *App) treeRow(c *ui.Context, p colors, r treeRow, rows []treeRow) {
 	if row.RightClicked() && !selected {
 		t.selected, t.last = []string{id}, id
 	}
-	row.ContextMenu(func(menu *ui.Menu) { a.treeMenu(menu, m) })
+	row.PopoverMenu(func(menu *ui.Menu) { a.treeMenu(menu, m) })
 	if drag, ok := ui.Drop[treeDrag](row); ok {
 		a.dropTreeItems(drag.ids, m, dropSide(row))
 	}

@@ -69,7 +69,7 @@ func (a *App) scopeDialog(c *ui.Context, p colors) {
 				} {
 					tab := navItem(c, p, item.Label, d.Tab == i).Key(i)
 					if d.Tab == i && item.Menu != nil {
-						tab.Menu(item.Menu)
+						tab.PopoverMenuButton(item.Menu)
 					}
 					if tab.Clicked() && d.Tab != i {
 						d.Tab = i

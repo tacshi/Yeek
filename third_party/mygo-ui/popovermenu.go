@@ -106,6 +106,15 @@ type drawnMenu struct {
 	// pointer is where the pointer was when it last moved the highlight:
 	// it moves it again once it moves.
 	pointer [2]float32
+	// menus are the menu and its submenus as last built, outermost first.
+	menus []builtMenu
+}
+
+// builtMenu is a menu of a drawnMenu as last built, and the states of its
+// rows by place, which Tester clicks.
+type builtMenu struct {
+	menu *platform.Menu
+	rows map[int]*state
 }
 
 // menuLevel is a menu that shows: the item, by its place among the menu's
@@ -173,18 +182,25 @@ func (rt *engine) drawMenu(e *node, build func(m *Menu)) {
 	md := &menuDraw{rt: rt, c: c, d: d}
 	p := [2]float32{rt.pointerX, rt.pointerY}
 	md.moved = p != d.pointer
+	d.menus = d.menus[:0]
 	coreOverlay(c, func() {
 		// A menu button's menu goes below it. Another goes at a point where
 		// it opened, which follows the element as it moves: the menu goes
 		// after it, or before it where the window has no room, as from a
 		// corner.
-		anchor, items := e, pm.Items
+		anchor, menu := e, pm
 		if !d.below {
 			anchor = coreBox(c).Key(mix(d.id, 0)).Size(0, 0).AttachTo(e, AnchorTopLeft, AnchorTopLeft).Margin(d.dy, 0, 0, d.dx)
 		}
 		for level := 0; level < len(d.levels) && !md.closed; level++ {
+			items := menu.Items
 			panel, rows := md.panel(level, items, anchor)
 			md.panels = append(md.panels, panel)
+			states := make(map[int]*state, len(rows))
+			for id, row := range rows {
+				states[id] = row.st
+			}
+			d.menus = append(d.menus, builtMenu{menu, states})
 			if level+1 >= len(d.levels) || md.closed {
 				break
 			}
@@ -195,7 +211,7 @@ func (rt *engine) drawMenu(e *node, build func(m *Menu)) {
 				d.levels = d.levels[:level+1]
 				break
 			}
-			anchor, items = rows[sub], items[i].Submenu.Items
+			anchor, menu = rows[sub], items[i].Submenu
 		}
 	})
 	if md.closed {

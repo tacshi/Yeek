@@ -60,6 +60,13 @@ func TestWorkspaceSettingsEditHeadersAuthAndSettings(t *testing.T) {
 	if menu := tt.Menu(); contains(menu, "Inherit from Parent") || !contains(menu, "No Auth") {
 		t.Fatal(menu)
 	}
+	tt.CloseMenu()
+	if tt.Menu() != nil || !tt.HasText("DNS") {
+		t.Fatal("Escape did not close only the menu", tt.Menu())
+	}
+	if err := tt.Click("Auth"); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.ChooseMenuItem("Bearer Token"); err != nil {
 		t.Fatal(err)
 	}

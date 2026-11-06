@@ -106,7 +106,7 @@ func (a *App) environmentDialog(c *ui.Context, p colors) {
 				a.environmentRow(c, p, env, 1, false)
 			}
 		})
-		sidebar.ContextMenu(func(m *ui.Menu) {
+		sidebar.PopoverMenu(func(m *ui.Menu) {
 			if !multiple && base != nil && m.Item(locales.CreateSubEnvironment()).Chosen() {
 				a.newEnvironment()
 			}
@@ -170,7 +170,7 @@ func (a *App) environmentRow(c *ui.Context, p colors, env engine.Object, depth i
 	if row.Clicked() {
 		a.selectEnvironment(id)
 	}
-	row.ContextMenu(func(m *ui.Menu) {
+	row.PopoverMenu(func(m *ui.Menu) {
 		if !isBase {
 			if m.Item(locales.Rename()).Chosen() {
 				a.saveEnvironment()

@@ -97,7 +97,7 @@ func (a *App) messageEditor(c *ui.Context, p colors, d *Draft) {
 		case schema.services != nil:
 			label = locales.SchemaDetected()
 		}
-		button := ui.MenuButton(c, label, func(m *ui.Menu) {
+		button := ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
 			if schema.err != "" && !schema.unimplemented() && m.Item(locales.ReflectionFailedViewError()).Chosen() {
 				a.ask(locales.ReflectionFailed(), schema.err, locales.Retry(), false, nil, func([]string) { a.reloadSchema(d) })
 			}
@@ -305,7 +305,7 @@ func (a *App) grpcControls(c *ui.Context, p colors, d *Draft) {
 			}
 		}
 	}
-	ui.MenuButton(c, label, func(m *ui.Menu) {
+	ui.PopoverMenuButton(c, label, func(m *ui.Menu) {
 		for _, service := range schema.services {
 			short := service.Name[strings.LastIndex(service.Name, ".")+1:]
 			for _, method := range service.Methods {
@@ -575,7 +575,7 @@ func (a *App) connectionHistoryButton(c *ui.Context, d *Draft, active engine.Obj
 	if len(connections) > 0 && s(connections[0], "id") != s(active, "id") {
 		glyph = "pin"
 	}
-	iconButton(c, glyph, locales.ShowConnectionHistory()).Menu(func(m *ui.Menu) {
+	iconButton(c, glyph, locales.ShowConnectionHistory()).PopoverMenuButton(func(m *ui.Menu) {
 		if m.Item(locales.ClearConnection()).Disabled(len(connections) == 0).Chosen() {
 			a.deleteConnections(d, []engine.Object{active})
 		}

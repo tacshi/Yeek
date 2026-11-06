@@ -579,14 +579,24 @@ func (t *Tester) RightClickAt(x, y float32) {
 	t.send(platform.SurfaceEvent{Kind: platform.PointerUp, X: float64(x), Y: float64(y), Button: 1})
 }
 
+// shownMenu returns the context menu shown, drawn in the window or the
+// system's, or nil when none is.
+func (t *Tester) shownMenu() *platform.Menu {
+	if d := t.rt.menu.drawn; d != nil && len(d.menus) > 0 {
+		return d.menus[0].menu
+	}
+	return t.h.menu
+}
+
 // Menu returns the labels of the items of the context menu shown, "-" for
 // separators, or nil when none is.
 func (t *Tester) Menu() []string {
-	if t.h.menu == nil {
+	m := t.shownMenu()
+	if m == nil {
 		return nil
 	}
 	out := []string{}
-	for _, it := range t.h.menu.Items {
+	for _, it := range m.Items {
 		label := it.Label
 		if it.Type == platform.MenuItemSeparator {
 			label = "-"
@@ -598,8 +608,9 @@ func (t *Tester) Menu() []string {
 
 // ChooseMenuItem chooses the item of the context menu shown labeled with
 // the last of path, in the submenus the others label, and closes the menu.
+// It clicks the items of a menu drawn in the window, submenus included.
 func (t *Tester) ChooseMenuItem(path ...string) error {
-	m := t.h.menu
+	m := t.shownMenu()
 	if m == nil {
 		return fmt.Errorf("ui: no context menu is shown")
 	}
@@ -607,6 +618,7 @@ func (t *Tester) ChooseMenuItem(path ...string) error {
 		return fmt.Errorf("ui: no item to choose")
 	}
 	var found *platform.MenuItem
+	var places []int
 	for i, label := range path {
 		found = nil
 		for _, it := range m.Items {
@@ -626,9 +638,18 @@ func (t *Tester) ChooseMenuItem(path ...string) error {
 			}
 			m = found.Submenu
 		}
+		places = append(places, found.ID)
 	}
 	if found.Type == platform.MenuItemSubmenu {
 		return fmt.Errorf("ui: %q opens a submenu", strings.Join(path, " > "))
+	}
+	if t.rt.menu.drawn != nil {
+		for level, place := range places {
+			if err := t.clickDrawnItem(level, place); err != nil {
+				return fmt.Errorf("ui: the item %q: %w", strings.Join(path[:level+1], " > "), err)
+			}
+		}
+		return nil
 	}
 	chosen := t.h.chosen
 	t.h.menu, t.h.chosen = nil, nil
@@ -637,8 +658,33 @@ func (t *Tester) ChooseMenuItem(path ...string) error {
 	return nil
 }
 
+// clickDrawnItem clicks the item at place of the menu drawn at level.
+func (t *Tester) clickDrawnItem(level, place int) error {
+	d := t.rt.menu.drawn
+	if d == nil || level >= len(d.menus) {
+		return fmt.Errorf("its menu is not shown")
+	}
+	s := d.menus[level].rows[place]
+	if s == nil {
+		return fmt.Errorf("its menu shows no such row")
+	}
+	r, z := transformRect(s.world, Rect{s.x, s.y, s.w, s.h}), t.rt.zoomFactor()
+	x, y := (r.X+r.W/2)*z, (r.Y+r.H/2)*z
+	if x < 0 || y < 0 || x >= t.h.w || y >= t.h.h {
+		return fmt.Errorf("it is at (%v, %v), outside the window", x, y)
+	}
+	t.ClickAt(x, y)
+	return nil
+}
+
 // CloseMenu closes the context menu shown without choosing an item.
-func (t *Tester) CloseMenu() { t.h.menu, t.h.chosen = nil, nil }
+func (t *Tester) CloseMenu() {
+	if t.rt.menu.drawn != nil {
+		t.Key(0, KeyEscape)
+		return
+	}
+	t.h.menu, t.h.chosen = nil, nil
+}
 
 // Press presses (x, y) without releasing; Release releases it.
 func (t *Tester) Press(x, y float32) {

@@ -168,7 +168,7 @@ func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKe
 				}
 				editor.Marks(marks)
 			}
-			editor.ContextMenu(func(menu *ui.Menu) {
+			editor.PopoverMenu(func(menu *ui.Menu) {
 				if menu.Item(locales.Undo()).Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyZ).Chosen() {
 					doc.state.Command("undo")
 				}
@@ -318,7 +318,7 @@ func (a *App) editorFindBar(c *ui.Context, p colors, doc *documentEditor, value 
 			if ui.Button(c, "↓").Label(locales.NextMatch()).Disabled(len(doc.matches) == 0).Clicked() {
 				doc.nextMatch(1)
 			}
-			iconButton(c, "more", locales.FindOptions()).Menu(func(menu *ui.Menu) {
+			iconButton(c, "more", locales.FindOptions()).PopoverMenuButton(func(menu *ui.Menu) {
 				if menu.Item(locales.MatchCase()).Checked(doc.matchCase).Chosen() {
 					doc.matchCase = !doc.matchCase
 					doc.findSource = ""

@@ -304,7 +304,7 @@ func (a *App) gitButton(c *ui.Context, p colors) {
 		gitMenuButton(c, p, locales.SetupFSSyncOrGit(), func() {
 			icon(c, "wrench").FontSize(13).TextColor(p.subtle)
 			ui.Text(c, locales.SetupFSSyncOrGit()).FontSize(12).TextColor(p.muted).SingleLine().Grow(1)
-		}).Menu(func(m *ui.Menu) {
+		}).PopoverMenuButton(func(m *ui.Menu) {
 			m.Item(locales.WhenEnabledWorkspaceDataSyncsTo()).Disabled(true)
 			if m.Item(locales.OpenWorkspaceSettings()).Chosen() {
 				a.prompt("workspace_settings", locales.WorkspaceSettings(), "", a.workspace)
@@ -327,7 +327,7 @@ func (a *App) gitButton(c *ui.Context, p colors) {
 		gitMenuButton(c, p, locales.SetupGit(), func() {
 			icon(c, "branch").FontSize(13).TextColor(p.subtle)
 			ui.Text(c, locales.SetupGit()).FontSize(12).TextColor(p.muted).SingleLine().Grow(1)
-		}).Menu(func(m *ui.Menu) {
+		}).PopoverMenuButton(func(m *ui.Menu) {
 			m.Item(locales.InitializeLocalRepoToStartVersioning()).Disabled(true)
 			if m.Item(locales.InitializeGitRepo()).Chosen() {
 				a.background(func() (func(), error) { return a.refreshGit, a.Engine.GitInit(dir) })
@@ -361,7 +361,7 @@ func (a *App) gitButton(c *ui.Context, p colors) {
 				ui.Text(c, fmt.Sprint(info.Behind)).FontSize(11).TextColor(p.muted)
 			})
 		}
-	}).Menu(func(m *ui.Menu) { a.gitMenu(m, dir, info) })
+	}).PopoverMenuButton(func(m *ui.Menu) { a.gitMenu(m, dir, info) })
 }
 
 func (a *App) gitMenu(m *ui.Menu, dir string, info *engine.GitBranchInfo) {

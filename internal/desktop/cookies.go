@@ -66,7 +66,7 @@ func (a *App) selectCookieJar(id string) {
 }
 func (a *App) cookieMenu(c *ui.Context) {
 	jar := a.activeCookieJar()
-	iconButton(c, "cookie", locales.CookieJars()).Disabled(a.workspace == "").Tooltip(locales.CookieJarName(s(jar, "name"))).Menu(func(menu *ui.Menu) {
+	iconButton(c, "cookie", locales.CookieJars()).Disabled(a.workspace == "").Tooltip(locales.CookieJarName(s(jar, "name"))).PopoverMenuButton(func(menu *ui.Menu) {
 		jars := a.list("cookie_jar")
 		for _, candidate := range jars {
 			if menu.Item(s(candidate, "name")).Checked(s(candidate, "id") == a.cookieJar).Chosen() {

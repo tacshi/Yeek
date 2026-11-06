@@ -118,7 +118,7 @@ func (a *App) header(c *ui.Context, p colors) {
 				a.hideSidebar = !a.hideSidebar
 			}
 			if a.workspace != "" {
-				iconButton(c, "plusCircle", locales.AddResource()).Menu(func(m *ui.Menu) { a.createMenu(m, "") })
+				iconButton(c, "plusCircle", locales.AddResource()).PopoverMenuButton(func(m *ui.Menu) { a.createMenu(m, "") })
 				a.cookieMenu(c)
 			}
 			name := "Yeek"
@@ -195,7 +195,7 @@ func (a *App) header(c *ui.Context, p colors) {
 			if iconButton(c, "search", locales.SearchOrExecuteACommandShortcut(a.hotkeyText("command_palette.toggle"))).Clicked() {
 				a.togglePalette()
 			}
-			iconButton(c, "gear", locales.Settings()).Menu(func(m *ui.Menu) {
+			iconButton(c, "gear", locales.Settings()).PopoverMenuButton(func(m *ui.Menu) {
 				if a.hotkeyItem(m.Item(locales.Settings()), "settings.show").Chosen() {
 					a.prompt("settings", locales.Settings(), "", "")
 				}
@@ -287,7 +287,7 @@ func (a *App) environmentButton(c *ui.Context, p colors) {
 }
 
 func headerMenu(c *ui.Context, label string, build func(m *ui.Menu)) ui.Element {
-	return ui.MenuButton(c, label, build).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(13).Padding(4, 8)
+	return ui.PopoverMenuButton(c, label, build).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(13).Padding(4, 8)
 }
 
 func (a *App) createMenu(m *ui.Menu, folder string, hideFolder ...bool) {
@@ -345,7 +345,7 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 						a.search = ""
 					}
 				})
-				iconButton(c, "moreV", locales.ShowSidebarActionsMenu()).Menu(func(m *ui.Menu) {
+				iconButton(c, "moreV", locales.ShowSidebarActionsMenu()).PopoverMenuButton(func(m *ui.Menu) {
 					if m.Item(locales.FocusActiveRequest()).Disabled(a.active == "").Chosen() {
 						a.revealInSidebar(a.active)
 					}
@@ -456,7 +456,7 @@ func (a *App) workbench(c *ui.Context, p colors) {
 					if ui.Button(c, locales.Import()).FontSize(12).Padding(4, 10).Clicked() {
 						a.importFile()
 					}
-					ui.MenuButton(c, locales.NewRequest(), func(m *ui.Menu) { a.createMenu(m, "", true) }).FontSize(12).Padding(4, 10)
+					ui.PopoverMenuButton(c, locales.NewRequest(), func(m *ui.Menu) { a.createMenu(m, "", true) }).FontSize(12).Padding(4, 10)
 				})
 			})
 		})
@@ -508,7 +508,7 @@ func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 		bar.Children(func() {
 			if d.Kind == "http_request" {
 				method := strings.ToUpper(d.Method)
-				ui.MenuButton(c, method, func(m *ui.Menu) {
+				ui.PopoverMenuButton(c, method, func(m *ui.Menu) {
 					for _, option := range []string{"GET", "PUT", "POST", "PATCH", "DELETE", "OPTIONS", "QUERY", "HEAD"} {
 						if m.Item(option).Checked(option == method).Chosen() {
 							d.Method, d.Dirty = option, true
@@ -631,7 +631,7 @@ func tabBar(c *ui.Context, p colors, index *int, items []tabItem) {
 				tab.Background(p.border.Alpha(.3))
 			}
 			if active && item.Menu != nil {
-				tab.Menu(item.Menu)
+				tab.PopoverMenuButton(item.Menu)
 			}
 			color := p.muted
 			if active {
@@ -1015,7 +1015,7 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 						a.revealRow(row.ID, !a.revealed[row.ID])
 					}
 				}
-				smallIconButton(c, "more", locales.ActionsForFieldIndex(pairNoun(name), i+1)).Menu(func(m *ui.Menu) {
+				smallIconButton(c, "more", locales.ActionsForFieldIndex(pairNoun(name), i+1)).PopoverMenuButton(func(m *ui.Menu) {
 					if m.Item(locales.Delete()).Chosen() {
 						deleted = i
 					}
@@ -1102,7 +1102,7 @@ func (a *App) bodyTools(c *ui.Context, p colors, d *Draft) {
 	ui.Row(c).Height(32).Padding(0, 4).Gap(6).Children(func() {
 		ui.Spacer(c)
 		if d.BodyType == "application/json" {
-			iconButton(c, "gear", locales.JSONBodySettings()).Menu(func(menu *ui.Menu) {
+			iconButton(c, "gear", locales.JSONBodySettings()).PopoverMenuButton(func(menu *ui.Menu) {
 				body := o(d.Model, "body")
 				if menu.Item(locales.StripCommentsAndTrailingCommas()).Checked(!b(body, "sendJsonComments")).Chosen() {
 					body["sendJsonComments"] = !b(body, "sendJsonComments")
@@ -1351,7 +1351,7 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 			mono("•", p.subtle)
 			mono(sizeText(n(response, "contentLength")), p.muted)
 			ui.Spacer(c)
-			a.historyIcon(c, d.ID, response).Menu(func(m *ui.Menu) { a.responseHistoryMenu(m, d.ID, response) })
+			a.historyIcon(c, d.ID, response).PopoverMenuButton(func(m *ui.Menu) { a.responseHistoryMenu(m, d.ID, response) })
 		})
 		if message := s(response, "error"); message != "" {
 			ui.Text(c, message).Margin(4, 12, 0, 12).Padding(8, 10).Radius(5).Background(p.red.Alpha(.1)).Border(1, p.red.Alpha(.35)).TextColor(p.red).FontSize(12).MaxLines(6).Selectable()
