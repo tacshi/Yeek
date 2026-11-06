@@ -3,6 +3,7 @@ package desktop
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/yeekui"
 )
@@ -26,6 +27,12 @@ func TestSettingsDialogTabsInOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	wrap := b(a.settings, "editorSoftWrap")
+	top, ok := tt.Find("Language")
+	if !ok {
+		t.Fatal(tt.Texts())
+	}
+	tt.Scroll(top.X, top.Y, 0, 1000)
+	tt.Advance(500 * time.Millisecond)
 	if err := tt.Click("Enable Wrap editor lines"); err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +91,23 @@ func TestInterfaceZoomHotkeys(t *testing.T) {
 		t.Fatal(got)
 	}
 	tt.Key(ui.Cmd, ui.Key0)
+	if n(a.settings, "interfaceScale") != 1 {
+		t.Fatal(a.settings["interfaceScale"])
+	}
+}
+
+func TestInterfaceZoomActions(t *testing.T) {
+	a, _ := cookieApp(t)
+	a.ZoomIn()
+	if got := n(a.settings, "interfaceScale"); got < 1.09 || got > 1.11 {
+		t.Fatal(got)
+	}
+	a.ResetZoom()
+	a.ZoomOut()
+	if got := n(a.settings, "interfaceScale"); got < 0.89 || got > 0.91 {
+		t.Fatal(got)
+	}
+	a.ResetZoom()
 	if n(a.settings, "interfaceScale") != 1 {
 		t.Fatal(a.settings["interfaceScale"])
 	}

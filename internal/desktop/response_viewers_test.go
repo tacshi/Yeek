@@ -1,7 +1,10 @@
 package desktop
 
 import (
+	"bytes"
 	"image"
+	"image/color"
+	"image/gif"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
@@ -342,5 +345,36 @@ func TestPDFPreviewServesPDFJS(t *testing.T) {
 	tt.Frame()
 	if fetchPreview(t, other.urls[0]+"pdf.html").Code != http.StatusNotFound {
 		t.Fatal("an audio preview serves the PDF viewer")
+	}
+}
+
+func TestGIFResponsePlays(t *testing.T) {
+	var frames bytes.Buffer
+	palette := color.Palette{color.Black, color.White}
+	black, white := image.NewPaletted(image.Rect(0, 0, 40, 40), palette), image.NewPaletted(image.Rect(0, 0, 40, 40), palette)
+	for i := range white.Pix {
+		white.Pix[i] = 1
+	}
+	if err := gif.EncodeAll(&frames, &gif.GIF{Image: []*image.Paletted{black, white}, Delay: []int{10, 10}}); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{}
+	tt := ui.NewTester(func(c *ui.Context) {
+		a.imageView(c, colors{}, "animation", "image/gif", frames.Bytes())
+	}, 40, 40)
+	first := bytes.Clone(tt.Image().Pix)
+	played := false
+	for range 200 {
+		tt.Advance(20 * time.Millisecond)
+		if played = !bytes.Equal(first, tt.Image().Pix); played {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !played {
+		t.Fatal("the GIF stayed on its first frame")
+	}
+	if player := a.gif.player; player == nil || !player.Playing() {
+		t.Fatal("the GIF is not playing")
 	}
 }

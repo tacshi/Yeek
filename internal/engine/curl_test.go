@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +36,11 @@ func runExportedCurl(t *testing.T, command string) {
 
 func TestCurlFileAndFormExportOnWire(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, `a; b"c.txt`)
+	name := `a; b"c.txt`
+	if runtime.GOOS == "windows" {
+		name = `a; b'c.txt`
+	}
+	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, []byte("file contents"), 0600); err != nil {
 		t.Fatal(err)
 	}

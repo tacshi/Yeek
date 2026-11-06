@@ -126,6 +126,25 @@ func hotkeyTable(actions ...string) []hotkey {
 	return result
 }
 
+func (a *App) interfaceScale() float64 { return cmp.Or(n(a.settings, "interfaceScale"), 1) }
+
+func (a *App) ZoomIn() { a.saveSetting("interfaceScale", min(1.8, a.interfaceScale()*1.1)) }
+
+func (a *App) ZoomOut() { a.saveSetting("interfaceScale", max(0.4, a.interfaceScale()*0.9)) }
+
+func (a *App) ResetZoom() { a.saveSetting("interfaceScale", 1.0) }
+
+func (a *App) SendActive() {
+	if a.workspace == "" {
+		return
+	}
+	if requests := a.selectedTreeModels(); a.tree.focused && a.tree.renaming == "" && len(requests) > 0 {
+		a.sendRequests(treeIDs(slices.DeleteFunc(requests, func(m engine.Object) bool { return s(m, "model") != "http_request" })))
+	} else {
+		a.send()
+	}
+}
+
 func (a *App) handleHotkeys(c *ui.Context) {
 	if len(a.toasts) > 0 && c.Shortcut(0, ui.KeyEscape) {
 		a.toasts = nil
@@ -133,15 +152,14 @@ func (a *App) handleHotkeys(c *ui.Context) {
 	if a.pressed(c, "command_palette.toggle") {
 		a.togglePalette()
 	}
-	scale := cmp.Or(n(a.settings, "interfaceScale"), 1)
 	if a.pressed(c, "app.zoom_in") {
-		a.saveSetting("interfaceScale", min(1.8, scale*1.1))
+		a.ZoomIn()
 	}
 	if a.pressed(c, "app.zoom_out") {
-		a.saveSetting("interfaceScale", max(0.4, scale*0.9))
+		a.ZoomOut()
 	}
 	if a.pressed(c, "app.zoom_reset") {
-		a.saveSetting("interfaceScale", 1.0)
+		a.ResetZoom()
 	}
 	if a.pressed(c, "settings.show") {
 		a.prompt("settings", locales.Settings(), "", "")
@@ -154,11 +172,7 @@ func (a *App) handleHotkeys(c *ui.Context) {
 	}
 	tree := a.tree.focused && a.tree.renaming == ""
 	if a.pressed(c, "request.send") {
-		if requests := a.selectedTreeModels(); tree && len(requests) > 0 {
-			a.sendRequests(treeIDs(slices.DeleteFunc(requests, func(m engine.Object) bool { return s(m, "model") != "http_request" })))
-		} else {
-			a.send()
-		}
+		a.SendActive()
 	}
 	if a.pressed(c, "model.create") {
 		a.addRequest("http_request", "")
@@ -286,11 +300,10 @@ func formatHotkey(mods ui.Modifiers, key ui.Key) (string, bool) {
 		return "", false
 	}
 	parts := []string{}
-	mac := runtime.GOOS == "darwin"
-	if mods&ui.Cmd != 0 && (mac || ui.Cmd != ui.Ctrl) {
+	if mods&ui.Cmd != 0 && ui.Cmd != ui.Ctrl {
 		parts = append(parts, "Meta")
 	}
-	if mods&ui.Ctrl != 0 && (mac || ui.Cmd == ui.Ctrl && mods&ui.Cmd == 0) {
+	if mods&ui.Ctrl != 0 {
 		parts = append(parts, "Control")
 	}
 	if mods&ui.Alt != 0 {

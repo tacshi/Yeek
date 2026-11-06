@@ -1499,7 +1499,7 @@
   "useMethodSpecificColorsForHTTP": "为 HTTP 请求方法使用各自的颜色。",
   "usePKCE": "使用 PKCE",
   "username": "用户名",
-  "usesHTTPPROXYHTTPSPROXYAnd": "使用环境中的 HTTP_PROXY、HTTPS_PROXY 和 NO_PROXY。",
+  "usesTheSystemProxySettings": "使用系统代理设置。环境中的 HTTP_PROXY、HTTPS_PROXY 和 NO_PROXY 优先。",
   "useSourceFilename": "使用源文件名",
   "useTextValue": "使用文本值",
   "useTheOperatingSystemsStandardTitle": "使用操作系统的标准标题栏和窗口控件。重启后生效。",

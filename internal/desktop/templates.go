@@ -266,7 +266,7 @@ func (a *App) templateInput(c *ui.Context, p colors, value *string, key, label, 
 		input.Chips(doc.chips)
 		a.templateChipClicked(doc, *value)
 	}
-	input.ContextMenu(func(menu *ui.Menu) {
+	input.PopoverMenu(func(menu *ui.Menu) {
 		if menu.Item(locales.Undo()).Disabled(readOnly).Shortcut(ui.Cmd, ui.KeyZ).Chosen() {
 			doc.state.Command("undo")
 		}

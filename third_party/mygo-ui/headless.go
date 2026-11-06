@@ -57,6 +57,12 @@ type headless struct {
 	// window shows.
 	hz     float32
 	hidden bool
+	// frameRate is what the engine last told of the frames a second that
+	// come while only drawings move (setFrameRate).
+	frameRate float32
+	// atOnce has requestFrame stand for a surface whose frames come at
+	// once rather than at the display's next refresh (framesAtOnce).
+	atOnce bool
 	// material tells that the window shows one (SetVibrancy).
 	material bool
 	// reading runs once as the clipboard is next read, as GTK's nested
@@ -85,6 +91,8 @@ type headless struct {
 
 func (h *headless) size() (float32, float32, float32) { return h.w, h.h, h.scale }
 func (h *headless) refreshRate() float32              { return h.hz }
+func (h *headless) setFrameRate(fps float32)          { h.frameRate = fps }
+func (h *headless) framesAtOnce() bool                { return h.atOnce }
 func (h *headless) occluded() bool                    { return h.hidden }
 func (h *headless) present(s *scene.Scene) {
 	h.last = s
@@ -353,10 +361,6 @@ func (t *Tester) timerDue(at, armed time.Time) (time.Time, bool) {
 }
 
 func (t *Tester) send(ev platform.SurfaceEvent) {
-	// The Tester's coordinates are the interface's DIPs; the window's
-	// events come in the window's, which a zoom makes larger.
-	z := float64(t.rt.zoomFactor())
-	ev.X, ev.Y, ev.DX, ev.DY = ev.X*z, ev.Y*z, ev.DX*z, ev.DY*z
 	if ev.Kind == platform.PointerDown && ev.Clicks == 0 {
 		// Counted as a backend counts.
 		ev.Clicks = t.clicks.Press(ev.Button, ev.X, ev.Y, uint32(t.now.UnixMilli()), platform.DefaultDoubleClick)
@@ -390,6 +394,14 @@ func (t *Tester) SetSize(width, height int) {
 // SetScale sets the device pixels per DIP.
 func (t *Tester) SetScale(scale float32) {
 	t.h.scale = scale
+	t.settle()
+}
+
+// SetZoom zooms the content by z, as the view's Context.SetZoom does. The
+// Tester's coordinates stay the window's: Find, ClickAt, Move, Scroll and
+// TextCaret are in its DIPs, the view's z times smaller.
+func (t *Tester) SetZoom(z float32) {
+	t.rt.setZoom(z)
 	t.settle()
 }
 
@@ -461,11 +473,13 @@ func (t *Tester) FramePending() bool { return t.asked() }
 // Image returns the last frame.
 func (t *Tester) Image() *image.RGBA { return t.h.image() }
 
-// Find returns the box of the first element showing text s, or labeled s.
+// Find returns the box of the first element showing text s, or labeled s,
+// in the window's DIPs: zoomed (SetZoom), z times the content's.
 func (t *Tester) Find(s string) (Rect, bool) {
 	for _, n := range t.rt.labels {
 		if n.text == s {
-			return n.r, true
+			r, z := n.r, t.rt.zoomFactor()
+			return Rect{r.X * z, r.Y * z, r.W * z, r.H * z}, true
 		}
 	}
 	return Rect{}, false
@@ -565,14 +579,24 @@ func (t *Tester) RightClickAt(x, y float32) {
 	t.send(platform.SurfaceEvent{Kind: platform.PointerUp, X: float64(x), Y: float64(y), Button: 1})
 }
 
+// shownMenu returns the context menu shown, drawn in the window or the
+// system's, or nil when none is.
+func (t *Tester) shownMenu() *platform.Menu {
+	if d := t.rt.menu.drawn; d != nil && len(d.menus) > 0 {
+		return d.menus[0].menu
+	}
+	return t.h.menu
+}
+
 // Menu returns the labels of the items of the context menu shown, "-" for
 // separators, or nil when none is.
 func (t *Tester) Menu() []string {
-	if t.h.menu == nil {
+	m := t.shownMenu()
+	if m == nil {
 		return nil
 	}
 	out := []string{}
-	for _, it := range t.h.menu.Items {
+	for _, it := range m.Items {
 		label := it.Label
 		if it.Type == platform.MenuItemSeparator {
 			label = "-"
@@ -584,8 +608,9 @@ func (t *Tester) Menu() []string {
 
 // ChooseMenuItem chooses the item of the context menu shown labeled with
 // the last of path, in the submenus the others label, and closes the menu.
+// It clicks the items of a menu drawn in the window, submenus included.
 func (t *Tester) ChooseMenuItem(path ...string) error {
-	m := t.h.menu
+	m := t.shownMenu()
 	if m == nil {
 		return fmt.Errorf("ui: no context menu is shown")
 	}
@@ -593,6 +618,7 @@ func (t *Tester) ChooseMenuItem(path ...string) error {
 		return fmt.Errorf("ui: no item to choose")
 	}
 	var found *platform.MenuItem
+	var places []int
 	for i, label := range path {
 		found = nil
 		for _, it := range m.Items {
@@ -612,9 +638,18 @@ func (t *Tester) ChooseMenuItem(path ...string) error {
 			}
 			m = found.Submenu
 		}
+		places = append(places, found.ID)
 	}
 	if found.Type == platform.MenuItemSubmenu {
 		return fmt.Errorf("ui: %q opens a submenu", strings.Join(path, " > "))
+	}
+	if t.rt.menu.drawn != nil {
+		for level, place := range places {
+			if err := t.clickDrawnItem(level, place); err != nil {
+				return fmt.Errorf("ui: the item %q: %w", strings.Join(path[:level+1], " > "), err)
+			}
+		}
+		return nil
 	}
 	chosen := t.h.chosen
 	t.h.menu, t.h.chosen = nil, nil
@@ -623,8 +658,33 @@ func (t *Tester) ChooseMenuItem(path ...string) error {
 	return nil
 }
 
+// clickDrawnItem clicks the item at place of the menu drawn at level.
+func (t *Tester) clickDrawnItem(level, place int) error {
+	d := t.rt.menu.drawn
+	if d == nil || level >= len(d.menus) {
+		return fmt.Errorf("its menu is not shown")
+	}
+	s := d.menus[level].rows[place]
+	if s == nil {
+		return fmt.Errorf("its menu shows no such row")
+	}
+	r, z := transformRect(s.world, Rect{s.x, s.y, s.w, s.h}), t.rt.zoomFactor()
+	x, y := (r.X+r.W/2)*z, (r.Y+r.H/2)*z
+	if x < 0 || y < 0 || x >= t.h.w || y >= t.h.h {
+		return fmt.Errorf("it is at (%v, %v), outside the window", x, y)
+	}
+	t.ClickAt(x, y)
+	return nil
+}
+
 // CloseMenu closes the context menu shown without choosing an item.
-func (t *Tester) CloseMenu() { t.h.menu, t.h.chosen = nil, nil }
+func (t *Tester) CloseMenu() {
+	if t.rt.menu.drawn != nil {
+		t.Key(0, KeyEscape)
+		return
+	}
+	t.h.menu, t.h.chosen = nil, nil
+}
 
 // Press presses (x, y) without releasing; Release releases it.
 func (t *Tester) Press(x, y float32) {

@@ -106,9 +106,9 @@ CGO_ENABLED=1 go tool mygo build "${BUILD_ARGS[@]}"
 # beside those folders are named by the usual ones.
 for arch in "${ARCHES[@]}"; do
 	case "$arch" in
-	arm64) dmg="$OUT_DIR/darwin-arm64/Yeek $VERSION arm64.dmg" ;;
-	x64 | amd64) dmg="$OUT_DIR/darwin-amd64/Yeek $VERSION amd64.dmg" arch=x64 ;;
-	universal) dmg="$OUT_DIR/darwin-universal/Yeek $VERSION.dmg" ;;
+	arm64) dmg="$OUT_DIR/darwin-arm64/yeek-$VERSION-arm64.dmg" ;;
+	x64 | amd64) dmg="$OUT_DIR/darwin-amd64/yeek-$VERSION-amd64.dmg" arch=x64 ;;
+	universal) dmg="$OUT_DIR/darwin-universal/yeek-$VERSION.dmg" ;;
 	esac
 	[[ -f "$dmg" ]] || die "expected $dmg after the build"
 	if $NOTARIZE; then

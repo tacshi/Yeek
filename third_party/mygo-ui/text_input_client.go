@@ -145,9 +145,9 @@ func (a *textInputAdapter) UnmarkText() {
 func (a *textInputAdapter) BoundsForRange(r platform.TextRange) (platform.RectF, platform.TextRange, bool) {
 	if c, s := a.client(); c != nil {
 		b, actual, ok := c.BoundsForRange(r)
-		// The window's coordinates, which a zoom makes larger.
 		b = transformRect(s.world, Rect{X: s.x + b.X, Y: s.y + b.Y, W: b.W, H: b.H})
-		return zoomRect(platform.RectF{X: float64(b.X), Y: float64(b.Y), W: float64(b.W), H: float64(b.H)}, a.rt.zoomFactor()), actual, ok
+		// In the window's DIPs, as input methods take it.
+		return a.rt.toWindow(platform.RectF{X: float64(b.X), Y: float64(b.Y), W: float64(b.W), H: float64(b.H)}), actual, ok
 	}
 	return platform.RectF{}, platform.TextRange{}, false
 }

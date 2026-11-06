@@ -87,8 +87,8 @@ CGO_ENABLED=0 go tool mygo build "${BUILD_ARGS[@]}"
 # beside those folders are named by the usual ones.
 for arch in "${ARCHES[@]}"; do
 	case "$arch" in
-	x64 | amd64) setup="$OUT_DIR/windows-amd64/Yeek Setup $VERSION amd64.exe" arch=x64 ;;
-	arm64) setup="$OUT_DIR/windows-arm64/Yeek Setup $VERSION arm64.exe" ;;
+	x64 | amd64) setup="$OUT_DIR/windows-amd64/yeek-setup-$VERSION-amd64.exe" arch=x64 ;;
+	arm64) setup="$OUT_DIR/windows-arm64/yeek-setup-$VERSION-arm64.exe" ;;
 	esac
 	[[ -f "$setup" ]] || die "expected $setup after the build"
 	cp "$setup" "$OUT_DIR/Yeek-$VERSION-$arch-setup.exe"

@@ -75,7 +75,7 @@ func pathList(c *ui.Context, p colors, items []pathListItem, onRemove func(strin
 				ui.Text(c, addHint).FontSize(11).TextColor(p.subtle)
 			}
 		})
-		row.Menu(func(m *ui.Menu) {
+		row.PopoverMenuButton(func(m *ui.Menu) {
 			for _, item := range add {
 				if m.Item(item.label).Chosen() {
 					item.onSelect()

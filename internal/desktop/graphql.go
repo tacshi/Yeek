@@ -203,7 +203,7 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 		if name == "" {
 			name = locales.NotSpecified()
 		}
-		ui.MenuButton(c, name, func(menu *ui.Menu) {
+		ui.PopoverMenuButton(c, name, func(menu *ui.Menu) {
 			menu.Item(locales.OperationName()).Disabled(true)
 			for _, op := range append([]string{""}, state.operations...) {
 				label := op
@@ -228,7 +228,7 @@ func (a *App) graphQLTools(c *ui.Context, p colors, d *Draft) {
 	case index != nil:
 		label = locales.Schema()
 	}
-	schema := ui.MenuButton(c, label, func(menu *ui.Menu) {
+	schema := ui.PopoverMenuButton(c, label, func(menu *ui.Menu) {
 		if index != nil && menu.Item(locales.ClearSchema()).Chosen() {
 			id := d.ID
 			state.attempted = true

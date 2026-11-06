@@ -414,7 +414,7 @@ func (a *App) templateArgument(c *ui.Context, p colors, f *templateForm, field e
 				if m := a.models[arg.text]; m != nil {
 					label = requestName(m)
 				}
-				ui.MenuButton(c, label, func(menu *ui.Menu) {
+				ui.PopoverMenuButton(c, label, func(menu *ui.Menu) {
 					for _, id := range ids {
 						name := locales.ChooseRequest()
 						if id != "" {

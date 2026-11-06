@@ -85,6 +85,7 @@ type App struct {
 	workerDone                 chan struct{}
 	backgroundWorkers          sync.WaitGroup
 	images                     map[string]ui.ImageSource
+	gif                        gifPreview
 	graphqlStates              map[string]*graphQLState
 	docsTrail                  map[string][]string
 	docsSearch                 string

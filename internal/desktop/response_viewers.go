@@ -94,7 +94,36 @@ func emptyState(c *ui.Context, p colors, text string) {
 	ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, text).FontSize(13).TextColor(p.subtle) })
 }
 
+type gifPreview struct {
+	key    string
+	player *ui.VideoPlayer
+}
+
+func (a *App) gifPlayer(key string, data []byte) *ui.VideoPlayer {
+	if a.gif.key == key {
+		return a.gif.player
+	}
+	if a.gif.player != nil {
+		a.gif.player.Close()
+	}
+	a.gif = gifPreview{key: key}
+	if decoder, err := ui.NewGIFDecoder(data); err == nil {
+		if player, err := ui.NewVideoPlayer(decoder); err == nil {
+			a.gif.player = player.SetLoop(true)
+		}
+	}
+	return a.gif.player
+}
+
 func (a *App) imageView(c *ui.Context, p colors, key, kind string, data []byte) {
+	if strings.HasPrefix(kind, "image/gif") {
+		if player := a.gifPlayer(key, data); player != nil {
+			ui.Box(c).Grow(1).MinHeight(0).Padding(0, 0, 8, 0).Children(func() {
+				ui.Video(c, player).Label(locales.ResponsePreview()).Fill().Fit(ui.Contain)
+			})
+			return
+		}
+	}
 	if a.images == nil {
 		a.images = map[string]ui.ImageSource{}
 	}
@@ -178,7 +207,7 @@ func (a *App) binaryView(c *ui.Context, p colors, response engine.Object, kind s
 func (a *App) webPageView(c *ui.Context, p colors, response engine.Object) {
 	id := s(response, "id")
 	kind := cmp.Or(responseHeader(response, "Content-Type"), "text/html")
-	a.webPreview(c, p, id+":html:"+s(response, "state"), &previewItem{kind: "html", mimeType: kind, baseURL: s(response, "url"), open: a.openBody(id)}, true)
+	a.webPreview(c, p, id+":html:"+s(response, "state"), &previewItem{kind: "html", mimeType: kind, baseURL: s(response, "url"), open: a.openBody(id)})
 }
 
 func (a *App) mediaView(c *ui.Context, p colors, response engine.Object, kind string) {
@@ -187,7 +216,7 @@ func (a *App) mediaView(c *ui.Context, p colors, response engine.Object, kind st
 		return
 	}
 	id := s(response, "id")
-	a.webPreview(c, p, id+":"+mediaKind(kind), &previewItem{kind: mediaKind(kind), mimeType: kind, color: cssColor(p.text), open: a.openBody(id)}, false)
+	a.webPreview(c, p, id+":"+mediaKind(kind), &previewItem{kind: mediaKind(kind), mimeType: kind, color: cssColor(p.text), open: a.openBody(id)})
 }
 
 func mediaKind(kind string) string {
@@ -270,11 +299,11 @@ func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body [
 			case strings.HasPrefix(part.kind, "image/"):
 				a.imageView(c, p, id+":part:"+part.name+":"+string(rune('0'+d.PartIndex)), part.kind, part.data)
 			case audioMIME.MatchString(part.kind), videoMIME.MatchString(part.kind), pdfMIME.MatchString(part.kind):
-				a.webPreview(c, p, partKey, &previewItem{kind: mediaKind(part.kind), mimeType: part.kind, color: cssColor(p.text), open: bytesPreview(part.data)}, false)
+				a.webPreview(c, p, partKey, &previewItem{kind: mediaKind(part.kind), mimeType: part.kind, color: cssColor(p.text), open: bytesPreview(part.data)})
 			case csvMIME.MatchString(part.kind):
 				csvView(c, p, text, strings.Contains(part.kind, "tab-separated"))
 			case strings.Contains(part.kind, "html"):
-				a.webPreview(c, p, partKey, &previewItem{kind: "html", mimeType: cmp.Or(part.header.Get("Content-Type"), "text/html"), open: bytesPreview(part.data)}, true)
+				a.webPreview(c, p, partKey, &previewItem{kind: "html", mimeType: cmp.Or(part.header.Get("Content-Type"), "text/html"), open: bytesPreview(part.data)})
 			case !utf8.Valid(part.data):
 				banner(c, p, locales.ContentTypeContentTypeCannotBePreviewed(part.kind), func() {})
 			default:

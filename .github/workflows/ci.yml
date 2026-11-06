@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Build for Windows
+        run: GOOS=windows go build ./...
+      - name: Test
+        run: go test -race ./...
+      - name: Vet the app
+        run: go tool mygo vet .
+      - name: Vet for Windows
+        run: GOOS=windows go vet ./...
+      - name: Check the locale catalogs
+        run: go tool mygo i18n check
+      - name: Check the catalogs' accessors are generated
+        run: |
+          go tool mygo generate
+          git diff --exit-code -- locales/catalog_gen.go
+
+  check:
+    name: Check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+          install-only: true
+      - name: Install govulncheck and gosec
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+      - name: make check
+        run: make check
+      - name: Lint for Windows
+        run: GOOS=windows golangci-lint run --no-config ./...
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - name: Keep line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install govulncheck and gosec
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+      - name: Test
+        run: go test ./...
+      - name: Parse the PowerShell scripts
+        run: |
+          foreach ($script in Get-ChildItem scripts -Recurse -Filter *.ps1) {
+            $problems = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$null, [ref]$problems)
+            if ($problems) { $problems; exit 1 }
+          }
+      - name: Known vulnerabilities
+        env:
+          GOOS: windows
+        run: govulncheck ./...
+      - name: Security
+        env:
+          GOOS: windows
+        run: gosec -quiet -tests -exclude-generated ./...

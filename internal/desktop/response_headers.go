@@ -77,7 +77,7 @@ func sortedHeaders(headers []engine.Object) []engine.Object {
 
 func (a *App) responseHeaders(c *ui.Context, p colors, response engine.Object) {
 	requestID := s(response, "requestId")
-	ui.Scroll(c).Grow(1).MinHeight(0).Padding(6, 12, 16, 0).Gap(12).Children(func() {
+	ui.Scroll(c).Grow(1).MinHeight(0).Padding(12, 12, 16, 12).Gap(12).Children(func() {
 		a.detailsBanner(c, p, requestID+".general", false, func() { ui.Text(c, locales.Info()).FontSize(13) }, func() {
 			sent := s(response, "createdAt")
 			if at, err := time.ParseInLocation("2006-01-02T15:04:05.999999999", sent, time.UTC); err == nil {

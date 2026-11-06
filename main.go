@@ -173,13 +173,24 @@ func run() (runErr error) {
 				{Label: locales.File(), Submenu: []*mygo.MenuItem{
 					{Label: locales.NewRequest(), Accelerator: "CmdOrCtrl+N", Click: action(func(a *desktop.App) { a.NewRequest() })},
 					{Label: locales.NewWindow(), Accelerator: "CmdOrCtrl+Shift+N", Click: func(*mygo.MenuItem, *mygo.Window) { open() }},
+					{Label: locales.SendRequest(), Accelerator: "CmdOrCtrl+R", Click: action(func(a *desktop.App) { a.SendActive() })},
 					mygo.Separator(),
 					{Label: locales.ImportCollectionEllipsis(), Accelerator: "CmdOrCtrl+O", Click: action(func(a *desktop.App) { a.Import() })},
 					{Label: locales.ExportWorkspaceEllipsis(), Accelerator: "CmdOrCtrl+Shift+E", Click: action(func(a *desktop.App) { a.Export() })},
 					{Label: locales.SettingsEllipsis(), Accelerator: "CmdOrCtrl+,", Click: action(func(a *desktop.App) { a.Settings() })},
 					mygo.Separator(), {Role: mygo.RoleClose},
 				}},
-				{Role: mygo.RoleEditMenu}, {Role: mygo.RoleViewMenu}, {Role: mygo.RoleWindowMenu},
+				{Role: mygo.RoleEditMenu},
+				{Role: mygo.RoleViewMenu, Submenu: []*mygo.MenuItem{
+					{Role: mygo.RoleToggleDevTools},
+					mygo.Separator(),
+					{Role: mygo.RoleResetZoom, Click: action(func(a *desktop.App) { a.ResetZoom() })},
+					{Role: mygo.RoleZoomIn, Accelerator: "CmdOrCtrl+=", Click: action(func(a *desktop.App) { a.ZoomIn() })},
+					{Role: mygo.RoleZoomOut, Click: action(func(a *desktop.App) { a.ZoomOut() })},
+					mygo.Separator(),
+					{Role: mygo.RoleToggleFullScreen},
+				}},
+				{Role: mygo.RoleWindowMenu},
 			})
 		}
 		mygo.App.SetMenu(menu())
