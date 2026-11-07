@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	_ "modernc.org/sqlite"
 
@@ -68,6 +69,32 @@ CREATE TABLE IF NOT EXISTS import_links (source TEXT NOT NULL, source_key TEXT N
 	return s, nil
 }
 func (s *Store) Close() error { return s.db.Close() }
+
+func (s *Store) WatchOthers(ctx context.Context, every time.Duration, changed func()) {
+	version := func() int64 {
+		var v int64
+		if err := s.db.QueryRowContext(ctx, "PRAGMA data_version").Scan(&v); err != nil {
+			return -1
+		}
+		return v
+	}
+	last := version()
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if v := version(); v >= 0 && v != last {
+				if last >= 0 {
+					changed()
+				}
+				last = v
+			}
+		}
+	}
+}
 func readModel(row *sql.Row) (Object, error) {
 	var data string
 	if err := row.Scan(&data); err != nil {

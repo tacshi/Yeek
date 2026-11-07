@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -85,7 +84,7 @@ func (m *MCPServer) sync(ctx context.Context) {
 		token, err := m.token(ctx)
 		var server *mcp.HTTPServer
 		if err == nil {
-			server, err = mcp.Serve(mcpHost{m}, appVersion(), cmp.Or(m.Addr, mcp.DefaultAddr), token)
+			server, err = mcp.Serve(mcpHost{mcp.EngineHost{Engine: m.Engine}, m}, appVersion(), cmp.Or(m.Addr, mcp.DefaultAddr), token)
 		}
 		if err != nil {
 			message := locales.FailedToStartTheMCPServer(portOf(cmp.Or(m.Addr, mcp.DefaultAddr)), err.Error())
@@ -169,7 +168,10 @@ func portOf(addr string) string {
 	return addr
 }
 
-type mcpHost struct{ m *MCPServer }
+type mcpHost struct {
+	mcp.EngineHost
+	m *MCPServer
+}
 
 func (h mcpHost) ctx() context.Context { return context.Background() }
 
@@ -193,61 +195,6 @@ func (h mcpHost) ActiveEnvironmentID(workspace string) (string, error) {
 	_, snapshot := h.m.window(workspace)
 	return snapshot.environment, nil
 }
-
-func (h mcpHost) ListHTTPRequests(workspace string) ([]engine.Object, error) {
-	return h.m.Engine.Store.List(h.ctx(), "http_request", workspace)
-}
-
-func (h mcpHost) ListFolders(workspace string) ([]engine.Object, error) {
-	return h.m.Engine.Store.List(h.ctx(), "folder", workspace)
-}
-
-func (h mcpHost) GetHTTPRequest(id string) (engine.Object, error) {
-	m, err := h.m.Engine.Store.Get(h.ctx(), id)
-	if err != nil || s(m, "model") != "http_request" {
-		return nil, nil
-	}
-	return m, nil
-}
-
-func (h mcpHost) upsert(m engine.Object, kind string) (engine.Object, error) {
-	m["model"] = kind
-	if s(m, "id") == "" {
-		delete(m, "id")
-	}
-	saved, err := h.m.Engine.Save(h.ctx(), m)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to upsert %s: %w", map[string]string{"http_request": "HTTP request", "folder": "folder"}[kind], err) //nolint:staticcheck
-	}
-	return saved, nil
-}
-
-func (h mcpHost) UpsertHTTPRequest(m engine.Object) (engine.Object, error) {
-	return h.upsert(m, "http_request")
-}
-
-func (h mcpHost) UpsertFolder(m engine.Object) (engine.Object, error) { return h.upsert(m, "folder") }
-
-func (h mcpHost) delete(id, kind string) (engine.Object, error) {
-	label := map[string]string{"http_request": "HTTP request", "folder": "folder"}[kind]
-	m, err := h.m.Engine.Store.Get(h.ctx(), id)
-	if err == nil && s(m, "model") != kind {
-		err = errors.New("not found")
-	}
-	if err == nil {
-		err = h.m.Engine.Delete(h.ctx(), id)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("Failed to delete %s: %w", label, err) //nolint:staticcheck
-	}
-	return m, nil
-}
-
-func (h mcpHost) DeleteHTTPRequest(id string) (engine.Object, error) {
-	return h.delete(id, "http_request")
-}
-
-func (h mcpHost) DeleteFolder(id string) (engine.Object, error) { return h.delete(id, "folder") }
 
 func (h mcpHost) SendHTTPRequest(ctx context.Context, workspace string, request engine.Object, environment string) (engine.Object, error) {
 	a, snapshot := h.m.window(workspace)
