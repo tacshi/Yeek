@@ -203,8 +203,8 @@ func TestImportDeepLinkOpensTheImportedWorkspace(t *testing.T) {
 	if env := a.models[a.environment]; s(env, "model") != "environment" || s(env, "workspaceId") != a.workspace {
 		t.Fatalf("environment %v", env)
 	}
-	if last := a.toasts[len(a.toasts)-1]; last.message != "Imported data for 1 workspaces" {
-		t.Fatal(last.message)
+	if last := a.toastQueue[len(a.toastQueue)-1]; last.Title != "Imported data for 1 workspaces" {
+		t.Fatal(last.Title)
 	}
 
 	path := filepath.Join(t.TempDir(), "insomnia.json")
@@ -218,8 +218,8 @@ func TestImportDeepLinkOpensTheImportedWorkspace(t *testing.T) {
 		t.Fatalf("asked %q for a path", asked)
 	}
 	a.ImportDeepLink("", "", "")
-	if last := a.toasts[len(a.toasts)-1]; last.message != "Failed to import data" {
-		t.Fatal(last.message)
+	if last := a.toastQueue[len(a.toastQueue)-1]; last.Title != "Failed to import data" {
+		t.Fatal(last.Title)
 	}
 }
 

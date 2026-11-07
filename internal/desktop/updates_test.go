@@ -49,14 +49,13 @@ func TestToastActions(t *testing.T) {
 			t.Fatalf("missing %q", want)
 		}
 	}
-	a.toasts[0].shown = a.toasts[0].shown.Add(-time.Minute)
-	tt.Frame()
+	tt.Advance(time.Minute)
 	if err := tt.Click("Download and Install"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Frame()
-	if ran != "install" || len(a.toasts) != 0 {
-		t.Fatal(ran, a.toasts)
+	tt.Advance(time.Second)
+	if ran != "install" || tt.HasText("Yeek 9.9.9 is available") {
+		t.Fatal(ran, tt.Texts())
 	}
 }
 

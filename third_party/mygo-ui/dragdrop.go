@@ -29,8 +29,6 @@ type valueDrag struct {
 	elem     *node
 	canceled bool
 	native   bool
-	// shown is set once DragShows moved offX and offY to its element.
-	shown bool
 	// count is how many things the value stands for, as rows dragged
 	// (countedDrag), for the badge beside the pointer.
 	count int

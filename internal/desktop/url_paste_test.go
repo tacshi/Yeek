@@ -30,7 +30,8 @@ func TestPasteCurlIntoURLOverwritesRequest(t *testing.T) {
 		t.Fatal("no toast")
 	}
 	tt.Key(0, ui.KeyEscape)
-	if len(a.toasts) != 0 {
+	tt.Advance(time.Second)
+	if tt.HasText("Updated request from Curl") {
 		t.Fatal("Escape did not dismiss the toast")
 	}
 }
@@ -72,26 +73,23 @@ func TestToastsHideAfterTimeout(t *testing.T) {
 	if !tt.HasText("Request method switched to POST") {
 		t.Fatal("method toast missing")
 	}
-	a.toasts[0].shown = a.toasts[0].shown.Add(-6e9)
-	tt.Frame()
-	if len(a.toasts) != 0 {
+	tt.Advance(6 * time.Second)
+	if tt.HasText("Request method switched to POST") {
 		t.Fatal("toast did not hide after five seconds")
 	}
 	a.toast("first")
 	a.showToast("same", "one", "info", 0)
 	a.showToast("same", "two", "info", 0)
 	tt.Frame()
-	if len(a.toasts) != 2 || tt.HasText("one") || !tt.HasText("two") {
-		t.Fatalf("toasts = %+v", a.toasts)
-	}
 	tt.Advance(time.Second)
-	if len(a.toasts) != 2 {
-		t.Fatalf("toasts = %+v", a.toasts)
+	if !tt.HasText("first") || tt.HasText("one") || !tt.HasText("two") {
+		t.Fatalf("toasts = %v", tt.Texts())
 	}
 	if err := tt.Click("Dismiss"); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.toasts) != 1 {
+	tt.Advance(time.Second)
+	if tt.HasText("first") || !tt.HasText("two") {
 		t.Fatal("dismiss did not remove a toast")
 	}
 }

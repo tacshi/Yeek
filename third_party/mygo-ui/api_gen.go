@@ -4775,20 +4775,6 @@ func (_handle Element) DragOffset() Point {
 	return _node.DragOffset()
 }
 
-// DragShows makes the copy that follows the pointer as e drags its value
-// (Drag) a copy of shown, as dnd-kit's DragOverlay shows a whole row
-// dragged by its handle. The pointer keeps its place on the copy. Call it
-// after Drag, once shown is built, in the frames that build e.
-func (_handle Element) DragShows(shown Element) Element {
-	_node := _handle.node()
-	if _node == nil {
-		return Element{}
-	}
-	_ctx := _node.c
-	_ = _ctx
-	return wrapElement(_node.DragShows(shown.nodeFor(_ctx.rt)))
-}
-
 // DragVelocity returns how fast, in DIPs per second along the element's
 // local axes, the pointer pressing the element moves now: zero once it
 // stops for a moment, or while nothing presses the element with the

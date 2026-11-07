@@ -1339,6 +1339,7 @@ type fileHistory struct {
 	loading   bool
 	commits   []engine.GitCommit
 	selected  string
+	row       int
 	diffOf    string
 	diff      *editor.DiffState
 	split     float32
@@ -1386,13 +1387,27 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 		})
 	}
 	h.split = cmp.Or(h.split, 40)
-	ui.Column(c).Grow(1).MinHeight(0).Padding(4, 8, 16, 8).Children(func() {
+	box := ui.Column(c).Grow(1).MinHeight(0).Padding(4, 8, 16, 8)
+	state := localList(box)
+	h.row = i
+	state.Selected = &h.row
+	state.Key = func(row int) any { return h.commits[row].Hash }
+	state.Label = func(row int) string { return cmp.Or(h.commits[row].Message, locales.NoMessage()) }
+	box.Children(func() {
 		splitQuietPercent(c, &h.split, false, func() {
-			ui.Scroll(c).Fill().Padding(6, 16, 8, 16).Gap(0).Children(func() {
-				for _, commit := range h.commits {
-					a.fileHistoryCommit(c, p, h, commit)
-				}
-			})
+			commits := quietList(c, p, state, len(h.commits), func(row int) {
+				commit := h.commits[row]
+				ui.Column(c).FillWidth().Padding(6, 8).Gap(1).Children(func() {
+					ui.Text(c, cmp.Or(commit.Message, locales.NoMessage())).FontSize(13).SingleLine().FillWidth()
+					ui.Row(c).Gap(4).FillWidth().Children(func() {
+						ui.Text(c, locales.AuthorWhen(cmp.Or(commit.Author, locales.Unknown()), timeAgo(commit.When))).FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
+						ui.Text(c, commit.Hash[:min(7, len(commit.Hash))]).Font("monospace").FontSize(10).TextColor(p.muted).Shrink(0)
+					})
+				})
+			}).Fill().Padding(6, 16, 8, 16)
+			if commits.Changed() {
+				h.selected = h.commits[h.row].Hash
+			}
 		}, func() {
 			ui.Column(c).Fill().MinWidth(0).Padding(0, 16).BorderWidth(0, 0, 0, 1).BorderColor(p.border).Gap(8).Children(func() {
 				if i < 0 {
@@ -1414,26 +1429,6 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 			})
 		}).Fill()
 	})
-}
-
-func (a *App) fileHistoryCommit(c *ui.Context, p colors, h *fileHistory, commit engine.GitCommit) {
-	item := ui.ButtonBase(c).Key(commit.Hash).Label(cmp.Or(commit.Message, locales.NoMessage())).FillWidth().Padding(6, 8).Radius(3).Column().Gap(1)
-	switch {
-	case commit.Hash == h.selected:
-		item.Background(p.border.Alpha(.55))
-	case item.Hovered():
-		item.Background(p.border.Alpha(.3))
-	}
-	item.Children(func() {
-		ui.Text(c, cmp.Or(commit.Message, locales.NoMessage())).FontSize(13).SingleLine().FillWidth()
-		ui.Row(c).Gap(4).FillWidth().Children(func() {
-			ui.Text(c, locales.AuthorWhen(cmp.Or(commit.Author, locales.Unknown()), timeAgo(commit.When))).FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
-			ui.Text(c, commit.Hash[:min(7, len(commit.Hash))]).Font("monospace").FontSize(10).TextColor(p.muted).Shrink(0)
-		})
-	})
-	if item.Clicked() {
-		h.selected = commit.Hash
-	}
 }
 
 func (a *App) restoreFileFromCommit(h *fileHistory, hash string) {

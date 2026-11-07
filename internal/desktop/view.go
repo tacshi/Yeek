@@ -915,16 +915,37 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 	if len(*rows) == 0 || (*rows)[len(*rows)-1].Name != "" || (*rows)[len(*rows)-1].Value != "" || (*rows)[len(*rows)-1].FileMode || (*rows)[len(*rows)-1].File != "" {
 		*rows = append(*rows, KV{Enabled: true})
 	}
-	ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 12, 8, 2).Gap(4).Children(func() {
-		deleted := -1
-		moveFrom, moveTo := -1, -1
-		for i := range *rows {
+	for i := range *rows {
+		if (*rows)[i].ID == "" {
+			(*rows)[i].ID = uuid.NewV4().String()
+		}
+	}
+	edit := func(change func()) {
+		if !a.deferUntilInputs(change) {
+			change()
+		}
+	}
+	box := ui.Column(c).Grow(1).MinHeight(0)
+	list := localList(box)
+	list.Key = func(i int) any { return (*rows)[i].ID }
+	list.Reorder = func(moved []int, to int) {
+		from, last := moved[0], len(*rows)-1
+		if from >= last {
+			return
+		}
+		to = min(to, last)
+		if to > from {
+			to--
+		}
+		row := (*rows)[from]
+		*rows = slices.Insert(slices.Delete(*rows, from, from+1), to, row)
+		*dirty = true
+	}
+	box.Children(func() {
+		ui.List(c, list, len(*rows), func(i int) {
 			row := &(*rows)[i]
-			if row.ID == "" {
-				row.ID = uuid.NewV4().String()
-			}
 			empty := row.Name == "" && row.Value == "" && !row.FileMode && row.File == ""
-			line := ui.Row(c).Key(row.ID).Height(28).Gap(6)
+			line := ui.Row(c).Height(28).Gap(6)
 			if !row.Enabled && !empty {
 				line.Opacity(.6)
 			}
@@ -933,17 +954,6 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				border = p.border.Alpha(.6)
 			}
 			mask := a.kvMask || name == "Header" && secretHeader(row.Name)
-			side := 0
-			if _, over := ui.DragOver[pairDrag](line); over {
-				side = dropSide(line)
-			}
-			if drag, ok := ui.Drop[pairDrag](line); ok {
-				moveFrom = slices.IndexFunc(*rows, func(r KV) bool { return r.ID == drag.id })
-				moveTo = i
-				if dropSide(line) == dropAfter {
-					moveTo = i + 1
-				}
-			}
 			hovered := line.Hovered()
 			line.Children(func() {
 				if ui.Checkbox(c, &row.Enabled, "").Label(locales.EnableFieldIndex(pairNoun(name), i+1)).Width(22).Opacity(map[bool]float32{true: .3, false: 1}[empty]).Changed() {
@@ -951,11 +961,10 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				}
 				if i < len(*rows)-1 {
 					grip := ui.Box(c).Key("grip").Label(locales.DragFieldIndex(pairNoun(name), i+1)).Size(16, 28).Shrink(0).Center().Opacity(0)
-					if hovered || grip.Dragging() {
+					if hovered {
 						grip.Opacity(.7)
 					}
 					grip.Children(func() { icon(c, "grip").FontSize(14).TextColor(p.muted) })
-					grip.Drag(pairDrag{row.ID}).DragShows(line)
 				} else {
 					ui.Box(c).Width(16).Shrink(0)
 				}
@@ -1006,13 +1015,19 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				}
 				smallIconButton(c, "more", locales.ActionsForFieldIndex(pairNoun(name), i+1)).PopoverMenuButton(func(m *ui.Menu) {
 					if m.Item(locales.Delete()).Chosen() {
-						deleted = i
+						id := row.ID
+						edit(func() {
+							*rows = slices.DeleteFunc(*rows, func(r KV) bool { return r.ID == id })
+							*dirty = true
+						})
 					}
 					if m.Item(locales.Duplicate()).Chosen() {
 						copy := *row
 						copy.ID = uuid.NewV4().String()
-						*rows = append(*rows, copy)
-						*dirty = true
+						edit(func() {
+							*rows = append(*rows, copy)
+							*dirty = true
+						})
 					}
 					if len(files) > 0 && files[0] {
 						if m.Item(locales.FieldOptionsEllipsis()).Chosen() {
@@ -1053,33 +1068,10 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 						c.WriteClipboard(fieldValue)
 					}
 				})
-				if side != 0 {
-					marker := ui.Box(c).Key("drop").Absolute().Left(8).Right(8).Height(3).Radius(2).Background(p.accent)
-					if side == dropBefore {
-						marker.Top(-3.5)
-					} else {
-						marker.Bottom(-3.5)
-					}
-				}
 			})
-		}
-		if deleted >= 0 {
-			*rows = slices.Delete(*rows, deleted, deleted+1)
-			*dirty = true
-		} else if moveFrom >= 0 && moveTo != moveFrom {
-			moveTo = min(moveTo, len(*rows)-1)
-			moved := (*rows)[moveFrom]
-			*rows = slices.Delete(*rows, moveFrom, moveFrom+1)
-			if moveTo > moveFrom {
-				moveTo--
-			}
-			*rows = slices.Insert(*rows, moveTo, moved)
-			*dirty = true
-		}
+		}).Grow(1).MinHeight(0).Padding(8, 12, 8, 2).Gap(4)
 	})
 }
-
-type pairDrag struct{ id string }
 
 func (a *App) bodyEditor(c *ui.Context, p colors, d *Draft) {
 	if d.BodyType == "application/json" {
