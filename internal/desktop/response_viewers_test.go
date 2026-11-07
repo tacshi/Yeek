@@ -174,6 +174,7 @@ func TestResponseHeadersTab(t *testing.T) {
 			t.Fatalf("missing %q: %v", text, tt.Texts())
 		}
 	}
+	tt.Advance(time.Second)
 	if err := tt.Click("Open in browser"); err != nil {
 		t.Fatal(err)
 	}

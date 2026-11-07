@@ -1734,16 +1734,6 @@ func (msgs Messages) ClearConnection() string {
 	return Catalog.Format(msgs.locale, "clearConnection", nil)
 }
 
-// ClearCookieFilter says "Clear cookie filter"
-// in the language the app shows.
-func ClearCookieFilter() string { return In(i18n.Locale()).ClearCookieFilter() }
-
-// ClearCookieFilter says "Clear cookie filter"
-// in the language of msgs.
-func (msgs Messages) ClearCookieFilter() string {
-	return Catalog.Format(msgs.locale, "clearCookieFilter", nil)
-}
-
 // ClearCountConnections says "Clear {count, plural, one {# Connection} other {# Connections}}"
 // in the language the app shows.
 func ClearCountConnections(count int) string { return In(i18n.Locale()).ClearCountConnections(count) }
@@ -2898,16 +2888,6 @@ func (msgs Messages) CountBytes(count int) string {
 	return Catalog.Format(msgs.locale, "countBytes", map[string]any{"count": count})
 }
 
-// CountDaysAgo says "{count, plural, one {# day ago} other {# days ago}}"
-// in the language the app shows.
-func CountDaysAgo(count int) string { return In(i18n.Locale()).CountDaysAgo(count) }
-
-// CountDaysAgo says "{count, plural, one {# day ago} other {# days ago}}"
-// in the language of msgs.
-func (msgs Messages) CountDaysAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countDaysAgo", map[string]any{"count": count})
-}
-
 // CountEnvironments says "{count, plural, one {# Environment} other {# Environments}}"
 // in the language the app shows.
 func CountEnvironments(count int) string { return In(i18n.Locale()).CountEnvironments(count) }
@@ -2948,16 +2928,6 @@ func (msgs Messages) CountGRPCRequests(count int) string {
 	return Catalog.Format(msgs.locale, "countGRPCRequests", map[string]any{"count": count})
 }
 
-// CountHoursAgo says "{count, plural, one {# hour ago} other {# hours ago}}"
-// in the language the app shows.
-func CountHoursAgo(count int) string { return In(i18n.Locale()).CountHoursAgo(count) }
-
-// CountHoursAgo says "{count, plural, one {# hour ago} other {# hours ago}}"
-// in the language of msgs.
-func (msgs Messages) CountHoursAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countHoursAgo", map[string]any{"count": count})
-}
-
 // CountHTTPRequests says "{count, plural, one {# HTTP Request} other {# HTTP Requests}}"
 // in the language the app shows.
 func CountHTTPRequests(count int) string { return In(i18n.Locale()).CountHTTPRequests(count) }
@@ -2976,26 +2946,6 @@ func CountMessages(count int) string { return In(i18n.Locale()).CountMessages(co
 // in the language of msgs.
 func (msgs Messages) CountMessages(count int) string {
 	return Catalog.Format(msgs.locale, "countMessages", map[string]any{"count": count})
-}
-
-// CountMinutesAgo says "{count, plural, one {# minute ago} other {# minutes ago}}"
-// in the language the app shows.
-func CountMinutesAgo(count int) string { return In(i18n.Locale()).CountMinutesAgo(count) }
-
-// CountMinutesAgo says "{count, plural, one {# minute ago} other {# minutes ago}}"
-// in the language of msgs.
-func (msgs Messages) CountMinutesAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countMinutesAgo", map[string]any{"count": count})
-}
-
-// CountMonthsAgo says "{count, plural, one {# month ago} other {# months ago}}"
-// in the language the app shows.
-func CountMonthsAgo(count int) string { return In(i18n.Locale()).CountMonthsAgo(count) }
-
-// CountMonthsAgo says "{count, plural, one {# month ago} other {# months ago}}"
-// in the language of msgs.
-func (msgs Messages) CountMonthsAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countMonthsAgo", map[string]any{"count": count})
 }
 
 // CountNewWorkspaces says "{count, number} new workspaces"
@@ -3042,16 +2992,6 @@ func (msgs Messages) CountResourcesUnchanged(count int) string {
 	return Catalog.Format(msgs.locale, "countResourcesUnchanged", map[string]any{"count": count})
 }
 
-// CountSecondsAgo says "{count, plural, one {# second ago} other {# seconds ago}}"
-// in the language the app shows.
-func CountSecondsAgo(count int) string { return In(i18n.Locale()).CountSecondsAgo(count) }
-
-// CountSecondsAgo says "{count, plural, one {# second ago} other {# seconds ago}}"
-// in the language of msgs.
-func (msgs Messages) CountSecondsAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countSecondsAgo", map[string]any{"count": count})
-}
-
 // CountUnchangedLines says "{count, plural, one {# unchanged line} other {# unchanged lines}}"
 // in the language the app shows.
 func CountUnchangedLines(count int) string { return In(i18n.Locale()).CountUnchangedLines(count) }
@@ -3080,16 +3020,6 @@ func CountWorkspaces(count int) string { return In(i18n.Locale()).CountWorkspace
 // in the language of msgs.
 func (msgs Messages) CountWorkspaces(count int) string {
 	return Catalog.Format(msgs.locale, "countWorkspaces", map[string]any{"count": count})
-}
-
-// CountYearsAgo says "{count, plural, one {# year ago} other {# years ago}}"
-// in the language the app shows.
-func CountYearsAgo(count int) string { return In(i18n.Locale()).CountYearsAgo(count) }
-
-// CountYearsAgo says "{count, plural, one {# year ago} other {# years ago}}"
-// in the language of msgs.
-func (msgs Messages) CountYearsAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countYearsAgo", map[string]any{"count": count})
 }
 
 // Create says "create"
@@ -4166,6 +4096,16 @@ func DNSResolution() string { return In(i18n.Locale()).DNSResolution() }
 // in the language of msgs.
 func (msgs Messages) DNSResolution() string {
 	return Catalog.Format(msgs.locale, "DNSResolution", nil)
+}
+
+// DocumentationPath says "Documentation path"
+// in the language the app shows.
+func DocumentationPath() string { return In(i18n.Locale()).DocumentationPath() }
+
+// DocumentationPath says "Documentation path"
+// in the language of msgs.
+func (msgs Messages) DocumentationPath() string {
+	return Catalog.Format(msgs.locale, "documentationPath", nil)
 }
 
 // DocumentationUnavailableWithoutASchema says "Documentation unavailable without a schema"

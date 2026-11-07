@@ -231,7 +231,6 @@
   "clearAllSignInSessions": "Clear All Sign-in Sessions",
   "clearBodyFile": "Clear body file",
   "clearConnection": "Clear Connection",
-  "clearCookieFilter": "Clear cookie filter",
   "clearCountConnections": "Clear {count, plural, one {# Connection} other {# Connections}}",
   "@clearCountConnections": {
     "placeholders": {
@@ -358,14 +357,6 @@
       }
     }
   },
-  "countDaysAgo": "{count, plural, one {# day ago} other {# days ago}}",
-  "@countDaysAgo": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "countEnvironments": "{count, plural, one {# Environment} other {# Environments}}",
   "@countEnvironments": {
     "placeholders": {
@@ -398,14 +389,6 @@
       }
     }
   },
-  "countHoursAgo": "{count, plural, one {# hour ago} other {# hours ago}}",
-  "@countHoursAgo": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "countHTTPRequests": "{count, plural, one {# HTTP Request} other {# HTTP Requests}}",
   "@countHTTPRequests": {
     "placeholders": {
@@ -416,22 +399,6 @@
   },
   "countMessages": "{count, plural, one {# Message} other {# Messages}}",
   "@countMessages": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "countMinutesAgo": "{count, plural, one {# minute ago} other {# minutes ago}}",
-  "@countMinutesAgo": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "countMonthsAgo": "{count, plural, one {# month ago} other {# months ago}}",
-  "@countMonthsAgo": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -473,14 +440,6 @@
       }
     }
   },
-  "countSecondsAgo": "{count, plural, one {# second ago} other {# seconds ago}}",
-  "@countSecondsAgo": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "countUnchangedLines": "{count, plural, one {# unchanged line} other {# unchanged lines}}",
   "@countUnchangedLines": {
     "placeholders": {
@@ -499,14 +458,6 @@
   },
   "countWorkspaces": "{count, plural, one {# Workspace} other {# Workspaces}}",
   "@countWorkspaces": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "countYearsAgo": "{count, plural, one {# year ago} other {# years ago}}",
-  "@countYearsAgo": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -632,6 +583,7 @@
   "DNSOverrideForHost": "DNS override for {host}",
   "DNSOverrides": "DNS Overrides",
   "DNSResolution": "DNS Resolution",
+  "documentationPath": "Documentation path",
   "documentationUnavailableWithoutASchema": "Documentation unavailable without a schema",
   "domain": "Domain",
   "done": "Done",

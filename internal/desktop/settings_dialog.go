@@ -31,9 +31,14 @@ var settingsTabs = []struct {
 }
 
 func (a *App) settingsDialog(c *ui.Context, p colors) {
-	selected := a.modalTab
+	selected := strconv.Itoa(a.modalTab)
 	ui.Row(c).Height(560).AlignItems(ui.Stretch).Children(func() {
-		ui.Column(c).Width(180).Shrink(0).Padding(10).Gap(2).Radius(0, 0, 0, 10).Background(p.sidebar).BorderWidth(0, 1, 0, 0).BorderColor(p.border).Children(func() {
+		theme := c.Theme()
+		quiet := *theme
+		quiet.Accent, quiet.AccentText = p.muted, theme.Text
+		quiet.SurfaceHover = p.border.Alpha(.3)
+		c.SetTheme(&quiet)
+		ui.Sidebar(c, &selected, func() {
 			for i, tab := range settingsTabs {
 				var badge *countBadge
 				switch i {
@@ -46,26 +51,16 @@ func (a *App) settingsDialog(c *ui.Context, p colors) {
 				case settingsProxy:
 					badge = badgeDot(s(o(a.settings, "proxy"), "type") == "enabled")
 				}
-				item := ui.ButtonBase(c).Key(i).Label(tab.label()).Height(30).Padding(0, 10).Gap(8).Radius(4).Justify(ui.Start)
-				switch {
-				case i == a.modalTab:
-					item.Background(p.border.Alpha(.55))
-				case item.Hovered():
-					item.Background(p.border.Alpha(.3))
+				item := ui.SidebarItem(c, strconv.Itoa(i), icons[tab.glyph], tab.label()).Height(30).Padding(0, 10).Gap(8).Radius(4)
+				if i == a.modalTab {
+					item.Background(p.border.Alpha(.55)).TextColor(theme.Text)
+				} else {
+					item.TextColor(p.muted)
 				}
-				item.Children(func() {
-					icon(c, tab.glyph).FontSize(14).TextColor(p.muted)
-					text := ui.Text(c, tab.label()).FontSize(13).Grow(1)
-					if i != a.modalTab {
-						text.TextColor(p.muted)
-					}
-					badge.view(c, p)
-				})
-				if item.Clicked() {
-					selected = i
-				}
+				item.Children(func() { badge.view(c, p) })
 			}
-		})
+		}).Width(180).Padding(10).Gap(2).FontSize(13).Radius(0, 0, 0, 10).Background(p.sidebar).BorderWidth(0, 1, 0, 0).BorderColor(p.border)
+		c.SetTheme(theme)
 		ui.Scroll(c).Grow(1).MinWidth(0).Padding(18, 24, 18, 24).Gap(24).Children(func() {
 			switch a.modalTab {
 			case settingsGeneral:
@@ -87,7 +82,9 @@ func (a *App) settingsDialog(c *ui.Context, p colors) {
 			}
 		})
 	})
-	a.modalTab = selected
+	if tab, err := strconv.Atoi(selected); err == nil {
+		a.modalTab = tab
+	}
 }
 
 func settingsHeading(c *ui.Context, p colors, title, description string) {
@@ -332,7 +329,7 @@ func (a *App) booleanSetting(c *ui.Context, p colors, key, title, description st
 
 func (a *App) settingsShortcuts(c *ui.Context, p colors) {
 	settingsHeading(c, p, locales.KeyboardShortcuts(), locales.ClickAShortcutToRecordNew())
-	ui.TextInput(c, &a.hotkeyFilter).Label(locales.FilterShortcuts()).Placeholder(locales.FilterShortcuts()).FillWidth()
+	ui.SearchField(c, &a.hotkeyFilter).Label(locales.FilterShortcuts()).Placeholder(locales.FilterShortcuts()).FillWidth()
 	custom := o(a.settings, "hotkeys")
 	query := strings.ToLower(strings.TrimSpace(a.hotkeyFilter))
 	ui.Column(c).FillWidth().Children(func() {

@@ -232,10 +232,7 @@ func (a *App) cookiesDialog(c *ui.Context, p colors) {
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		var addButton ui.Element
 		ui.Row(c).Padding(10, 14).Gap(8).Children(func() {
-			ui.TextInput(c, &manager.filter).Placeholder(locales.FilterCookies()).Label(locales.FilterCookies()).Grow(1).MinWidth(0)
-			if manager.filter != "" && smallIconButton(c, "close", locales.ClearCookieFilter()).Clicked() {
-				manager.filter = ""
-			}
+			ui.SearchField(c, &manager.filter).Placeholder(locales.FilterCookies()).Label(locales.FilterCookies()).Grow(1).MinWidth(0)
 			addButton = ui.Button(c, locales.AddCookie()).Disabled(manager.busy)
 			if addButton.Clicked() {
 				manager.draft = newCookieDraft(nil)

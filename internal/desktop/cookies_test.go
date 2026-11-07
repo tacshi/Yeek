@@ -154,7 +154,7 @@ func TestCookieNativeEditorFilterAndDelete(t *testing.T) {
 	if !tt.HasText("No cookies match this filter") {
 		t.Fatal("filter did not update table")
 	}
-	if err = tt.Click("Clear cookie filter"); err != nil {
+	if err = tt.Click("Clear"); err != nil {
 		t.Fatal(err)
 	}
 	if err = tt.Click("Delete cookie session"); err != nil {

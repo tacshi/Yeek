@@ -332,19 +332,14 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 	ui.Column(c).Fill().Background(p.sidebar).BorderWidth(0, 1, 0, 0).BorderColor(p.border).Children(func() {
 		if len(a.treeItems("")) > 0 {
 			ui.Row(c).Shrink(0).Padding(12, 2, 0, 12).Gap(2).Children(func() {
-				ui.Row(c).Grow(1).MinWidth(0).Height(28).Radius(4).Border(1, p.border).Background(p.background).Padding(0, 2, 0, 0).Children(func() {
-					filter := ui.TextInput(c, &a.search).Placeholder(locales.Search()).Label(locales.FilterRequests()).Grow(1).MinWidth(0).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(12)
-					if a.focusFilter {
-						a.focusFilter = false
-						filter.Focus()
-					}
-					if filter.Focused() {
-						a.sidebarFocused = true
-					}
-					if a.search != "" && smallIconButton(c, "close", locales.ClearFilter()).Clicked() {
-						a.search = ""
-					}
-				})
+				filter := ui.SearchField(c, &a.search).Label(locales.FilterRequests()).Grow(1).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, p.border).Background(p.background).FontSize(12)
+				if a.focusFilter {
+					a.focusFilter = false
+					filter.Focus()
+				}
+				if filter.Focused() {
+					a.sidebarFocused = true
+				}
 				iconButton(c, "moreV", locales.ShowSidebarActionsMenu()).PopoverMenuButton(func(m *ui.Menu) {
 					if m.Item(locales.FocusActiveRequest()).Disabled(a.active == "").Chosen() {
 						a.revealInSidebar(a.active)
@@ -493,14 +488,8 @@ func (a *App) workbench(c *ui.Context, p colors) {
 		panes()
 		return
 	}
-	if a.docsSplit == 0 {
-		w, _ := c.Size()
-		if !a.hideSidebar {
-			w -= float32(a.sidebarWidth)
-		}
-		a.docsSplit = w * 2 / 3
-	}
-	splitQuiet(c, &a.docsSplit, false, panes, func() { a.graphQLDocsPane(c, p, d) }).Fill()
+	a.docsSplit = cmp.Or(a.docsSplit, 200.0/3)
+	splitQuietPercent(c, &a.docsSplit, false, panes, func() { a.graphQLDocsPane(c, p, d) }).Fill()
 }
 func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 	ui.Row(c).Shrink(0).Children(func() {
@@ -871,7 +860,8 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 			open := !d.InheritedClosed
 			box := ui.Column(c).Shrink(0).Radius(6).Border(1, p.border).Background(p.border.Alpha(.18)).Padding(2, 0, 2, 2)
 			box.Children(func() {
-				summary := ui.ButtonBase(c).Label(locales.InheritedHeaders()).Height(28).Gap(6).Justify(ui.Start)
+				section := ui.CollapsibleBase(c, &open)
+				summary := section.Trigger.Label(locales.InheritedHeaders()).Height(28).Gap(6)
 				summary.Children(func() {
 					glyph := "chevron"
 					if open {
@@ -885,25 +875,24 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 					ui.Text(c, label).FontSize(12).TextColor(p.muted)
 					ui.Text(c, fmt.Sprint(len(inherited))).FontSize(10).TextColor(p.muted).Padding(0, 5).Radius(8).Border(1, p.border)
 				})
-				if summary.Clicked() {
-					d.InheritedClosed = open
+				if summary.Changed() {
+					d.InheritedClosed = !open
 				}
-				if !open {
-					return
-				}
-				ui.Column(c).Gap(4).Padding(2, 0, 6, 0).Children(func() {
-					for i, h := range inherited {
-						ui.Row(c).Key(i).Height(28).Gap(6).Opacity(.6).Children(func() {
-							on := true
-							ui.Checkbox(c, &on, "").Label(locales.InheritedHeader(h.Name)).Width(22).Disabled(true)
-							for _, text := range []string{h.Name, h.Value} {
-								ui.Row(c).Grow(1).Basis(0).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, p.border).Background(p.background).Children(func() {
-									ui.Text(c, text).Font("monospace").FontSize(12).SingleLine().MinWidth(0).Selectable()
-								})
-							}
-							ui.Box(c).Width(22).Shrink(0)
-						})
-					}
+				section.Panel(func() {
+					ui.Column(c).Gap(4).Padding(2, 0, 6, 0).Children(func() {
+						for i, h := range inherited {
+							ui.Row(c).Key(i).Height(28).Gap(6).Opacity(.6).Children(func() {
+								on := true
+								ui.Checkbox(c, &on, "").Label(locales.InheritedHeader(h.Name)).Width(22).Disabled(true)
+								for _, text := range []string{h.Name, h.Value} {
+									ui.Row(c).Grow(1).Basis(0).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, p.border).Background(p.background).Children(func() {
+										ui.Text(c, text).Font("monospace").FontSize(12).SingleLine().MinWidth(0).Selectable()
+									})
+								}
+								ui.Box(c).Width(22).Shrink(0)
+							})
+						}
+					})
 				})
 			})
 		}
@@ -1138,11 +1127,7 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 		})
 		ui.Row(c).Padding(4, 12).Gap(8).Children(func() {
 			dashed := func() {
-				ui.Box(c).Grow(1).Height(1).Children(func() {}).Draw(func(pt *ui.Painter, r ui.Rect) {
-					for x := r.X; x < r.X+r.W; x += 6 {
-						pt.Fill(ui.Rect{X: x, Y: r.Y, W: 3, H: 1}, p.border, 0)
-					}
-				})
+				ui.Box(c).Grow(1).Height(1).BorderWidth(1, 0, 0, 0).BorderStyle(ui.BorderDashed).BorderColor(p.border)
 			}
 			dashed()
 			ui.Text(c, locales.Variables()).FontSize(12).TextColor(p.muted)

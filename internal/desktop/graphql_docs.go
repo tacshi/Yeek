@@ -38,26 +38,20 @@ func (a *App) graphQLDocsPane(c *ui.Context, p colors, d *Draft) {
 		}
 	}
 	ui.Column(c).Fill().Padding(12, 12, 12, 0).Children(func() {
-		ui.Column(c).Fill().Radius(8).Children(func() {
+		ui.Column(c).Fill().Radius(8).Border(1, p.border).BorderStyle(ui.BorderDashed).Children(func() {
 			ui.Row(c).Height(40).Shrink(0).Padding(0, 4, 0, 12).Gap(6).Children(func() {
 				icon(c, "book").FontSize(14).TextColor(p.muted)
-				ui.Row(c).Gap(6).Shrink(1).MinWidth(0).Children(func() {
-					for i, name := range trail {
-						if i > 0 {
-							icon(c, "chevron").FontSize(11).TextColor(p.subtle)
-						}
-						if i == len(trail)-1 {
-							ui.Text(c, name).FontSize(13).TextColor(p.muted).SingleLine()
-							continue
-						}
-						link := ui.ButtonBase(c).Key(i).Label(locales.GoToName(name))
-						link.Children(func() { ui.Text(c, name).FontSize(13).TextColor(p.notice).SingleLine() })
-						if link.Clicked() {
-							a.docsTrail[d.ID] = slices.Clone(trail[:i+1])
-						}
-					}
-				})
-				ui.TextInput(c, &a.docsSearch).Label(locales.SearchGraphQLSchema()).Placeholder(locales.Search()).Grow(1).MinWidth(60).Height(26).FontSize(12)
+				theme := c.Theme()
+				links := *theme
+				links.TextMuted = p.notice
+				c.SetTheme(&links)
+				chosen := -1
+				path := ui.Breadcrumbs(c, trail, &chosen).Label(locales.DocumentationPath()).Shrink(1).FontSize(13).TextColor(p.muted)
+				c.SetTheme(theme)
+				if path.Changed() && chosen >= 0 {
+					a.docsTrail[d.ID] = slices.Clone(trail[:chosen+1])
+				}
+				ui.SearchField(c, &a.docsSearch).Label(locales.SearchGraphQLSchema()).Grow(1).MinWidth(60).Height(26).Padding(0, 8).FontSize(12)
 				if smallIconButton(c, "close", locales.CloseDocumentationExplorer()).Clicked() {
 					a.closeGraphQLDocs(d.ID)
 				}
@@ -73,15 +67,6 @@ func (a *App) graphQLDocsPane(c *ui.Context, p colors, d *Draft) {
 				}
 				a.graphQLDocsType(c, p, d, trail[len(trail)-1], visit)
 			})
-		}).Draw(func(pt *ui.Painter, r ui.Rect) {
-			for x := r.X; x < r.X+r.W; x += 6 {
-				pt.Fill(ui.Rect{X: x, Y: r.Y, W: 3, H: 1}, p.border, 0)
-				pt.Fill(ui.Rect{X: x, Y: r.Y + r.H - 1, W: 3, H: 1}, p.border, 0)
-			}
-			for y := r.Y; y < r.Y+r.H; y += 6 {
-				pt.Fill(ui.Rect{X: r.X, Y: y, W: 1, H: 3}, p.border, 0)
-				pt.Fill(ui.Rect{X: r.X + r.W - 1, Y: y, W: 1, H: 3}, p.border, 0)
-			}
 		})
 	})
 }

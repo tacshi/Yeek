@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
@@ -39,6 +40,7 @@ func TestHeadersTabShowsInheritedHeaders(t *testing.T) {
 	if err := tt.Click("Inherited headers"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Advance(time.Second)
 	if tt.HasText("X-Team") {
 		t.Fatal("inherited headers did not collapse")
 	}
