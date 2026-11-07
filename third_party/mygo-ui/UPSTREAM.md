@@ -1,6 +1,6 @@
 # MyGo native UI
 
-Based on `github.com/egoist/mygo/ui` at v0.7.4, under the included MIT license. The framework and CLI are pinned to MyGo v0.7.4 too. Upstream's `ui/editor` and `ui/markdown` (with its `parser`) are copied unchanged as `editor` and `markdown`, except that they import this package and its packages in place of `ui`'s. Upstream's `ui/chart` and `ui/richtext` packages and tests are not copied.
+Based on `github.com/egoist/mygo/ui` at v0.8.3, under the included MIT license. The framework and CLI are pinned to MyGo v0.8.3 too. Upstream's `ui/editor` and `ui/markdown` (with its `parser`) are copied unchanged as `editor` and `markdown`, except that they import this package and its packages in place of `ui`'s. Upstream's `ui/chart` and `ui/richtext` packages and tests are not copied.
 
 As upstream does, the public API (`api_gen.go`) is generated from the private renderer API (`core*` functions and exported methods of `node` and `context`): run `go generate .` here after changing it. `internal/uigen` is upstream's generator, changed only to run from this directory.
 
@@ -13,6 +13,5 @@ Yeek's changes:
 - `Element.Chips` (`code_chips.go`) draws ranges of a `CodeEditor` as chips, like CodeMirror's atomic replace decorations for Yaak's template tags: a rounded box with hover colors and the default cursor. The caret steps over a chip (`editor_navigation.go`), Backspace and Delete remove it whole, and a click on it is reported by `CodeEditorState.ChipClicked` instead of placing the caret. It hooks into `editor.go`, `editor_layout.go`, `textarea.go` and `runtime.go`.
 - `Element.DragShows` (`drag_shows.go`) makes the copy following the pointer as an element drags its value that of another element, as dnd-kit's DragOverlay shows a whole row dragged by its handle.
 - `CodeEditorState.Pasted` reports the text last pasted and whether it replaced the editor's whole text.
-- `Tester.Menu`, `ChooseMenuItem` and `CloseMenu` also work on menus drawn in the window (`PopoverMenu`, `PopoverMenuButton`): `drawnMenu.menus` keeps what was last built, and `ChooseMenuItem` clicks its rows.
 - `Tester.Batch` delivers input before rendering, as events can arrive during one display frame.
 - The layout cache (`layoutcache.go`) compares the node fields layout reads. Upstream's `TestLayoutInputs` lists every field; of the fork's, `codePaint`, `codeMarks` and `codeDiagnostics` are read only while painting, and `attachCaret` is read by layout, but only on attached elements, which the cache always lays out again.

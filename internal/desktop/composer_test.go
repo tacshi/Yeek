@@ -106,9 +106,8 @@ func TestMultipartTextOptionsAndModeSwitch(t *testing.T) {
 	if err := tt.Click("Field type 1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Text"); err != nil {
-		t.Fatal(err)
-	}
+	tt.Key(0, ui.KeyUp)
+	tt.Key(0, ui.KeyEnter)
 	if d.Form[0].FileMode || d.Form[0].File != "" || d.Form[0].Value != "line one\nline two" {
 		t.Fatal(d.Form)
 	}

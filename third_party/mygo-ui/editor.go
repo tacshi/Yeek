@@ -23,6 +23,8 @@ type editEvent struct {
 	key   Key
 	text  string
 	caret int
+	// repeat marks a command whose key, held down, repeats (commandKey).
+	repeat bool
 	// replace makes an insertion or a composition take the runes from to
 	// to instead of the selection, as an input method asked.
 	replace  bool
@@ -57,6 +59,7 @@ type editor struct {
 	queue              []editEvent
 	multiline          bool
 	readOnly           bool   // selectable text: selected and copied, not edited
+	maxLength          int    // UTF-16 units the user may enter, none when <= 0 (MaxLength)
 	source             string // the text of selectable text
 	password           bool
 	// onPaste sees a paste before it is inserted (OnPaste).
@@ -137,6 +140,9 @@ func (ed *editor) edit(a, z int, s string) {
 	if ed.codeState != nil {
 		ed.codeState.foldEdits(a, z, s)
 	}
+	// An edit ends the drag of a press: a pointer still down would take the
+	// caret back to it, and the next key would land there or replace what it selects.
+	ed.dragging = false
 	first, old, after := ed.buf.replace(a, z, s)
 	if ed.area != nil {
 		ed.area.edited(&ed.buf, first, old, after)
@@ -147,6 +153,7 @@ func (ed *editor) edit(a, z int, s string) {
 // set in each build and its edits follow.
 type editorOptions struct {
 	readOnly, password bool
+	maxLength          int
 	onPaste            func(text string) bool
 	onTextKey          func(k TextKey) bool
 }
@@ -155,8 +162,8 @@ type editorOptions struct {
 // the options its pending edits apply by, and this build's start from
 // the defaults.
 func (ed *editor) rebuild() {
-	ed.shown = editorOptions{ed.readOnly, ed.password, ed.onPaste, ed.onTextKey}
-	ed.readOnly, ed.password, ed.lines, ed.onPaste, ed.onTextKey = false, false, [2]int{}, nil, nil
+	ed.shown = editorOptions{ed.readOnly, ed.password, ed.maxLength, ed.onPaste, ed.onTextKey}
+	ed.readOnly, ed.password, ed.maxLength, ed.lines, ed.onPaste, ed.onTextKey = false, false, 0, [2]int{}, nil, nil
 	ed.placeholderColorSet = false
 	ed.caretWidth = 2
 }
@@ -166,11 +173,11 @@ func (ed *editor) rebuild() {
 // returns, before this build's ReadOnly or OnPaste, and follows what the
 // user saw.
 func (ed *editor) withShown(fn func()) {
-	now := editorOptions{ed.readOnly, ed.password, ed.onPaste, ed.onTextKey}
+	now := editorOptions{ed.readOnly, ed.password, ed.maxLength, ed.onPaste, ed.onTextKey}
 	o := ed.shown
-	ed.readOnly, ed.password, ed.onPaste, ed.onTextKey = o.readOnly, o.password, o.onPaste, o.onTextKey
+	ed.readOnly, ed.password, ed.maxLength, ed.onPaste, ed.onTextKey = o.readOnly, o.password, o.maxLength, o.onPaste, o.onTextKey
 	fn()
-	ed.readOnly, ed.password, ed.onPaste, ed.onTextKey = now.readOnly, now.password, now.onPaste, now.onTextKey
+	ed.readOnly, ed.password, ed.maxLength, ed.onPaste, ed.onTextKey = now.readOnly, now.password, now.maxLength, now.onPaste, now.onTextKey
 }
 
 func (ed *editor) insert(s string) {
@@ -180,6 +187,9 @@ func (ed *editor) insert(s string) {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	a, b := ed.selection()
 	ranges := ed.selectedRanges()
+	if a == b && len(ranges) == 0 && ed.fit(a, a, s) == "" {
+		return // nothing fits (MaxLength): no step of undo either
+	}
 	if ed.code && a != b {
 		ed.coalesce = false
 	}

@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/yeekui"
 	"yeek/internal/engine"
@@ -81,6 +82,10 @@ func TestToastsHideAfterTimeout(t *testing.T) {
 	a.showToast("same", "two", "info", 0)
 	tt.Frame()
 	if len(a.toasts) != 2 || tt.HasText("one") || !tt.HasText("two") {
+		t.Fatalf("toasts = %+v", a.toasts)
+	}
+	tt.Advance(time.Second)
+	if len(a.toasts) != 2 {
 		t.Fatalf("toasts = %+v", a.toasts)
 	}
 	if err := tt.Click("Dismiss"); err != nil {
