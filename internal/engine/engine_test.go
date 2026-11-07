@@ -178,3 +178,21 @@ func TestDisabledFieldsDoNotRender(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFailedSendReadsAsAnEmptyBody(t *testing.T) {
+	e := testEngine(t)
+	w := saveTest(t, e, Object{"model": "workspace"})
+	request := saveTest(t, e, Object{"model": "http_request", "workspaceId": str(w, "id"), "url": "http://127.0.0.1:1/${[ missing.function() ]}"})
+	_, _ = e.SendHTTP(t.Context(), str(request, "id"), SendOptions{})
+	responses, err := e.Store.Find(t.Context(), "http_response", "requestId", str(request, "id"))
+	if err != nil || len(responses) != 1 || str(responses[0], "error") == "" {
+		t.Fatal(responses, err)
+	}
+	id := str(responses[0], "id")
+	if body, err := e.Body(id); err != nil || len(body) != 0 {
+		t.Fatal(body, err)
+	}
+	if body, truncated, err := e.BodyPreview(id, 1<<10); err != nil || len(body) != 0 || truncated {
+		t.Fatal(body, truncated, err)
+	}
+}

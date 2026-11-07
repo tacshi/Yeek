@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -164,7 +165,11 @@ func (e *Engine) Body(id string) ([]byte, error) {
 	if !validBodyID(id) {
 		return nil, errors.New(locales.InvalidResponseID())
 	}
-	return e.bodies.ReadFile(id)
+	data, err := e.bodies.ReadFile(id)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return data, err
 }
 
 func (e *Engine) OpenBody(id string) (*os.File, error) {
@@ -189,6 +194,9 @@ func (e *Engine) BodyPreview(id string, limit int64) ([]byte, bool, error) {
 		return nil, false, errors.New(locales.InvalidResponseID())
 	}
 	file, err := e.bodies.Open(id)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	}
 	if err != nil {
 		return nil, false, err
 	}
