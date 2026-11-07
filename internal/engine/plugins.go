@@ -286,7 +286,7 @@ func (e *Engine) RunPluginAction(ctx context.Context, name, workspace, request s
 	return errors.New(locales.PluginActionIsUnavailable())
 }
 
-func (e *Engine) pluginImport(ctx context.Context, content string) ([]Object, error) {
+func (e *Engine) pluginImport(ctx context.Context, content string) (string, []Object, error) {
 	for _, p := range e.pluginList() {
 		if !p.info.Enabled || p.info.Error != "" || p.definition.Import == nil {
 			continue
@@ -298,13 +298,13 @@ func (e *Engine) pluginImport(ctx context.Context, content string) ([]Object, er
 			return err
 		})
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 		if len(result) > 0 {
-			return result, nil
+			return p.info.Name, result, nil
 		}
 	}
-	return nil, errors.New(locales.NoImporterRecognizedThisCollection())
+	return "", nil, errors.New(locales.NoImporterRecognizedThisCollection())
 }
 func (e *Engine) PluginFilterNames() []string {
 	names := []string{}

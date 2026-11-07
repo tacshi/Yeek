@@ -142,11 +142,11 @@ export default {
 	if got, err := e.Filter(t.Context(), "a", "b", "", "Everything", ""); err != nil || got != "<ab" {
 		t.Fatal(got, err)
 	}
-	models, err := e.pluginImport(t.Context(), "mine")
-	if err != nil || len(models) != 1 || str(models[0], "name") != "Imported" || number(models[0], "count") != 2 {
+	importer, models, err := e.pluginImport(t.Context(), "mine")
+	if err != nil || importer != "Everything" || len(models) != 1 || str(models[0], "name") != "Imported" || number(models[0], "count") != 2 {
 		t.Fatal(models, err)
 	}
-	if _, err = e.pluginImport(t.Context(), "other"); err == nil {
+	if _, _, err = e.pluginImport(t.Context(), "other"); err == nil {
 		t.Fatal("an importer that recognizes nothing should fail")
 	}
 	response := &http.Response{StatusCode: 201, Header: http.Header{"X-A": {"1"}}}
