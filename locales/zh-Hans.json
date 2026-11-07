@@ -1033,6 +1033,7 @@
   "pluginBodyMustBeTextOrBytes": "插件正文必须是文本或字节",
   "pluginInitializationFailedFailure": "插件初始化失败：{failure}",
   "pluginNameFailedFailure": "插件 {name} 失败：{failure}",
+  "pluginNameWasReloadedTryAgain": "插件 {name} 已重新加载，请重试",
   "pluginNeedsAName": "插件需要名称",
   "pluginNeverFinished": "插件未能完成",
   "plugins": "插件",

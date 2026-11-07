@@ -171,6 +171,14 @@ Load the file from **Settings → Plugins**, then use the function anywhere a te
 ${[ text.upper(value='hello') ]}
 ```
 
+A plugin that imports other files or npm packages has to be bundled into one ES module first, for example with esbuild:
+
+```sh
+esbuild src/index.ts --bundle --format=esm --platform=neutral --outfile=plugin.js
+```
+
+Plugins have `fetch`, `URL`, `TextEncoder`, `TextDecoder`, timers, `atob`, `btoa` and `structuredClone`, but not `crypto`, `FormData` or `Blob`.
+
 > [!WARNING]
 > Plugins can reach any address with `fetch`, through Yeek's proxy and certificate settings, including local services. They have no access to your files, and a call stops after 60 seconds or 256 MB of memory. Only load plugins you trust.
 

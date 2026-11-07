@@ -1369,6 +1369,7 @@
   "pluginBodyMustBeTextOrBytes": "plugin body must be text or bytes",
   "pluginInitializationFailedFailure": "plugin initialization failed: {failure}",
   "pluginNameFailedFailure": "plugin {name} failed: {failure}",
+  "pluginNameWasReloadedTryAgain": "plugin {name} was reloaded, try again",
   "pluginNeedsAName": "plugin needs a name",
   "pluginNeverFinished": "plugin never finished",
   "plugins": "Plugins",

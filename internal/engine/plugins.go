@@ -64,7 +64,7 @@ func (p *loadedPlugin) close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.runtime != nil {
-		p.runtime.close()
+		p.runtime.shutdown()
 	}
 }
 func (e *Engine) pluginList() []*loadedPlugin {

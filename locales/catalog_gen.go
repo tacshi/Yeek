@@ -10710,6 +10710,18 @@ func (msgs Messages) PluginNameFailedFailure(name string, failure string) string
 	return Catalog.Format(msgs.locale, "pluginNameFailedFailure", map[string]any{"name": name, "failure": failure})
 }
 
+// PluginNameWasReloadedTryAgain says "plugin {name} was reloaded, try again"
+// in the language the app shows.
+func PluginNameWasReloadedTryAgain(name string) string {
+	return In(i18n.Locale()).PluginNameWasReloadedTryAgain(name)
+}
+
+// PluginNameWasReloadedTryAgain says "plugin {name} was reloaded, try again"
+// in the language of msgs.
+func (msgs Messages) PluginNameWasReloadedTryAgain(name string) string {
+	return Catalog.Format(msgs.locale, "pluginNameWasReloadedTryAgain", map[string]any{"name": name})
+}
+
 // PluginNeedsAName says "plugin needs a name"
 // in the language the app shows.
 func PluginNeedsAName() string { return In(i18n.Locale()).PluginNeedsAName() }

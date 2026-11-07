@@ -25,10 +25,11 @@ import (
 	"yeek/locales"
 )
 
-const (
+const pluginMemoryLimit = 256 << 20
+
+var (
 	pluginLoadTimeout = 10 * time.Second
 	pluginCallTimeout = 60 * time.Second
-	pluginMemoryLimit = 256 << 20
 )
 
 var pluginExtensions = []string{".js", ".mjs", ".ts", ".mts"}
@@ -44,6 +45,7 @@ type jsPlugin struct {
 	bytes     moejs.Value
 	workspace string
 	stale     bool
+	closed    bool
 }
 
 type pluginManifest struct {
@@ -230,7 +232,15 @@ func (p *jsPlugin) callable(path ...string) bool {
 	return err == nil && moeengine.IsCallable(function)
 }
 
+func (p *jsPlugin) shutdown() {
+	p.closed = true
+	p.close()
+}
+
 func (p *jsPlugin) call(c api.Context, path []string, arguments func(*moejs.Runtime) ([]moejs.Value, error), read func(*moejs.Runtime, moejs.Value) error) error {
+	if p.closed {
+		return errors.New(locales.PluginNameWasReloadedTryAgain(p.name))
+	}
 	if p.stale {
 		p.close()
 		if err := p.start(c.Context); err != nil {
