@@ -55,6 +55,7 @@ tool github.com/egoist/mygo/cmd/mygo
 require (
 	github.com/1password/onepassword-sdk-go v0.4.1
 	github.com/Azure/go-ntlmssp v0.1.1
+	github.com/MoeForge/moejs v0.1.0-alpha.11
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/andybalholm/brotli v1.2.7
 	github.com/antchfx/xmlquery v1.5.2
@@ -72,7 +73,6 @@ require (
 	github.com/jhump/protoreflect/v2 v2.0.0-beta.2
 	github.com/klauspost/compress v1.20.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/traefik/yaegi v0.16.1
 	github.com/vektah/gqlparser/v2 v2.5.61
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
 	github.com/zalando/go-keyring v0.2.8

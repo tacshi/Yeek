@@ -6,21 +6,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"go/parser"
-	"go/token"
 	"io"
 	"maps"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"sync"
-	"time"
 
-	"github.com/traefik/yaegi/interp"
-	"github.com/traefik/yaegi/stdlib"
 	api "yeek/plugin"
 
 	"yeek/locales"
@@ -33,53 +26,10 @@ type PluginInfo struct {
 type loadedPlugin struct {
 	info       PluginInfo
 	definition api.Definition
+	runtime    *jsPlugin
 	mu         sync.Mutex
 }
 
-func pluginSymbols() interp.Exports {
-	return interp.Exports{"yeek/plugin/plugin": {
-		"Context": reflect.ValueOf((*api.Context)(nil)), "Definition": reflect.ValueOf((*api.Definition)(nil)), "Field": reflect.ValueOf((*api.Field)(nil)), "Template": reflect.ValueOf((*api.Template)(nil)), "Request": reflect.ValueOf((*api.Request)(nil)), "Response": reflect.ValueOf((*api.Response)(nil)), "Authentication": reflect.ValueOf((*api.Authentication)(nil)), "Action": reflect.ValueOf((*api.Action)(nil)), "Theme": reflect.ValueOf((*api.Theme)(nil)),
-	}}
-}
-func loadGoPlugin(ctx context.Context, path string) (definition api.Definition, err error) {
-	defer func() {
-		if failure := recover(); failure != nil {
-			err = errors.New(locales.PluginInitializationFailedFailure(fmt.Sprint(failure)))
-		}
-	}()
-	source, err := os.ReadFile(path) // #nosec G304 -- plugin source is explicitly selected in the local plugin manager.
-	if err != nil {
-		return definition, err
-	}
-	syntax, err := parser.ParseFile(token.NewFileSet(), path, source, parser.PackageClauseOnly)
-	if err != nil {
-		return definition, err
-	}
-	vm := interp.New(interp.Options{})
-	if err = vm.Use(stdlib.Symbols); err != nil {
-		return definition, err
-	}
-	if err = vm.Use(pluginSymbols()); err != nil {
-		return definition, err
-	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	if _, err = vm.EvalWithContext(ctx, string(source)); err != nil {
-		return definition, err
-	}
-	value, err := vm.Eval(syntax.Name.Name + ".Plugin")
-	if err != nil {
-		return definition, errors.New(locales.ExportAPluginVariableOfType())
-	}
-	definition, ok := value.Interface().(api.Definition)
-	if !ok {
-		return definition, errors.New(locales.PluginMustHaveTypePluginDefinition())
-	}
-	if definition.Name == "" {
-		return definition, errors.New(locales.PluginNeedsAName())
-	}
-	return definition, nil
-}
 func (e *Engine) LoadPlugins(ctx context.Context) error {
 	models, err := e.Store.List(ctx, "plugin", "")
 	if err != nil {
@@ -89,11 +39,11 @@ func (e *Engine) LoadPlugins(ctx context.Context) error {
 	for _, m := range models {
 		p := &loadedPlugin{info: PluginInfo{ID: str(m, "id"), Path: str(m, "directory"), Enabled: boolean(m, "enabled"), Name: filepath.Base(str(m, "directory"))}}
 		if p.info.Enabled {
-			definition, err := loadGoPlugin(ctx, p.info.Path)
+			definition, runtime, err := e.loadPlugin(ctx, p.info.Path)
 			if err != nil {
 				p.info.Error = err.Error()
 			} else {
-				p.definition = definition
+				p.definition, p.runtime = definition, runtime
 				p.info.Name = definition.Name
 				p.info.Version = definition.Version
 				p.info.Description = definition.Description
@@ -102,9 +52,20 @@ func (e *Engine) LoadPlugins(ctx context.Context) error {
 		loaded = append(loaded, p)
 	}
 	e.pluginMu.Lock()
+	previous := e.plugins
 	e.plugins = loaded
 	e.pluginMu.Unlock()
+	for _, p := range previous {
+		p.close()
+	}
 	return nil
+}
+func (p *loadedPlugin) close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.runtime != nil {
+		p.runtime.close()
+	}
 }
 func (e *Engine) pluginList() []*loadedPlugin {
 	e.pluginMu.RLock()
@@ -123,10 +84,7 @@ func (e *Engine) InstallPlugin(ctx context.Context, path string) (PluginInfo, er
 	if err != nil {
 		return PluginInfo{}, err
 	}
-	if filepath.Ext(path) != ".go" {
-		return PluginInfo{}, errors.New(locales.ChooseAGoSourceFile())
-	}
-	definition, err := loadGoPlugin(ctx, path)
+	definition, runtime, err := e.loadPlugin(ctx, path)
 	if err != nil {
 		return PluginInfo{}, err
 	}
@@ -142,11 +100,17 @@ func (e *Engine) InstallPlugin(ctx context.Context, path string) (PluginInfo, er
 	if err != nil {
 		return PluginInfo{}, err
 	}
-	p := &loadedPlugin{info: PluginInfo{ID: str(saved, "id"), Path: path, Name: definition.Name, Version: definition.Version, Description: definition.Description, Enabled: true}, definition: definition}
+	p := &loadedPlugin{info: PluginInfo{ID: str(saved, "id"), Path: path, Name: definition.Name, Version: definition.Version, Description: definition.Description, Enabled: true}, definition: definition, runtime: runtime}
 	e.pluginMu.Lock()
+	previous := slices.Clone(e.plugins)
 	e.plugins = slices.DeleteFunc(e.plugins, func(v *loadedPlugin) bool { return v.info.Path == path })
 	e.plugins = append(e.plugins, p)
 	e.pluginMu.Unlock()
+	for _, old := range previous {
+		if old.info.Path == path {
+			old.close()
+		}
+	}
 	return p.info, nil
 }
 func (e *Engine) PluginEnabled(ctx context.Context, id string, enabled bool) error {

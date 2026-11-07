@@ -148,28 +148,20 @@ Turn on **Settings → Agents → Enable MCP server**. While Yeek is open, it th
 
 ## Plugins
 
-Plugins are Go source files that Yeek loads at runtime. A plugin exports a `Plugin` variable of type `plugin.Definition`. It can contribute template functions, authentication types, request and response hooks, actions, importers, response filters and themes. The full API is in [`plugin/plugin.go`](plugin/plugin.go).
+Plugins are single JavaScript or TypeScript files (`.js`, `.mjs`, `.ts`, `.mts`) that Yeek runs in [moejs](https://github.com/MoeForge/moejs), a JavaScript engine written in Go. A plugin's default export can contribute template functions, authentication types, request and response hooks, actions, importers, response filters and themes, and any function can be `async`. The full API is in [`plugin/plugin.d.ts`](plugin/plugin.d.ts).
 
-```go
-package extension
-
-import (
-	"strings"
-
-	"yeek/plugin"
-)
-
-var Plugin = plugin.Definition{
-	Name:    "Text Tools",
-	Version: "1.0.0",
-	Templates: []plugin.Template{{
-		Name:        "text.upper",
-		Description: "Convert text to upper case",
-		Fields:      []plugin.Field{{Name: "value", Label: "Value"}},
-		Run: func(ctx plugin.Context, args map[string]string) (string, error) {
-			return strings.ToUpper(args["value"]), nil
-		},
-	}},
+```js
+export default {
+  name: "Text Tools",
+  version: "1.0.0",
+  templates: [{
+    name: "text.upper",
+    description: "Convert text to upper case",
+    fields: [{ name: "value", label: "Value" }],
+    run(ctx, args) {
+      return args.value.toUpperCase()
+    },
+  }],
 }
 ```
 
@@ -180,7 +172,7 @@ ${[ text.upper(value='hello') ]}
 ```
 
 > [!WARNING]
-> Plugins run with the same access to your files and network as Yeek itself. Only load plugins you trust.
+> Plugins can reach any address with `fetch`, through Yeek's proxy and certificate settings, including local services. They have no access to your files, and a call stops after 60 seconds or 256 MB of memory. Only load plugins you trust.
 
 ## Development
 
@@ -193,7 +185,7 @@ ${[ text.upper(value='hello') ]}
 | `internal/engine` | Storage, protocol clients, templates, auth, importers, sync and Git |
 | `internal/filter` | JSONPath and XPath response filtering |
 | `internal/mcp` | The Model Context Protocol server |
-| `plugin` | The public plugin API |
+| `plugin` | Plugin types: `plugin.d.ts` for authors, `plugin.go` for the engine |
 | `locales` | Translation catalogs; `catalog_gen.go` is generated from them |
 | `cmd/fixture` | A local test server for every supported protocol |
 | `cmd/icon` | Generates the app icons |

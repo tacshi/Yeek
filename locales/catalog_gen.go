@@ -1490,14 +1490,16 @@ func (msgs Messages) ChooseAFileFolderURLOr() string {
 	return Catalog.Format(msgs.locale, "chooseAFileFolderURLOr", nil)
 }
 
-// ChooseAGoSourceFile says "choose a Go source file"
+// ChooseAJavaScriptOrTypeScriptFile says "choose a JavaScript or TypeScript file"
 // in the language the app shows.
-func ChooseAGoSourceFile() string { return In(i18n.Locale()).ChooseAGoSourceFile() }
+func ChooseAJavaScriptOrTypeScriptFile() string {
+	return In(i18n.Locale()).ChooseAJavaScriptOrTypeScriptFile()
+}
 
-// ChooseAGoSourceFile says "choose a Go source file"
+// ChooseAJavaScriptOrTypeScriptFile says "choose a JavaScript or TypeScript file"
 // in the language of msgs.
-func (msgs Messages) ChooseAGoSourceFile() string {
-	return Catalog.Format(msgs.locale, "chooseAGoSourceFile", nil)
+func (msgs Messages) ChooseAJavaScriptOrTypeScriptFile() string {
+	return Catalog.Format(msgs.locale, "chooseAJavaScriptOrTypeScriptFile", nil)
 }
 
 // ChooseAnOpenAPI3XOr says "choose an OpenAPI 3.x or Swagger 2.0 document"
@@ -5262,16 +5264,6 @@ func (msgs Messages) ExplicitAccessToken() string {
 	return Catalog.Format(msgs.locale, "explicitAccessToken", nil)
 }
 
-// ExportAPluginVariableOfType says "export a Plugin variable of type plugin.Definition"
-// in the language the app shows.
-func ExportAPluginVariableOfType() string { return In(i18n.Locale()).ExportAPluginVariableOfType() }
-
-// ExportAPluginVariableOfType says "export a Plugin variable of type plugin.Definition"
-// in the language of msgs.
-func (msgs Messages) ExportAPluginVariableOfType() string {
-	return Catalog.Format(msgs.locale, "exportAPluginVariableOfType", nil)
-}
-
 // ExportCountWorkspaces says "{count, plural, =0 {Export Nothing} one {Export Workspace} other {Export # Workspaces}}"
 // in the language the app shows.
 func ExportCountWorkspaces(count int) string { return In(i18n.Locale()).ExportCountWorkspaces(count) }
@@ -5310,6 +5302,16 @@ func ExportName(name string) string { return In(i18n.Locale()).ExportName(name) 
 // in the language of msgs.
 func (msgs Messages) ExportName(name string) string {
 	return Catalog.Format(msgs.locale, "exportName", map[string]any{"name": name})
+}
+
+// ExportThePluginAsTheDefault says "export the plugin as the default export"
+// in the language the app shows.
+func ExportThePluginAsTheDefault() string { return In(i18n.Locale()).ExportThePluginAsTheDefault() }
+
+// ExportThePluginAsTheDefault says "export the plugin as the default export"
+// in the language of msgs.
+func (msgs Messages) ExportThePluginAsTheDefault() string {
+	return Catalog.Format(msgs.locale, "exportThePluginAsTheDefault", nil)
 }
 
 // ExportWorkspaceEllipsis says "Export Workspace…"
@@ -6566,24 +6568,16 @@ func (msgs Messages) GoneFromTheSourceSinceThe() string {
 	return Catalog.Format(msgs.locale, "goneFromTheSourceSinceThe", nil)
 }
 
-// GoPlugin says "Go Plugin"
+// GoPluginsAreNoLongerSupportedRewrite says "Go plugins are no longer supported. Rewrite this plugin in JavaScript or TypeScript."
 // in the language the app shows.
-func GoPlugin() string { return In(i18n.Locale()).GoPlugin() }
-
-// GoPlugin says "Go Plugin"
-// in the language of msgs.
-func (msgs Messages) GoPlugin() string {
-	return Catalog.Format(msgs.locale, "goPlugin", nil)
+func GoPluginsAreNoLongerSupportedRewrite() string {
+	return In(i18n.Locale()).GoPluginsAreNoLongerSupportedRewrite()
 }
 
-// GoPluginsCanAccessYourFiles says "Go plugins can access your files and network. Load plugins you trust."
-// in the language the app shows.
-func GoPluginsCanAccessYourFiles() string { return In(i18n.Locale()).GoPluginsCanAccessYourFiles() }
-
-// GoPluginsCanAccessYourFiles says "Go plugins can access your files and network. Load plugins you trust."
+// GoPluginsAreNoLongerSupportedRewrite says "Go plugins are no longer supported. Rewrite this plugin in JavaScript or TypeScript."
 // in the language of msgs.
-func (msgs Messages) GoPluginsCanAccessYourFiles() string {
-	return Catalog.Format(msgs.locale, "goPluginsCanAccessYourFiles", nil)
+func (msgs Messages) GoPluginsAreNoLongerSupportedRewrite() string {
+	return Catalog.Format(msgs.locale, "goPluginsAreNoLongerSupportedRewrite", nil)
 }
 
 // GoToLine says "Go to line"
@@ -7888,6 +7882,16 @@ func (msgs Messages) JarCookies(jar string) string {
 	return Catalog.Format(msgs.locale, "jarCookies", map[string]any{"jar": jar})
 }
 
+// JavaScriptOrTypeScript says "JavaScript or TypeScript"
+// in the language the app shows.
+func JavaScriptOrTypeScript() string { return In(i18n.Locale()).JavaScriptOrTypeScript() }
+
+// JavaScriptOrTypeScript says "JavaScript or TypeScript"
+// in the language of msgs.
+func (msgs Messages) JavaScriptOrTypeScript() string {
+	return Catalog.Format(msgs.locale, "javaScriptOrTypeScript", nil)
+}
+
 // JSONBodySettings says "JSON body settings"
 // in the language the app shows.
 func JSONBodySettings() string { return In(i18n.Locale()).JSONBodySettings() }
@@ -8154,26 +8158,6 @@ func (msgs Messages) LoadADifferentFileEllipsis() string {
 	return Catalog.Format(msgs.locale, "loadADifferentFileEllipsis", nil)
 }
 
-// LoadGoPlugin says "Load Go Plugin"
-// in the language the app shows.
-func LoadGoPlugin() string { return In(i18n.Locale()).LoadGoPlugin() }
-
-// LoadGoPlugin says "Load Go Plugin"
-// in the language of msgs.
-func (msgs Messages) LoadGoPlugin() string {
-	return Catalog.Format(msgs.locale, "loadGoPlugin", nil)
-}
-
-// LoadGoPluginEllipsis says "Load Go Plugin…"
-// in the language the app shows.
-func LoadGoPluginEllipsis() string { return In(i18n.Locale()).LoadGoPluginEllipsis() }
-
-// LoadGoPluginEllipsis says "Load Go Plugin…"
-// in the language of msgs.
-func (msgs Messages) LoadGoPluginEllipsis() string {
-	return Catalog.Format(msgs.locale, "loadGoPluginEllipsis", nil)
-}
-
 // LoadGraphQLSchema says "Load GraphQL Schema"
 // in the language the app shows.
 func LoadGraphQLSchema() string { return In(i18n.Locale()).LoadGraphQLSchema() }
@@ -8192,6 +8176,26 @@ func LoadingSchema() string { return In(i18n.Locale()).LoadingSchema() }
 // in the language of msgs.
 func (msgs Messages) LoadingSchema() string {
 	return Catalog.Format(msgs.locale, "loadingSchema", nil)
+}
+
+// LoadPlugin says "Load Plugin"
+// in the language the app shows.
+func LoadPlugin() string { return In(i18n.Locale()).LoadPlugin() }
+
+// LoadPlugin says "Load Plugin"
+// in the language of msgs.
+func (msgs Messages) LoadPlugin() string {
+	return Catalog.Format(msgs.locale, "loadPlugin", nil)
+}
+
+// LoadPluginEllipsis says "Load Plugin…"
+// in the language the app shows.
+func LoadPluginEllipsis() string { return In(i18n.Locale()).LoadPluginEllipsis() }
+
+// LoadPluginEllipsis says "Load Plugin…"
+// in the language of msgs.
+func (msgs Messages) LoadPluginEllipsis() string {
+	return Catalog.Format(msgs.locale, "loadPluginEllipsis", nil)
 }
 
 // LoadSchemaFromFileEllipsis says "Load Schema from File…"
@@ -8264,11 +8268,11 @@ func (msgs Messages) MakeSharable() string {
 	return Catalog.Format(msgs.locale, "makeSharable", nil)
 }
 
-// MakeYeekYourOwnBySelecting says "Make Yeek your own by selecting a theme, or create your own with a Go plugin."
+// MakeYeekYourOwnBySelecting says "Make Yeek your own by selecting a theme, or create your own with a plugin."
 // in the language the app shows.
 func MakeYeekYourOwnBySelecting() string { return In(i18n.Locale()).MakeYeekYourOwnBySelecting() }
 
-// MakeYeekYourOwnBySelecting says "Make Yeek your own by selecting a theme, or create your own with a Go plugin."
+// MakeYeekYourOwnBySelecting says "Make Yeek your own by selecting a theme, or create your own with a plugin."
 // in the language of msgs.
 func (msgs Messages) MakeYeekYourOwnBySelecting() string {
 	return Catalog.Format(msgs.locale, "makeYeekYourOwnBySelecting", nil)
@@ -10672,6 +10676,16 @@ func (msgs Messages) PluginActionIsUnavailable() string {
 	return Catalog.Format(msgs.locale, "pluginActionIsUnavailable", nil)
 }
 
+// PluginBodyMustBeTextOrBytes says "plugin body must be text or bytes"
+// in the language the app shows.
+func PluginBodyMustBeTextOrBytes() string { return In(i18n.Locale()).PluginBodyMustBeTextOrBytes() }
+
+// PluginBodyMustBeTextOrBytes says "plugin body must be text or bytes"
+// in the language of msgs.
+func (msgs Messages) PluginBodyMustBeTextOrBytes() string {
+	return Catalog.Format(msgs.locale, "pluginBodyMustBeTextOrBytes", nil)
+}
+
 // PluginInitializationFailedFailure says "plugin initialization failed: {failure}"
 // in the language the app shows.
 func PluginInitializationFailedFailure(failure string) string {
@@ -10682,18 +10696,6 @@ func PluginInitializationFailedFailure(failure string) string {
 // in the language of msgs.
 func (msgs Messages) PluginInitializationFailedFailure(failure string) string {
 	return Catalog.Format(msgs.locale, "pluginInitializationFailedFailure", map[string]any{"failure": failure})
-}
-
-// PluginMustHaveTypePluginDefinition says "plugin must have type plugin.Definition"
-// in the language the app shows.
-func PluginMustHaveTypePluginDefinition() string {
-	return In(i18n.Locale()).PluginMustHaveTypePluginDefinition()
-}
-
-// PluginMustHaveTypePluginDefinition says "plugin must have type plugin.Definition"
-// in the language of msgs.
-func (msgs Messages) PluginMustHaveTypePluginDefinition() string {
-	return Catalog.Format(msgs.locale, "pluginMustHaveTypePluginDefinition", nil)
 }
 
 // PluginNameFailedFailure says "plugin {name} failed: {failure}"
@@ -10718,6 +10720,16 @@ func (msgs Messages) PluginNeedsAName() string {
 	return Catalog.Format(msgs.locale, "pluginNeedsAName", nil)
 }
 
+// PluginNeverFinished says "plugin never finished"
+// in the language the app shows.
+func PluginNeverFinished() string { return In(i18n.Locale()).PluginNeverFinished() }
+
+// PluginNeverFinished says "plugin never finished"
+// in the language of msgs.
+func (msgs Messages) PluginNeverFinished() string {
+	return Catalog.Format(msgs.locale, "pluginNeverFinished", nil)
+}
+
 // Plugins says "Plugins"
 // in the language the app shows.
 func Plugins() string { return In(i18n.Locale()).Plugins() }
@@ -10726,6 +10738,26 @@ func Plugins() string { return In(i18n.Locale()).Plugins() }
 // in the language of msgs.
 func (msgs Messages) Plugins() string {
 	return Catalog.Format(msgs.locale, "plugins", nil)
+}
+
+// PluginsAreASingleFileBundle says "plugins are a single file: bundle what it imports"
+// in the language the app shows.
+func PluginsAreASingleFileBundle() string { return In(i18n.Locale()).PluginsAreASingleFileBundle() }
+
+// PluginsAreASingleFileBundle says "plugins are a single file: bundle what it imports"
+// in the language of msgs.
+func (msgs Messages) PluginsAreASingleFileBundle() string {
+	return Catalog.Format(msgs.locale, "pluginsAreASingleFileBundle", nil)
+}
+
+// PluginsCanReachTheNetworkLoad says "Plugins can reach the network, but not your files. Load plugins you trust."
+// in the language the app shows.
+func PluginsCanReachTheNetworkLoad() string { return In(i18n.Locale()).PluginsCanReachTheNetworkLoad() }
+
+// PluginsCanReachTheNetworkLoad says "Plugins can reach the network, but not your files. Load plugins you trust."
+// in the language of msgs.
+func (msgs Messages) PluginsCanReachTheNetworkLoad() string {
+	return Catalog.Format(msgs.locale, "pluginsCanReachTheNetworkLoad", nil)
 }
 
 // Port says "Port"
