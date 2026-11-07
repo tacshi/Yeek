@@ -332,19 +332,14 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 	ui.Column(c).Fill().Background(p.sidebar).BorderWidth(0, 1, 0, 0).BorderColor(p.border).Children(func() {
 		if len(a.treeItems("")) > 0 {
 			ui.Row(c).Shrink(0).Padding(12, 2, 0, 12).Gap(2).Children(func() {
-				ui.Row(c).Grow(1).MinWidth(0).Height(28).Radius(4).Border(1, p.border).Background(p.background).Padding(0, 2, 0, 0).Children(func() {
-					filter := ui.TextInput(c, &a.search).Placeholder(locales.Search()).Label(locales.FilterRequests()).Grow(1).MinWidth(0).Height(26).Background(ui.Transparent).Border(0, ui.Transparent).FontSize(12)
-					if a.focusFilter {
-						a.focusFilter = false
-						filter.Focus()
-					}
-					if filter.Focused() {
-						a.sidebarFocused = true
-					}
-					if a.search != "" && smallIconButton(c, "close", locales.ClearFilter()).Clicked() {
-						a.search = ""
-					}
-				})
+				filter := ui.SearchField(c, &a.search).Label(locales.FilterRequests()).Grow(1).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, p.border).Background(p.background).FontSize(12)
+				if a.focusFilter {
+					a.focusFilter = false
+					filter.Focus()
+				}
+				if filter.Focused() {
+					a.sidebarFocused = true
+				}
 				iconButton(c, "moreV", locales.ShowSidebarActionsMenu()).PopoverMenuButton(func(m *ui.Menu) {
 					if m.Item(locales.FocusActiveRequest()).Disabled(a.active == "").Chosen() {
 						a.revealInSidebar(a.active)
@@ -493,14 +488,8 @@ func (a *App) workbench(c *ui.Context, p colors) {
 		panes()
 		return
 	}
-	if a.docsSplit == 0 {
-		w, _ := c.Size()
-		if !a.hideSidebar {
-			w -= float32(a.sidebarWidth)
-		}
-		a.docsSplit = w * 2 / 3
-	}
-	splitQuiet(c, &a.docsSplit, false, panes, func() { a.graphQLDocsPane(c, p, d) }).Fill()
+	a.docsSplit = cmp.Or(a.docsSplit, 200.0/3)
+	splitQuietPercent(c, &a.docsSplit, false, panes, func() { a.graphQLDocsPane(c, p, d) }).Fill()
 }
 func (a *App) urlBar(c *ui.Context, p colors, d *Draft) {
 	ui.Row(c).Shrink(0).Children(func() {
@@ -871,7 +860,8 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 			open := !d.InheritedClosed
 			box := ui.Column(c).Shrink(0).Radius(6).Border(1, p.border).Background(p.border.Alpha(.18)).Padding(2, 0, 2, 2)
 			box.Children(func() {
-				summary := ui.ButtonBase(c).Label(locales.InheritedHeaders()).Height(28).Gap(6).Justify(ui.Start)
+				section := ui.CollapsibleBase(c, &open)
+				summary := section.Trigger.Label(locales.InheritedHeaders()).Height(28).Gap(6)
 				summary.Children(func() {
 					glyph := "chevron"
 					if open {
@@ -885,25 +875,24 @@ func (a *App) headersEditor(c *ui.Context, p colors, d *Draft) {
 					ui.Text(c, label).FontSize(12).TextColor(p.muted)
 					ui.Text(c, fmt.Sprint(len(inherited))).FontSize(10).TextColor(p.muted).Padding(0, 5).Radius(8).Border(1, p.border)
 				})
-				if summary.Clicked() {
-					d.InheritedClosed = open
+				if summary.Changed() {
+					d.InheritedClosed = !open
 				}
-				if !open {
-					return
-				}
-				ui.Column(c).Gap(4).Padding(2, 0, 6, 0).Children(func() {
-					for i, h := range inherited {
-						ui.Row(c).Key(i).Height(28).Gap(6).Opacity(.6).Children(func() {
-							on := true
-							ui.Checkbox(c, &on, "").Label(locales.InheritedHeader(h.Name)).Width(22).Disabled(true)
-							for _, text := range []string{h.Name, h.Value} {
-								ui.Row(c).Grow(1).Basis(0).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, p.border).Background(p.background).Children(func() {
-									ui.Text(c, text).Font("monospace").FontSize(12).SingleLine().MinWidth(0).Selectable()
-								})
-							}
-							ui.Box(c).Width(22).Shrink(0)
-						})
-					}
+				section.Panel(func() {
+					ui.Column(c).Gap(4).Padding(2, 0, 6, 0).Children(func() {
+						for i, h := range inherited {
+							ui.Row(c).Key(i).Height(28).Gap(6).Opacity(.6).Children(func() {
+								on := true
+								ui.Checkbox(c, &on, "").Label(locales.InheritedHeader(h.Name)).Width(22).Disabled(true)
+								for _, text := range []string{h.Name, h.Value} {
+									ui.Row(c).Grow(1).Basis(0).MinWidth(0).Height(28).Padding(0, 8).Radius(4).Border(1, p.border).Background(p.background).Children(func() {
+										ui.Text(c, text).Font("monospace").FontSize(12).SingleLine().MinWidth(0).Selectable()
+									})
+								}
+								ui.Box(c).Width(22).Shrink(0)
+							})
+						}
+					})
 				})
 			})
 		}
@@ -926,16 +915,37 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 	if len(*rows) == 0 || (*rows)[len(*rows)-1].Name != "" || (*rows)[len(*rows)-1].Value != "" || (*rows)[len(*rows)-1].FileMode || (*rows)[len(*rows)-1].File != "" {
 		*rows = append(*rows, KV{Enabled: true})
 	}
-	ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 12, 8, 2).Gap(4).Children(func() {
-		deleted := -1
-		moveFrom, moveTo := -1, -1
-		for i := range *rows {
+	for i := range *rows {
+		if (*rows)[i].ID == "" {
+			(*rows)[i].ID = uuid.NewV4().String()
+		}
+	}
+	edit := func(change func()) {
+		if !a.deferUntilInputs(change) {
+			change()
+		}
+	}
+	box := ui.Column(c).Grow(1).MinHeight(0)
+	list := localList(box)
+	list.Key = func(i int) any { return (*rows)[i].ID }
+	list.Reorder = func(moved []int, to int) {
+		from, last := moved[0], len(*rows)-1
+		if from >= last {
+			return
+		}
+		to = min(to, last)
+		if to > from {
+			to--
+		}
+		row := (*rows)[from]
+		*rows = slices.Insert(slices.Delete(*rows, from, from+1), to, row)
+		*dirty = true
+	}
+	box.Children(func() {
+		ui.List(c, list, len(*rows), func(i int) {
 			row := &(*rows)[i]
-			if row.ID == "" {
-				row.ID = uuid.NewV4().String()
-			}
 			empty := row.Name == "" && row.Value == "" && !row.FileMode && row.File == ""
-			line := ui.Row(c).Key(row.ID).Height(28).Gap(6)
+			line := ui.Row(c).Height(28).Gap(6)
 			if !row.Enabled && !empty {
 				line.Opacity(.6)
 			}
@@ -944,17 +954,6 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				border = p.border.Alpha(.6)
 			}
 			mask := a.kvMask || name == "Header" && secretHeader(row.Name)
-			side := 0
-			if _, over := ui.DragOver[pairDrag](line); over {
-				side = dropSide(line)
-			}
-			if drag, ok := ui.Drop[pairDrag](line); ok {
-				moveFrom = slices.IndexFunc(*rows, func(r KV) bool { return r.ID == drag.id })
-				moveTo = i
-				if dropSide(line) == dropAfter {
-					moveTo = i + 1
-				}
-			}
 			hovered := line.Hovered()
 			line.Children(func() {
 				if ui.Checkbox(c, &row.Enabled, "").Label(locales.EnableFieldIndex(pairNoun(name), i+1)).Width(22).Opacity(map[bool]float32{true: .3, false: 1}[empty]).Changed() {
@@ -962,11 +961,10 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				}
 				if i < len(*rows)-1 {
 					grip := ui.Box(c).Key("grip").Label(locales.DragFieldIndex(pairNoun(name), i+1)).Size(16, 28).Shrink(0).Center().Opacity(0)
-					if hovered || grip.Dragging() {
+					if hovered {
 						grip.Opacity(.7)
 					}
 					grip.Children(func() { icon(c, "grip").FontSize(14).TextColor(p.muted) })
-					grip.Drag(pairDrag{row.ID}).DragShows(line)
 				} else {
 					ui.Box(c).Width(16).Shrink(0)
 				}
@@ -1017,13 +1015,24 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 				}
 				smallIconButton(c, "more", locales.ActionsForFieldIndex(pairNoun(name), i+1)).PopoverMenuButton(func(m *ui.Menu) {
 					if m.Item(locales.Delete()).Chosen() {
-						deleted = i
+						id := row.ID
+						edit(func() {
+							*rows = slices.DeleteFunc(*rows, func(r KV) bool { return r.ID == id })
+							*dirty = true
+						})
 					}
 					if m.Item(locales.Duplicate()).Chosen() {
 						copy := *row
 						copy.ID = uuid.NewV4().String()
-						*rows = append(*rows, copy)
-						*dirty = true
+						id := row.ID
+						edit(func() {
+							at := slices.IndexFunc(*rows, func(r KV) bool { return r.ID == id }) + 1
+							if at == 0 {
+								at = len(*rows)
+							}
+							*rows = slices.Insert(*rows, at, copy)
+							*dirty = true
+						})
 					}
 					if len(files) > 0 && files[0] {
 						if m.Item(locales.FieldOptionsEllipsis()).Chosen() {
@@ -1064,33 +1073,10 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 						c.WriteClipboard(fieldValue)
 					}
 				})
-				if side != 0 {
-					marker := ui.Box(c).Key("drop").Absolute().Left(8).Right(8).Height(3).Radius(2).Background(p.accent)
-					if side == dropBefore {
-						marker.Top(-3.5)
-					} else {
-						marker.Bottom(-3.5)
-					}
-				}
 			})
-		}
-		if deleted >= 0 {
-			*rows = slices.Delete(*rows, deleted, deleted+1)
-			*dirty = true
-		} else if moveFrom >= 0 && moveTo != moveFrom {
-			moveTo = min(moveTo, len(*rows)-1)
-			moved := (*rows)[moveFrom]
-			*rows = slices.Delete(*rows, moveFrom, moveFrom+1)
-			if moveTo > moveFrom {
-				moveTo--
-			}
-			*rows = slices.Insert(*rows, moveTo, moved)
-			*dirty = true
-		}
+		}).Grow(1).MinHeight(0).Padding(8, 12, 8, 2).Gap(4)
 	})
 }
-
-type pairDrag struct{ id string }
 
 func (a *App) bodyEditor(c *ui.Context, p colors, d *Draft) {
 	if d.BodyType == "application/json" {
@@ -1138,11 +1124,7 @@ func (a *App) bodyContent(c *ui.Context, p colors, d *Draft) {
 		})
 		ui.Row(c).Padding(4, 12).Gap(8).Children(func() {
 			dashed := func() {
-				ui.Box(c).Grow(1).Height(1).Children(func() {}).Draw(func(pt *ui.Painter, r ui.Rect) {
-					for x := r.X; x < r.X+r.W; x += 6 {
-						pt.Fill(ui.Rect{X: x, Y: r.Y, W: 3, H: 1}, p.border, 0)
-					}
-				})
+				ui.Box(c).Grow(1).Height(1).BorderWidth(1, 0, 0, 0).BorderStyle(ui.BorderDashed).BorderColor(p.border)
 			}
 			dashed()
 			ui.Text(c, locales.Variables()).FontSize(12).TextColor(p.muted)

@@ -146,8 +146,8 @@ func (a *App) SendActive() {
 }
 
 func (a *App) handleHotkeys(c *ui.Context) {
-	if len(a.toasts) > 0 && c.Shortcut(0, ui.KeyEscape) {
-		a.toasts = nil
+	if a.toastsShown > 0 && c.Shortcut(0, ui.KeyEscape) {
+		c.CloseToast("")
 	}
 	if a.pressed(c, "command_palette.toggle") {
 		a.togglePalette()

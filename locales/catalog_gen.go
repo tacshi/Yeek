@@ -1490,14 +1490,16 @@ func (msgs Messages) ChooseAFileFolderURLOr() string {
 	return Catalog.Format(msgs.locale, "chooseAFileFolderURLOr", nil)
 }
 
-// ChooseAGoSourceFile says "choose a Go source file"
+// ChooseAJavaScriptOrTypeScriptFile says "choose a JavaScript or TypeScript file"
 // in the language the app shows.
-func ChooseAGoSourceFile() string { return In(i18n.Locale()).ChooseAGoSourceFile() }
+func ChooseAJavaScriptOrTypeScriptFile() string {
+	return In(i18n.Locale()).ChooseAJavaScriptOrTypeScriptFile()
+}
 
-// ChooseAGoSourceFile says "choose a Go source file"
+// ChooseAJavaScriptOrTypeScriptFile says "choose a JavaScript or TypeScript file"
 // in the language of msgs.
-func (msgs Messages) ChooseAGoSourceFile() string {
-	return Catalog.Format(msgs.locale, "chooseAGoSourceFile", nil)
+func (msgs Messages) ChooseAJavaScriptOrTypeScriptFile() string {
+	return Catalog.Format(msgs.locale, "chooseAJavaScriptOrTypeScriptFile", nil)
 }
 
 // ChooseAnOpenAPI3XOr says "choose an OpenAPI 3.x or Swagger 2.0 document"
@@ -1732,16 +1734,6 @@ func ClearConnection() string { return In(i18n.Locale()).ClearConnection() }
 // in the language of msgs.
 func (msgs Messages) ClearConnection() string {
 	return Catalog.Format(msgs.locale, "clearConnection", nil)
-}
-
-// ClearCookieFilter says "Clear cookie filter"
-// in the language the app shows.
-func ClearCookieFilter() string { return In(i18n.Locale()).ClearCookieFilter() }
-
-// ClearCookieFilter says "Clear cookie filter"
-// in the language of msgs.
-func (msgs Messages) ClearCookieFilter() string {
-	return Catalog.Format(msgs.locale, "clearCookieFilter", nil)
 }
 
 // ClearCountConnections says "Clear {count, plural, one {# Connection} other {# Connections}}"
@@ -2898,16 +2890,6 @@ func (msgs Messages) CountBytes(count int) string {
 	return Catalog.Format(msgs.locale, "countBytes", map[string]any{"count": count})
 }
 
-// CountDaysAgo says "{count, plural, one {# day ago} other {# days ago}}"
-// in the language the app shows.
-func CountDaysAgo(count int) string { return In(i18n.Locale()).CountDaysAgo(count) }
-
-// CountDaysAgo says "{count, plural, one {# day ago} other {# days ago}}"
-// in the language of msgs.
-func (msgs Messages) CountDaysAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countDaysAgo", map[string]any{"count": count})
-}
-
 // CountEnvironments says "{count, plural, one {# Environment} other {# Environments}}"
 // in the language the app shows.
 func CountEnvironments(count int) string { return In(i18n.Locale()).CountEnvironments(count) }
@@ -2948,16 +2930,6 @@ func (msgs Messages) CountGRPCRequests(count int) string {
 	return Catalog.Format(msgs.locale, "countGRPCRequests", map[string]any{"count": count})
 }
 
-// CountHoursAgo says "{count, plural, one {# hour ago} other {# hours ago}}"
-// in the language the app shows.
-func CountHoursAgo(count int) string { return In(i18n.Locale()).CountHoursAgo(count) }
-
-// CountHoursAgo says "{count, plural, one {# hour ago} other {# hours ago}}"
-// in the language of msgs.
-func (msgs Messages) CountHoursAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countHoursAgo", map[string]any{"count": count})
-}
-
 // CountHTTPRequests says "{count, plural, one {# HTTP Request} other {# HTTP Requests}}"
 // in the language the app shows.
 func CountHTTPRequests(count int) string { return In(i18n.Locale()).CountHTTPRequests(count) }
@@ -2976,26 +2948,6 @@ func CountMessages(count int) string { return In(i18n.Locale()).CountMessages(co
 // in the language of msgs.
 func (msgs Messages) CountMessages(count int) string {
 	return Catalog.Format(msgs.locale, "countMessages", map[string]any{"count": count})
-}
-
-// CountMinutesAgo says "{count, plural, one {# minute ago} other {# minutes ago}}"
-// in the language the app shows.
-func CountMinutesAgo(count int) string { return In(i18n.Locale()).CountMinutesAgo(count) }
-
-// CountMinutesAgo says "{count, plural, one {# minute ago} other {# minutes ago}}"
-// in the language of msgs.
-func (msgs Messages) CountMinutesAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countMinutesAgo", map[string]any{"count": count})
-}
-
-// CountMonthsAgo says "{count, plural, one {# month ago} other {# months ago}}"
-// in the language the app shows.
-func CountMonthsAgo(count int) string { return In(i18n.Locale()).CountMonthsAgo(count) }
-
-// CountMonthsAgo says "{count, plural, one {# month ago} other {# months ago}}"
-// in the language of msgs.
-func (msgs Messages) CountMonthsAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countMonthsAgo", map[string]any{"count": count})
 }
 
 // CountNewWorkspaces says "{count, number} new workspaces"
@@ -3042,16 +2994,6 @@ func (msgs Messages) CountResourcesUnchanged(count int) string {
 	return Catalog.Format(msgs.locale, "countResourcesUnchanged", map[string]any{"count": count})
 }
 
-// CountSecondsAgo says "{count, plural, one {# second ago} other {# seconds ago}}"
-// in the language the app shows.
-func CountSecondsAgo(count int) string { return In(i18n.Locale()).CountSecondsAgo(count) }
-
-// CountSecondsAgo says "{count, plural, one {# second ago} other {# seconds ago}}"
-// in the language of msgs.
-func (msgs Messages) CountSecondsAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countSecondsAgo", map[string]any{"count": count})
-}
-
 // CountUnchangedLines says "{count, plural, one {# unchanged line} other {# unchanged lines}}"
 // in the language the app shows.
 func CountUnchangedLines(count int) string { return In(i18n.Locale()).CountUnchangedLines(count) }
@@ -3080,16 +3022,6 @@ func CountWorkspaces(count int) string { return In(i18n.Locale()).CountWorkspace
 // in the language of msgs.
 func (msgs Messages) CountWorkspaces(count int) string {
 	return Catalog.Format(msgs.locale, "countWorkspaces", map[string]any{"count": count})
-}
-
-// CountYearsAgo says "{count, plural, one {# year ago} other {# years ago}}"
-// in the language the app shows.
-func CountYearsAgo(count int) string { return In(i18n.Locale()).CountYearsAgo(count) }
-
-// CountYearsAgo says "{count, plural, one {# year ago} other {# years ago}}"
-// in the language of msgs.
-func (msgs Messages) CountYearsAgo(count int) string {
-	return Catalog.Format(msgs.locale, "countYearsAgo", map[string]any{"count": count})
 }
 
 // Create says "create"
@@ -4166,6 +4098,16 @@ func DNSResolution() string { return In(i18n.Locale()).DNSResolution() }
 // in the language of msgs.
 func (msgs Messages) DNSResolution() string {
 	return Catalog.Format(msgs.locale, "DNSResolution", nil)
+}
+
+// DocumentationPath says "Documentation path"
+// in the language the app shows.
+func DocumentationPath() string { return In(i18n.Locale()).DocumentationPath() }
+
+// DocumentationPath says "Documentation path"
+// in the language of msgs.
+func (msgs Messages) DocumentationPath() string {
+	return Catalog.Format(msgs.locale, "documentationPath", nil)
 }
 
 // DocumentationUnavailableWithoutASchema says "Documentation unavailable without a schema"
@@ -5322,16 +5264,6 @@ func (msgs Messages) ExplicitAccessToken() string {
 	return Catalog.Format(msgs.locale, "explicitAccessToken", nil)
 }
 
-// ExportAPluginVariableOfType says "export a Plugin variable of type plugin.Definition"
-// in the language the app shows.
-func ExportAPluginVariableOfType() string { return In(i18n.Locale()).ExportAPluginVariableOfType() }
-
-// ExportAPluginVariableOfType says "export a Plugin variable of type plugin.Definition"
-// in the language of msgs.
-func (msgs Messages) ExportAPluginVariableOfType() string {
-	return Catalog.Format(msgs.locale, "exportAPluginVariableOfType", nil)
-}
-
 // ExportCountWorkspaces says "{count, plural, =0 {Export Nothing} one {Export Workspace} other {Export # Workspaces}}"
 // in the language the app shows.
 func ExportCountWorkspaces(count int) string { return In(i18n.Locale()).ExportCountWorkspaces(count) }
@@ -5370,6 +5302,16 @@ func ExportName(name string) string { return In(i18n.Locale()).ExportName(name) 
 // in the language of msgs.
 func (msgs Messages) ExportName(name string) string {
 	return Catalog.Format(msgs.locale, "exportName", map[string]any{"name": name})
+}
+
+// ExportThePluginAsTheDefault says "export the plugin as the default export"
+// in the language the app shows.
+func ExportThePluginAsTheDefault() string { return In(i18n.Locale()).ExportThePluginAsTheDefault() }
+
+// ExportThePluginAsTheDefault says "export the plugin as the default export"
+// in the language of msgs.
+func (msgs Messages) ExportThePluginAsTheDefault() string {
+	return Catalog.Format(msgs.locale, "exportThePluginAsTheDefault", nil)
 }
 
 // ExportWorkspaceEllipsis says "Export Workspace…"
@@ -6626,24 +6568,16 @@ func (msgs Messages) GoneFromTheSourceSinceThe() string {
 	return Catalog.Format(msgs.locale, "goneFromTheSourceSinceThe", nil)
 }
 
-// GoPlugin says "Go Plugin"
+// GoPluginsAreNoLongerSupportedRewrite says "Go plugins are no longer supported. Rewrite this plugin in JavaScript or TypeScript."
 // in the language the app shows.
-func GoPlugin() string { return In(i18n.Locale()).GoPlugin() }
-
-// GoPlugin says "Go Plugin"
-// in the language of msgs.
-func (msgs Messages) GoPlugin() string {
-	return Catalog.Format(msgs.locale, "goPlugin", nil)
+func GoPluginsAreNoLongerSupportedRewrite() string {
+	return In(i18n.Locale()).GoPluginsAreNoLongerSupportedRewrite()
 }
 
-// GoPluginsCanAccessYourFiles says "Go plugins can access your files and network. Load plugins you trust."
-// in the language the app shows.
-func GoPluginsCanAccessYourFiles() string { return In(i18n.Locale()).GoPluginsCanAccessYourFiles() }
-
-// GoPluginsCanAccessYourFiles says "Go plugins can access your files and network. Load plugins you trust."
+// GoPluginsAreNoLongerSupportedRewrite says "Go plugins are no longer supported. Rewrite this plugin in JavaScript or TypeScript."
 // in the language of msgs.
-func (msgs Messages) GoPluginsCanAccessYourFiles() string {
-	return Catalog.Format(msgs.locale, "goPluginsCanAccessYourFiles", nil)
+func (msgs Messages) GoPluginsAreNoLongerSupportedRewrite() string {
+	return Catalog.Format(msgs.locale, "goPluginsAreNoLongerSupportedRewrite", nil)
 }
 
 // GoToLine says "Go to line"
@@ -7948,6 +7882,16 @@ func (msgs Messages) JarCookies(jar string) string {
 	return Catalog.Format(msgs.locale, "jarCookies", map[string]any{"jar": jar})
 }
 
+// JavaScriptOrTypeScript says "JavaScript or TypeScript"
+// in the language the app shows.
+func JavaScriptOrTypeScript() string { return In(i18n.Locale()).JavaScriptOrTypeScript() }
+
+// JavaScriptOrTypeScript says "JavaScript or TypeScript"
+// in the language of msgs.
+func (msgs Messages) JavaScriptOrTypeScript() string {
+	return Catalog.Format(msgs.locale, "javaScriptOrTypeScript", nil)
+}
+
 // JSONBodySettings says "JSON body settings"
 // in the language the app shows.
 func JSONBodySettings() string { return In(i18n.Locale()).JSONBodySettings() }
@@ -8214,26 +8158,6 @@ func (msgs Messages) LoadADifferentFileEllipsis() string {
 	return Catalog.Format(msgs.locale, "loadADifferentFileEllipsis", nil)
 }
 
-// LoadGoPlugin says "Load Go Plugin"
-// in the language the app shows.
-func LoadGoPlugin() string { return In(i18n.Locale()).LoadGoPlugin() }
-
-// LoadGoPlugin says "Load Go Plugin"
-// in the language of msgs.
-func (msgs Messages) LoadGoPlugin() string {
-	return Catalog.Format(msgs.locale, "loadGoPlugin", nil)
-}
-
-// LoadGoPluginEllipsis says "Load Go Plugin…"
-// in the language the app shows.
-func LoadGoPluginEllipsis() string { return In(i18n.Locale()).LoadGoPluginEllipsis() }
-
-// LoadGoPluginEllipsis says "Load Go Plugin…"
-// in the language of msgs.
-func (msgs Messages) LoadGoPluginEllipsis() string {
-	return Catalog.Format(msgs.locale, "loadGoPluginEllipsis", nil)
-}
-
 // LoadGraphQLSchema says "Load GraphQL Schema"
 // in the language the app shows.
 func LoadGraphQLSchema() string { return In(i18n.Locale()).LoadGraphQLSchema() }
@@ -8252,6 +8176,26 @@ func LoadingSchema() string { return In(i18n.Locale()).LoadingSchema() }
 // in the language of msgs.
 func (msgs Messages) LoadingSchema() string {
 	return Catalog.Format(msgs.locale, "loadingSchema", nil)
+}
+
+// LoadPlugin says "Load Plugin"
+// in the language the app shows.
+func LoadPlugin() string { return In(i18n.Locale()).LoadPlugin() }
+
+// LoadPlugin says "Load Plugin"
+// in the language of msgs.
+func (msgs Messages) LoadPlugin() string {
+	return Catalog.Format(msgs.locale, "loadPlugin", nil)
+}
+
+// LoadPluginEllipsis says "Load Plugin…"
+// in the language the app shows.
+func LoadPluginEllipsis() string { return In(i18n.Locale()).LoadPluginEllipsis() }
+
+// LoadPluginEllipsis says "Load Plugin…"
+// in the language of msgs.
+func (msgs Messages) LoadPluginEllipsis() string {
+	return Catalog.Format(msgs.locale, "loadPluginEllipsis", nil)
 }
 
 // LoadSchemaFromFileEllipsis says "Load Schema from File…"
@@ -8324,11 +8268,11 @@ func (msgs Messages) MakeSharable() string {
 	return Catalog.Format(msgs.locale, "makeSharable", nil)
 }
 
-// MakeYeekYourOwnBySelecting says "Make Yeek your own by selecting a theme, or create your own with a Go plugin."
+// MakeYeekYourOwnBySelecting says "Make Yeek your own by selecting a theme, or create your own with a plugin."
 // in the language the app shows.
 func MakeYeekYourOwnBySelecting() string { return In(i18n.Locale()).MakeYeekYourOwnBySelecting() }
 
-// MakeYeekYourOwnBySelecting says "Make Yeek your own by selecting a theme, or create your own with a Go plugin."
+// MakeYeekYourOwnBySelecting says "Make Yeek your own by selecting a theme, or create your own with a plugin."
 // in the language of msgs.
 func (msgs Messages) MakeYeekYourOwnBySelecting() string {
 	return Catalog.Format(msgs.locale, "makeYeekYourOwnBySelecting", nil)
@@ -10732,6 +10676,16 @@ func (msgs Messages) PluginActionIsUnavailable() string {
 	return Catalog.Format(msgs.locale, "pluginActionIsUnavailable", nil)
 }
 
+// PluginBodyMustBeTextOrBytes says "plugin body must be text or bytes"
+// in the language the app shows.
+func PluginBodyMustBeTextOrBytes() string { return In(i18n.Locale()).PluginBodyMustBeTextOrBytes() }
+
+// PluginBodyMustBeTextOrBytes says "plugin body must be text or bytes"
+// in the language of msgs.
+func (msgs Messages) PluginBodyMustBeTextOrBytes() string {
+	return Catalog.Format(msgs.locale, "pluginBodyMustBeTextOrBytes", nil)
+}
+
 // PluginInitializationFailedFailure says "plugin initialization failed: {failure}"
 // in the language the app shows.
 func PluginInitializationFailedFailure(failure string) string {
@@ -10742,18 +10696,6 @@ func PluginInitializationFailedFailure(failure string) string {
 // in the language of msgs.
 func (msgs Messages) PluginInitializationFailedFailure(failure string) string {
 	return Catalog.Format(msgs.locale, "pluginInitializationFailedFailure", map[string]any{"failure": failure})
-}
-
-// PluginMustHaveTypePluginDefinition says "plugin must have type plugin.Definition"
-// in the language the app shows.
-func PluginMustHaveTypePluginDefinition() string {
-	return In(i18n.Locale()).PluginMustHaveTypePluginDefinition()
-}
-
-// PluginMustHaveTypePluginDefinition says "plugin must have type plugin.Definition"
-// in the language of msgs.
-func (msgs Messages) PluginMustHaveTypePluginDefinition() string {
-	return Catalog.Format(msgs.locale, "pluginMustHaveTypePluginDefinition", nil)
 }
 
 // PluginNameFailedFailure says "plugin {name} failed: {failure}"
@@ -10768,6 +10710,42 @@ func (msgs Messages) PluginNameFailedFailure(name string, failure string) string
 	return Catalog.Format(msgs.locale, "pluginNameFailedFailure", map[string]any{"name": name, "failure": failure})
 }
 
+// PluginNameStoppedAfterSeconds says "plugin {name} was stopped after {seconds} seconds"
+// in the language the app shows.
+func PluginNameStoppedAfterSeconds(name string, seconds string) string {
+	return In(i18n.Locale()).PluginNameStoppedAfterSeconds(name, seconds)
+}
+
+// PluginNameStoppedAfterSeconds says "plugin {name} was stopped after {seconds} seconds"
+// in the language of msgs.
+func (msgs Messages) PluginNameStoppedAfterSeconds(name string, seconds string) string {
+	return Catalog.Format(msgs.locale, "pluginNameStoppedAfterSeconds", map[string]any{"name": name, "seconds": seconds})
+}
+
+// PluginNameUsedMoreThanMegabytes says "plugin {name} was stopped for using more than {megabytes} MB of memory"
+// in the language the app shows.
+func PluginNameUsedMoreThanMegabytes(name string, megabytes string) string {
+	return In(i18n.Locale()).PluginNameUsedMoreThanMegabytes(name, megabytes)
+}
+
+// PluginNameUsedMoreThanMegabytes says "plugin {name} was stopped for using more than {megabytes} MB of memory"
+// in the language of msgs.
+func (msgs Messages) PluginNameUsedMoreThanMegabytes(name string, megabytes string) string {
+	return Catalog.Format(msgs.locale, "pluginNameUsedMoreThanMegabytes", map[string]any{"name": name, "megabytes": megabytes})
+}
+
+// PluginNameWasReloadedTryAgain says "plugin {name} was reloaded, try again"
+// in the language the app shows.
+func PluginNameWasReloadedTryAgain(name string) string {
+	return In(i18n.Locale()).PluginNameWasReloadedTryAgain(name)
+}
+
+// PluginNameWasReloadedTryAgain says "plugin {name} was reloaded, try again"
+// in the language of msgs.
+func (msgs Messages) PluginNameWasReloadedTryAgain(name string) string {
+	return Catalog.Format(msgs.locale, "pluginNameWasReloadedTryAgain", map[string]any{"name": name})
+}
+
 // PluginNeedsAName says "plugin needs a name"
 // in the language the app shows.
 func PluginNeedsAName() string { return In(i18n.Locale()).PluginNeedsAName() }
@@ -10778,6 +10756,16 @@ func (msgs Messages) PluginNeedsAName() string {
 	return Catalog.Format(msgs.locale, "pluginNeedsAName", nil)
 }
 
+// PluginNeverFinished says "plugin never finished"
+// in the language the app shows.
+func PluginNeverFinished() string { return In(i18n.Locale()).PluginNeverFinished() }
+
+// PluginNeverFinished says "plugin never finished"
+// in the language of msgs.
+func (msgs Messages) PluginNeverFinished() string {
+	return Catalog.Format(msgs.locale, "pluginNeverFinished", nil)
+}
+
 // Plugins says "Plugins"
 // in the language the app shows.
 func Plugins() string { return In(i18n.Locale()).Plugins() }
@@ -10786,6 +10774,26 @@ func Plugins() string { return In(i18n.Locale()).Plugins() }
 // in the language of msgs.
 func (msgs Messages) Plugins() string {
 	return Catalog.Format(msgs.locale, "plugins", nil)
+}
+
+// PluginsAreASingleFileBundle says "plugins are a single file: bundle what it imports"
+// in the language the app shows.
+func PluginsAreASingleFileBundle() string { return In(i18n.Locale()).PluginsAreASingleFileBundle() }
+
+// PluginsAreASingleFileBundle says "plugins are a single file: bundle what it imports"
+// in the language of msgs.
+func (msgs Messages) PluginsAreASingleFileBundle() string {
+	return Catalog.Format(msgs.locale, "pluginsAreASingleFileBundle", nil)
+}
+
+// PluginsCanReachTheNetworkLoad says "Plugins can reach the network, but not your files. Load plugins you trust."
+// in the language the app shows.
+func PluginsCanReachTheNetworkLoad() string { return In(i18n.Locale()).PluginsCanReachTheNetworkLoad() }
+
+// PluginsCanReachTheNetworkLoad says "Plugins can reach the network, but not your files. Load plugins you trust."
+// in the language of msgs.
+func (msgs Messages) PluginsCanReachTheNetworkLoad() string {
+	return Catalog.Format(msgs.locale, "pluginsCanReachTheNetworkLoad", nil)
 }
 
 // Port says "Port"

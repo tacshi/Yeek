@@ -329,30 +329,24 @@ func (a *App) eventStreamView(c *ui.Context, p colors, d *Draft, raw string) {
 		return
 	}
 	d.EventIndex = max(0, min(d.EventIndex, len(events)-1))
-	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-		ui.Scroll(c).Height(220).Shrink(0).Padding(4, 12, 4, 0).Gap(1).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-			for i, event := range events {
-				row := ui.ButtonBase(c).Key(i).Label(locales.EventId(event.ID)).FillWidth().Height(28).Padding(0, 8).Gap(8).Radius(4).Justify(ui.Start)
-				if i == d.EventIndex {
-					row.Background(p.border.Alpha(.55))
-				} else if row.Hovered() {
-					row.Background(p.border.Alpha(.3))
+	box := ui.Column(c).Grow(1).MinHeight(0)
+	state := localList(box)
+	state.Selected = &d.EventIndex
+	state.Label = func(i int) string { return locales.EventId(events[i].ID) }
+	box.Children(func() {
+		quietList(c, p, state, len(events), func(i int) {
+			event := events[i]
+			ui.Row(c).Height(28).Padding(0, 8).Gap(8).Children(func() {
+				icon(c, "download").FontSize(13).TextColor(p.blue)
+				if event.Event != "" && event.Event != "message" {
+					ui.Text(c, event.Event).Font("monospace").FontSize(11).TextColor(p.accent).Shrink(0)
 				}
-				row.Children(func() {
-					icon(c, "download").FontSize(13).TextColor(p.blue)
-					if event.Event != "" && event.Event != "message" {
-						ui.Text(c, event.Event).Font("monospace").FontSize(11).TextColor(p.accent).Shrink(0)
-					}
-					ui.Text(c, strings.ReplaceAll(event.Data, "\n", " ")).FontSize(12).SingleLine().Grow(1).MinWidth(0)
-					if event.ID != "" {
-						ui.Text(c, event.ID).Font("monospace").FontSize(11).TextColor(p.subtle).Shrink(0)
-					}
-				})
-				if row.Clicked() {
-					d.EventIndex = i
+				ui.Text(c, strings.ReplaceAll(event.Data, "\n", " ")).FontSize(12).SingleLine().Grow(1).MinWidth(0)
+				if event.ID != "" {
+					ui.Text(c, event.ID).Font("monospace").FontSize(11).TextColor(p.subtle).Shrink(0)
 				}
-			}
-		})
+			})
+		}).Height(220).Shrink(0).Padding(4, 12, 4, 0).Gap(1).BorderWidth(0, 0, 1, 0).BorderColor(p.border)
 		event := events[d.EventIndex]
 		data, language := event.Data, ""
 		if pretty := jsontext.Value(event.Data); pretty.Indent(jsontext.WithIndent("  ")) == nil {

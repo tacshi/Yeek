@@ -189,9 +189,9 @@ func (e *Engine) ReadImport(ctx context.Context, input ImportInput, workspace st
 		models, err = ParseImport(data)
 	}
 	if err != nil {
-		if pluginModels, pluginErr := e.pluginImport(ctx, string(data)); pluginErr == nil {
+		if name, pluginModels, pluginErr := e.pluginImport(ctx, string(data)); pluginErr == nil {
 			models = pluginModels
-			format = "Go plugin"
+			format = name
 		} else {
 			return ImportDocument{}, err
 		}

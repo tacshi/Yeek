@@ -704,20 +704,23 @@ func (a *App) eventViewer(c *ui.Context, p colors, d *Draft, conn engine.Object,
 		d.ConnEvent = -1
 	}
 	list := func() {
-		ui.Scroll(c).Fill().Padding(0, 12, 4, 4).Gap(1).Children(func() {
+		box := ui.Column(c).Fill()
+		state := localList(box)
+		state.Selected = &d.ConnEvent
+		state.Key = func(i int) any { return s(events[i], "id") }
+		state.Label = func(i int) string {
+			_, _, content, _ := connectionEventDisplay(d, events[i], p)
+			return strings.Join(strings.Fields(content), " ")
+		}
+		box.Children(func() {
 			if message := s(conn, "error"); message != "" {
-				ui.Text(c, message).FontSize(12).Margin(8).Padding(8, 10).Radius(5).Border(1, p.red.Alpha(.4)).Background(p.red.Alpha(.08)).TextColor(p.red).MaxLines(6).Selectable().FillWidth()
+				ui.Text(c, message).FontSize(12).Margin(8).Padding(8, 10).Radius(5).Border(1, p.red.Alpha(.4)).Background(p.red.Alpha(.08)).TextColor(p.red).MaxLines(6).Selectable().FillWidth().Shrink(0)
 			}
-			for i, e := range events {
+			quietList(c, p, state, len(events), func(i int) {
+				e := events[i]
 				glyph, color, content, italic := connectionEventDisplay(d, e, p)
 				content = strings.Join(strings.Fields(content), " ")
-				row := ui.ButtonBase(c).Key(s(e, "id")).Label(content).FillWidth().Height(24).Padding(0, 6).Gap(8).Radius(3).Justify(ui.Start)
-				if i == d.ConnEvent {
-					row.Background(p.border.Alpha(.55))
-				} else if row.Hovered() {
-					row.Background(p.border.Alpha(.25))
-				}
-				row.Children(func() {
+				ui.Row(c).Height(24).Padding(0, 6).Gap(8).Children(func() {
 					icon(c, glyph).FontSize(13).TextColor(color).Shrink(0)
 					text := ui.Text(c, content).Font("monospace").FontSize(12).SingleLine().Grow(1).MinWidth(0)
 					if italic {
@@ -727,10 +730,7 @@ func (a *App) eventViewer(c *ui.Context, p colors, d *Draft, conn engine.Object,
 					}
 					ui.Text(c, eventTime(e)).Font("monospace").FontSize(12).TextColor(p.subtle).Shrink(0)
 				})
-				if row.Clicked() {
-					d.ConnEvent = i
-				}
-			}
+			}).Grow(1).MinHeight(0).Padding(0, 12, 4, 4).Gap(1)
 		})
 	}
 	if d.ConnEvent < 0 {

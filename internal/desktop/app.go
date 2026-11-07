@@ -103,6 +103,7 @@ type App struct {
 	fonts                                      *systemFonts
 	markdown                                   *markdown.Options
 	gitCommitSplit, gitCommitMessageSplit      float32
+	gitHistoryList                             ui.ListState
 	notEmptySyncDir                            string
 	switchTarget, moveTarget                   string
 	rememberWindow                             bool
@@ -156,8 +157,8 @@ type App struct {
 	showEnvValues, kvMask                      bool
 	newEnv                                     newEnvironmentForm
 	environmentColor                           string
-	toasts                                     []toastItem
-	toastSerial                                int
+	toastQueue                                 []ui.Toast
+	toastsShown                                int
 	folderEnvID, hotkeyFilter, recordingHotkey string
 	folderEnvRows                              []KV
 	valuePrompts                               []*valuePrompt

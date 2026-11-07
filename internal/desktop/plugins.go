@@ -32,9 +32,9 @@ func (a *App) pluginsSettings(c *ui.Context, p colors) {
 		})
 	}
 	ui.Row(c).Gap(8).Children(func() {
-		if ui.PrimaryButton(c, locales.LoadGoPluginEllipsis()).Clicked() {
+		if ui.PrimaryButton(c, locales.LoadPluginEllipsis()).Clicked() {
 			a.background(func() (func(), error) {
-				paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.LoadGoPlugin(), Filters: []mygo.FileFilter{{Name: locales.GoPlugin(), Extensions: []string{"go"}}}})
+				paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.LoadPlugin(), Filters: []mygo.FileFilter{{Name: locales.JavaScriptOrTypeScript(), Extensions: []string{"js", "mjs", "ts", "mts"}}}})
 				if err != nil || len(paths) == 0 {
 					return nil, err
 				}
@@ -46,5 +46,5 @@ func (a *App) pluginsSettings(c *ui.Context, p colors) {
 			a.background(func() (func(), error) { return nil, a.Engine.LoadPlugins(a.ctx) })
 		}
 	})
-	ui.Text(c, locales.GoPluginsCanAccessYourFiles()).FontSize(11).TextColor(p.muted)
+	ui.Text(c, locales.PluginsCanReachTheNetworkLoad()).FontSize(11).TextColor(p.muted)
 }

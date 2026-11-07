@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/yeekui"
 	"github.com/egoist/mygo/yeekui/editor"
 	"yeek/internal/engine"
@@ -658,50 +659,49 @@ func (a *App) gitRemotesDialog(c *ui.Context, p colors) {
 }
 
 func (a *App) gitHistoryDialog(c *ui.Context, p colors) {
+	count := 0
+	if a.gitState != nil {
+		count = len(a.gitState.Commits)
+	}
+	a.gitHistoryList.Key = func(row int) any { return a.gitState.Commits[row].Hash }
+	columns := []ui.TableColumn{{Title: locales.Message(), Fixed: true}, {Title: locales.Author(), Width: 140, Fixed: true}, {Title: locales.When(), Width: 110, Fixed: true}}
 	ui.Column(c).Height(420).Padding(8, 20, 12, 20).Children(func() {
-		ui.Row(c).Height(30).Gap(12).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-			ui.Text(c, locales.Message()).FontSize(12).FontWeight(600).Grow(1)
-			ui.Text(c, locales.Author()).FontSize(12).FontWeight(600).Width(140)
-			ui.Text(c, locales.When()).FontSize(12).FontWeight(600).Width(110)
-		})
-		ui.Scroll(c).Grow(1).Padding(0, 12, 0, 0).Children(func() {
-			if a.gitState == nil {
-				return
+		quietTable(c, p, &a.gitHistoryList, columns, count, func(row, col int) {
+			commit := a.gitState.Commits[row]
+			switch col {
+			case 0:
+				if commit.Message == "" {
+					ui.Text(c, locales.NoMessage()).Italic().FontSize(12).TextColor(p.muted)
+				} else {
+					ui.Text(c, commit.Message).FontSize(12).SingleLine().MinWidth(0)
+				}
+			case 1:
+				ui.Text(c, cmp.Or(commit.Author, locales.Unknown())).FontSize(12).SingleLine().Tooltip(locales.EmailEmail(commit.Email))
+			case 2:
+				ui.Text(c, timeAgo(commit.When)).FontSize(12).TextColor(p.muted).Tooltip(commit.When.Format(time.RFC1123))
 			}
-			for _, commit := range a.gitState.Commits {
-				ui.Row(c).Key(commit.Hash).Height(30).Gap(12).BorderWidth(0, 0, 1, 0).BorderColor(p.border.Alpha(.5)).Children(func() {
-					if commit.Message == "" {
-						ui.Text(c, locales.NoMessage()).Italic().FontSize(12).TextColor(p.muted).Grow(1)
-					} else {
-						ui.Text(c, commit.Message).FontSize(12).SingleLine().Grow(1).MinWidth(0)
-					}
-					author := commit.Author
-					if author == "" {
-						author = locales.Unknown()
-					}
-					ui.Text(c, author).FontSize(12).SingleLine().Width(140).Tooltip(locales.EmailEmail(commit.Email))
-					ui.Text(c, timeAgo(commit.When)).FontSize(12).TextColor(p.muted).Width(110).Tooltip(commit.When.Format(time.RFC1123))
-				})
-			}
-		})
+		}).Grow(1).MinHeight(0).FontSize(12).Label(locales.CommitHistory())
 	})
 }
 
 func timeAgo(t time.Time) string {
 	d := time.Since(t)
+	ago := func(count int, unit i18n.RelativeTimeUnit) string {
+		return i18n.FormatRelativeTime(cmp.Or(i18n.Locale(), "en"), -float64(count), unit, i18n.RelativeTimeOptions{})
+	}
 	switch {
 	case d < time.Minute:
-		return locales.CountSecondsAgo(int(d.Seconds()))
+		return ago(int(d.Seconds()), i18n.RelativeSecond)
 	case d < time.Hour:
-		return locales.CountMinutesAgo(int(d.Minutes()))
+		return ago(int(d.Minutes()), i18n.RelativeMinute)
 	case d < 24*time.Hour:
-		return locales.CountHoursAgo(int(d.Hours()))
+		return ago(int(d.Hours()), i18n.RelativeHour)
 	case d < 30*24*time.Hour:
-		return locales.CountDaysAgo(int(d.Hours() / 24))
+		return ago(int(d.Hours()/24), i18n.RelativeDay)
 	case d < 365*24*time.Hour:
-		return locales.CountMonthsAgo(int(d.Hours() / 24 / 30))
+		return ago(int(d.Hours()/24/30), i18n.RelativeMonth)
 	}
-	return locales.CountYearsAgo(int(d.Hours() / 24 / 365))
+	return ago(int(d.Hours()/24/365), i18n.RelativeYear)
 }
 
 func (a *App) gitCommitDialog(c *ui.Context, p colors) {
@@ -717,13 +717,8 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 		ui.Column(c).Grow(1).Padding(12, 20, 16, 20).Children(func() { emptyState(c, p, locales.NoChangesSinceLastCommit()) })
 		return
 	}
-	w, h := c.Size()
-	if a.gitCommitSplit == 0 {
-		a.gitCommitSplit = w * .9 * .4
-	}
-	if a.gitCommitMessageSplit == 0 {
-		a.gitCommitMessageSplit = h * .88 * .65
-	}
+	a.gitCommitSplit = cmp.Or(a.gitCommitSplit, 40)
+	a.gitCommitMessageSplit = cmp.Or(a.gitCommitMessageSplit, 65)
 	changes := func() {
 		ui.Scroll(c).Fill().Padding(0, 2, 12, 0).Children(func() {
 			a.commitTreeView(c, p, dir, tree, 0)
@@ -779,9 +774,9 @@ func (a *App) gitCommitDialog(c *ui.Context, p colors) {
 		})
 	}
 	ui.Column(c).Grow(1).MinHeight(0).Padding(12, 8, 16, 8).Children(func() {
-		splitQuiet(c, &a.gitCommitSplit, false, func() {
+		splitQuietPercent(c, &a.gitCommitSplit, false, func() {
 			ui.Column(c).Fill().Padding(0, 16).Children(func() {
-				splitQuiet(c, &a.gitCommitMessageSplit, true, changes, message).Fill()
+				splitQuietPercent(c, &a.gitCommitMessageSplit, true, changes, message).Fill()
 			})
 		}, func() {
 			ui.Column(c).Fill().Padding(0, 16).BorderWidth(0, 0, 0, 1).BorderColor(p.border).Children(func() {
@@ -1344,6 +1339,7 @@ type fileHistory struct {
 	loading   bool
 	commits   []engine.GitCommit
 	selected  string
+	row       int
 	diffOf    string
 	diff      *editor.DiffState
 	split     float32
@@ -1390,17 +1386,28 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 			}, err
 		})
 	}
-	if h.split == 0 {
-		w, _ := c.Size()
-		h.split = min(1120, w*.9) * .4
-	}
-	ui.Column(c).Grow(1).MinHeight(0).Padding(4, 8, 16, 8).Children(func() {
-		splitQuiet(c, &h.split, false, func() {
-			ui.Scroll(c).Fill().Padding(6, 16, 8, 16).Gap(0).Children(func() {
-				for _, commit := range h.commits {
-					a.fileHistoryCommit(c, p, h, commit)
-				}
-			})
+	h.split = cmp.Or(h.split, 40)
+	box := ui.Column(c).Grow(1).MinHeight(0).Padding(4, 8, 16, 8)
+	state := localList(box)
+	h.row = i
+	state.Selected = &h.row
+	state.Key = func(row int) any { return h.commits[row].Hash }
+	state.Label = func(row int) string { return cmp.Or(h.commits[row].Message, locales.NoMessage()) }
+	box.Children(func() {
+		splitQuietPercent(c, &h.split, false, func() {
+			commits := quietList(c, p, state, len(h.commits), func(row int) {
+				commit := h.commits[row]
+				ui.Column(c).FillWidth().Padding(6, 8).Gap(1).Children(func() {
+					ui.Text(c, cmp.Or(commit.Message, locales.NoMessage())).FontSize(13).SingleLine().FillWidth()
+					ui.Row(c).Gap(4).FillWidth().Children(func() {
+						ui.Text(c, locales.AuthorWhen(cmp.Or(commit.Author, locales.Unknown()), timeAgo(commit.When))).FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
+						ui.Text(c, commit.Hash[:min(7, len(commit.Hash))]).Font("monospace").FontSize(10).TextColor(p.muted).Shrink(0)
+					})
+				})
+			}).Fill().Padding(6, 16, 8, 16)
+			if commits.Changed() {
+				h.selected = h.commits[h.row].Hash
+			}
 		}, func() {
 			ui.Column(c).Fill().MinWidth(0).Padding(0, 16).BorderWidth(0, 0, 0, 1).BorderColor(p.border).Gap(8).Children(func() {
 				if i < 0 {
@@ -1422,26 +1429,6 @@ func (a *App) fileHistoryDialog(c *ui.Context, p colors) {
 			})
 		}).Fill()
 	})
-}
-
-func (a *App) fileHistoryCommit(c *ui.Context, p colors, h *fileHistory, commit engine.GitCommit) {
-	item := ui.ButtonBase(c).Key(commit.Hash).Label(cmp.Or(commit.Message, locales.NoMessage())).FillWidth().Padding(6, 8).Radius(3).Column().Gap(1)
-	switch {
-	case commit.Hash == h.selected:
-		item.Background(p.border.Alpha(.55))
-	case item.Hovered():
-		item.Background(p.border.Alpha(.3))
-	}
-	item.Children(func() {
-		ui.Text(c, cmp.Or(commit.Message, locales.NoMessage())).FontSize(13).SingleLine().FillWidth()
-		ui.Row(c).Gap(4).FillWidth().Children(func() {
-			ui.Text(c, locales.AuthorWhen(cmp.Or(commit.Author, locales.Unknown()), timeAgo(commit.When))).FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
-			ui.Text(c, commit.Hash[:min(7, len(commit.Hash))]).Font("monospace").FontSize(10).TextColor(p.muted).Shrink(0)
-		})
-	})
-	if item.Clicked() {
-		h.selected = commit.Hash
-	}
 }
 
 func (a *App) restoreFileFromCommit(h *fileHistory, hash string) {

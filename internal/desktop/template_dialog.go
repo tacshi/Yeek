@@ -236,21 +236,18 @@ func (a *App) templateDialog(c *ui.Context, p colors) {
 				a.renderTemplateValues(f)
 				a.templateBanner(c, p, f)
 				if hasAdvanced {
-					toggle := ui.ButtonBase(c).Label(locales.Advanced()).Gap(6).AlignSelf(ui.Start)
-					toggle.Children(func() {
+					section := ui.CollapsibleBase(c, &f.advanced)
+					section.Trigger.Label(locales.Advanced()).Gap(6).AlignSelf(ui.Start).Children(func() {
 						disclosure(c, f.advanced, 11, p.subtle)
 						ui.Text(c, locales.Advanced()).FontSize(13)
 					})
-					if toggle.Clicked() {
-						f.advanced = !f.advanced
-					}
-					if f.advanced {
+					section.Panel(func() {
 						for _, field := range f.definition.Fields {
 							if field.Advanced && f.shown(field, values) {
 								a.templateArgument(c, p, f, field)
 							}
 						}
-					}
+					})
 				}
 			}
 		})

@@ -198,3 +198,86 @@ func TestPairRowsReorderByDragging(t *testing.T) {
 		t.Fatalf("after dropping B at the end: %s", names())
 	}
 }
+
+func TestPairRowsKeepTheEmptyRowLast(t *testing.T) {
+	a, p := templateTestApp()
+	rows := []KV{{ID: "a", Name: "A", Enabled: true}, {ID: "b", Name: "B", Enabled: true}}
+	dirty := false
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { a.pairEditor(c, p, &rows, "Header", "Value", &dirty) })
+	}, 700, 400)
+	tt.Frame()
+	grip, ok := tt.Find("Drag Header 1")
+	if !ok {
+		t.Fatal(tt.Texts())
+	}
+	empty, ok := tt.Find("Header 3")
+	if !ok {
+		t.Fatal(tt.Texts())
+	}
+	x, y := grip.X+grip.W/2, empty.Y+empty.H/2
+	tt.Press(x, y)
+	tt.Move(x, y-10)
+	for ; y > grip.Y; y -= 8 {
+		tt.Move(x, y)
+	}
+	tt.Release(x, grip.Y+2)
+	tt.Frame()
+	if len(rows) != 3 || rows[0].Name != "A" || rows[1].Name != "B" || rows[2].Name != "" || dirty {
+		t.Fatalf("rows = %+v dirty = %v", rows, dirty)
+	}
+}
+
+func TestPairRowDeleteAndDuplicate(t *testing.T) {
+	_, d, tt := composerApp(t, "", engine.Object{})
+	d.Headers = []KV{{ID: "a", Name: "A", Value: "1", Enabled: true}, {ID: "b", Name: "B", Value: "2", Enabled: true}}
+	tt.Frame()
+	if err := tt.Click("Headers"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Actions for Header 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Delete"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if d.Headers[0].Name != "B" {
+		t.Fatalf("headers = %+v", d.Headers)
+	}
+	if err := tt.Click("Actions for Header 1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Duplicate"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	names := []string{}
+	for _, h := range d.Headers {
+		names = append(names, h.Name)
+	}
+	if strings.Join(names, ",") != "B,B," || d.Headers[0].ID == d.Headers[1].ID {
+		t.Fatalf("headers = %+v", d.Headers)
+	}
+}
+
+func TestEventStreamChoosesByClickAndKeys(t *testing.T) {
+	a, _, _ := composerApp(t, "", engine.Object{})
+	_, p := templateTestApp()
+	d := &Draft{}
+	raw := "data: one\n\ndata: two\n\ndata: three\n\n"
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { a.eventStreamView(c, p, d, raw) })
+	}, 700, 500)
+	tt.Frame()
+	if err := tt.Click("two"); err != nil {
+		t.Fatal(err)
+	}
+	if d.EventIndex != 1 {
+		t.Fatal(d.EventIndex)
+	}
+	tt.Key(0, ui.KeyDown)
+	if d.EventIndex != 2 {
+		t.Fatal(d.EventIndex)
+	}
+}

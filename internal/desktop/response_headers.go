@@ -21,17 +21,16 @@ func (a *App) detailsBanner(c *ui.Context, p colors, key string, defaultOpen boo
 		open = defaultOpen
 	}
 	ui.Column(c).Key(key).Shrink(0).Radius(6).Border(1, p.border).Background(p.border.Alpha(.18)).Padding(6, 10).Children(func() {
-		toggle := ui.ButtonBase(c).Label(key).FillWidth().Height(24).Gap(10).Justify(ui.Start).Opacity(.75)
+		section := ui.CollapsibleBase(c, &open)
+		toggle := section.Trigger.Label(key).FillWidth().Height(24).Gap(10).Opacity(.75)
 		toggle.Children(func() {
 			disclosure(c, open, 11, p.muted)
 			summary()
 		})
-		if toggle.Clicked() {
-			a.detailsOpen[key] = !open
+		if toggle.Changed() {
+			a.detailsOpen[key] = open
 		}
-		if open {
-			ui.Column(c).Padding(6, 0, 4, 0).Children(body)
-		}
+		section.Panel(func() { ui.Column(c).Padding(6, 0, 4, 0).Children(body) })
 	})
 }
 

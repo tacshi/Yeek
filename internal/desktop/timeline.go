@@ -198,36 +198,29 @@ func (a *App) timelineView(c *ui.Context, p colors, d *Draft, response engine.Ob
 	if d.TimelineIndex >= len(events) {
 		d.TimelineIndex = -1
 	}
-	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-		list := ui.Scroll(c).FillWidth().Padding(4, 12, 4, 12).Gap(1)
+	box := ui.Column(c).Grow(1).MinHeight(0)
+	state := localList(box)
+	state.Selected = &d.TimelineIndex
+	state.Key = func(i int) any { return s(events[i], "id") }
+	state.Label = func(i int) string {
+		display := timelineDisplay(o(events[i], "event"), p)
+		return display.label + " " + display.summary
+	}
+	box.Children(func() {
+		list := quietList(c, p, state, len(events), func(i int) {
+			m := events[i]
+			display := timelineDisplay(o(m, "event"), p)
+			ui.Row(c).Height(26).Padding(0, 8).Gap(8).Children(func() {
+				icon(c, display.glyph).FontSize(13).TextColor(display.color).Shrink(0)
+				ui.Text(c, display.summary).Font("monospace").FontSize(12).SingleLine().Grow(1).MinWidth(0)
+				ui.Text(c, eventTime(m)).Font("monospace").FontSize(11).TextColor(p.subtle).Shrink(0)
+			})
+		}).FillWidth().Padding(4, 12, 4, 12).Gap(1)
 		if d.TimelineIndex >= 0 {
 			list.Shrink(0).Height(220)
 		} else {
 			list.Grow(1).MinHeight(0)
 		}
-		list.Children(func() {
-			for i, m := range events {
-				display := timelineDisplay(o(m, "event"), p)
-				row := ui.ButtonBase(c).Key(s(m, "id")).Label(display.label+" "+display.summary).FillWidth().Height(26).Padding(0, 8).Gap(8).Radius(4).Justify(ui.Start)
-				if i == d.TimelineIndex {
-					row.Background(p.border.Alpha(.55))
-				} else if row.Hovered() {
-					row.Background(p.border.Alpha(.3))
-				}
-				row.Children(func() {
-					icon(c, display.glyph).FontSize(13).TextColor(display.color).Shrink(0)
-					ui.Text(c, display.summary).Font("monospace").FontSize(12).SingleLine().Grow(1).MinWidth(0)
-					ui.Text(c, eventTime(m)).Font("monospace").FontSize(11).TextColor(p.subtle).Shrink(0)
-				})
-				if row.Clicked() {
-					if d.TimelineIndex == i {
-						d.TimelineIndex = -1
-					} else {
-						d.TimelineIndex = i
-					}
-				}
-			}
-		})
 		if d.TimelineIndex >= 0 {
 			a.timelineDetails(c, p, d, events[d.TimelineIndex])
 		}

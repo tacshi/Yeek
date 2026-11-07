@@ -232,10 +232,7 @@ func (a *App) cookiesDialog(c *ui.Context, p colors) {
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		var addButton ui.Element
 		ui.Row(c).Padding(10, 14).Gap(8).Children(func() {
-			ui.TextInput(c, &manager.filter).Placeholder(locales.FilterCookies()).Label(locales.FilterCookies()).Grow(1).MinWidth(0)
-			if manager.filter != "" && smallIconButton(c, "close", locales.ClearCookieFilter()).Clicked() {
-				manager.filter = ""
-			}
+			ui.SearchField(c, &manager.filter).Placeholder(locales.FilterCookies()).Label(locales.FilterCookies()).Grow(1).MinWidth(0)
 			addButton = ui.Button(c, locales.AddCookie()).Disabled(manager.busy)
 			if addButton.Clicked() {
 				manager.draft = newCookieDraft(nil)
@@ -301,7 +298,7 @@ func (a *App) cookieTable(c *ui.Context, p colors, manager *cookieManager, rows 
 	}
 	columns := []ui.TableColumn{{Title: locales.NameTitle(), ID: "Name", Width: 130, Sortable: true}, {Title: locales.ValueTitle(), ID: "Value", Width: 205, Sortable: true}, {Title: locales.Domain(), ID: "Domain", Width: 165, Sortable: true}, {Title: locales.Path(), ID: "Path", Width: 85, Sortable: true}, {Title: locales.Expires(), ID: "Expires", Width: 165, Sortable: true}, {Title: locales.Size(), ID: "Size", Width: 60, Sortable: true}, {Title: locales.HTTPOnly(), ID: "HTTP Only", Width: 90, Sortable: true}, {Title: locales.Secure(), ID: "Secure", Width: 65, Sortable: true}, {Title: locales.SameSite(), ID: "Same Site", Width: 90, Sortable: true}, {Title: "", Width: 40, Fixed: true}}
 	action := false
-	table := ui.Table(c, &manager.list, columns, len(rows), func(row, col int) {
+	table := quietTable(c, p, &manager.list, columns, len(rows), func(row, col int) {
 		cookie := rows[row]
 		text := ""
 		switch col {

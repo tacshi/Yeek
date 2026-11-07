@@ -220,7 +220,7 @@ func TestGraphQLDocsExplorerPane(t *testing.T) {
 	if err := tt.Click("Go to User"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("friend") || !tt.HasText("Go to Query") {
+	if !tt.HasText("friend") || !tt.HasText("Documentation path") {
 		t.Fatal("breadcrumbs or fields missing", tt.Texts())
 	}
 	if err := tt.Click("Search GraphQL schema"); err != nil {
