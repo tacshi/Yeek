@@ -1033,6 +1033,8 @@
   "pluginBodyMustBeTextOrBytes": "플러그인 본문은 텍스트 또는 바이트여야 합니다",
   "pluginInitializationFailedFailure": "플러그인 초기화 실패: {failure}",
   "pluginNameFailedFailure": "플러그인 {name} 실패: {failure}",
+  "pluginNameStoppedAfterSeconds": "플러그인 {name}이(가) {seconds}초 후에 중지되었습니다",
+  "pluginNameUsedMoreThanMegabytes": "플러그인 {name}이(가) {megabytes}MB가 넘는 메모리를 사용해 중지되었습니다",
   "pluginNameWasReloadedTryAgain": "플러그인 {name}이(가) 다시 로드되었습니다. 다시 시도하세요",
   "pluginNeedsAName": "플러그인에는 이름이 필요합니다",
   "pluginNeverFinished": "플러그인이 완료되지 않았습니다",

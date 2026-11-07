@@ -1024,8 +1024,13 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 					if m.Item(locales.Duplicate()).Chosen() {
 						copy := *row
 						copy.ID = uuid.NewV4().String()
+						id := row.ID
 						edit(func() {
-							*rows = append(*rows, copy)
+							at := slices.IndexFunc(*rows, func(r KV) bool { return r.ID == id }) + 1
+							if at == 0 {
+								at = len(*rows)
+							}
+							*rows = slices.Insert(*rows, at, copy)
 							*dirty = true
 						})
 					}

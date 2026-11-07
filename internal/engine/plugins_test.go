@@ -220,8 +220,8 @@ export default { name: "Failing", templates: [
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
-	if _, err := e.pluginTemplate(ctx, "fail.spin", nil, ""); err == nil {
-		t.Fatal("a loop should be stopped")
+	if _, err := e.pluginTemplate(ctx, "fail.spin", nil, ""); err == nil || strings.Contains(err.Error(), "was stopped after") {
+		t.Fatal("a loop the caller cancels should stop with the caller's error", err)
 	}
 	if got, err := e.pluginTemplate(t.Context(), "fail.ok", nil, ""); err != nil || got != "1" {
 		t.Fatal(got, err)
@@ -234,7 +234,7 @@ func TestPluginMemoryIsLimited(t *testing.T) {
   { name: "greedy.grow", run() { const kept = []; for (;;) kept.push(new Array(4096).fill(1)) } },
   { name: "greedy.ok", run() { return "ok" } },
 ] }`)
-	if _, err := e.pluginTemplate(t.Context(), "greedy.grow", nil, ""); !errors.Is(err, moejs.ErrMemoryLimit) {
+	if _, err := e.pluginTemplate(t.Context(), "greedy.grow", nil, ""); !errors.Is(err, moejs.ErrMemoryLimit) || err.Error() != "plugin Greedy was stopped for using more than 256 MB of memory" {
 		t.Fatal(err)
 	}
 	if got, err := e.pluginTemplate(t.Context(), "greedy.ok", nil, ""); err != nil || got != "ok" {

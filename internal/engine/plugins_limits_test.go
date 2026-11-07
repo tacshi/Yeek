@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/pem"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -44,8 +45,12 @@ func TestPluginLoadTimeLimit(t *testing.T) {
 		"pending.js": "await new Promise(() => {})\nexport default { name: 'Pending' }",
 	} {
 		within(t, 5*time.Second, func() {
-			if _, err := e.InstallPlugin(t.Context(), writePlugin(t, name, source)); err == nil {
+			_, err := e.InstallPlugin(t.Context(), writePlugin(t, name, source))
+			if err == nil {
 				t.Fatal(name, "should not load")
+			}
+			if name != "pending.js" && (err.Error() != "plugin "+name+" was stopped after 0.2 seconds" || !errors.Is(err, context.DeadlineExceeded)) {
+				t.Fatal(name, err)
 			}
 		})
 	}
@@ -65,8 +70,8 @@ export default { name: "Slow", templates: [
 ] }`)
 	for _, name := range []string{"slow.spin", "slow.timer"} {
 		within(t, 5*time.Second, func() {
-			if _, err := e.pluginTemplate(t.Context(), name, nil, ""); err == nil {
-				t.Fatal(name, "should be stopped")
+			if _, err := e.pluginTemplate(t.Context(), name, nil, ""); err == nil || err.Error() != "plugin Slow was stopped after 0.2 seconds" {
+				t.Fatal(name, err)
 			}
 		})
 		if got, err := e.pluginTemplate(t.Context(), "slow.ok", nil, ""); err != nil || got != "1" {

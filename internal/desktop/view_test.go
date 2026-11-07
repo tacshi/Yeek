@@ -256,7 +256,7 @@ func TestPairRowDeleteAndDuplicate(t *testing.T) {
 	for _, h := range d.Headers {
 		names = append(names, h.Name)
 	}
-	if strings.Count(strings.Join(names, ","), "B") != 2 {
+	if strings.Join(names, ",") != "B,B," || d.Headers[0].ID == d.Headers[1].ID {
 		t.Fatalf("headers = %+v", d.Headers)
 	}
 }

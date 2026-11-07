@@ -117,7 +117,7 @@ func (e *Engine) loadPlugin(ctx context.Context, path string) (definition api.De
 	if len(module.Requests()) > 0 {
 		return definition, nil, errors.New(locales.PluginsAreASingleFileBundle())
 	}
-	plugin = &jsPlugin{engine: e, module: module}
+	plugin = &jsPlugin{engine: e, module: module, name: filepath.Base(path)}
 	if err = plugin.start(ctx); err != nil {
 		return definition, nil, err
 	}
@@ -195,8 +195,16 @@ func (p *jsPlugin) console(runtime *moejs.Runtime) map[string]any {
 	return map[string]any{"debug": write, "error": write, "info": write, "log": write, "warn": write}
 }
 
-func (p *jsPlugin) run(ctx context.Context, timeout time.Duration, work func(*moejs.Runtime) error) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+type pluginLimitError struct {
+	message string
+	cause   error
+}
+
+func (e pluginLimitError) Error() string { return e.message }
+func (e pluginLimitError) Unwrap() error { return e.cause }
+
+func (p *jsPlugin) run(parent context.Context, timeout time.Duration, work func(*moejs.Runtime) error) error {
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	loop, done := p.loop, make(chan struct{})
 	stop := context.AfterFunc(ctx, func() {
@@ -212,6 +220,13 @@ func (p *jsPlugin) run(ctx context.Context, timeout time.Duration, work func(*mo
 	var interrupted *moejs.InterruptedError
 	if errors.As(err, &interrupted) {
 		p.stale = true
+	}
+	switch {
+	case err == nil:
+	case errors.Is(err, moejs.ErrMemoryLimit):
+		return pluginLimitError{locales.PluginNameUsedMoreThanMegabytes(p.name, strconv.Itoa(pluginMemoryLimit>>20)), err}
+	case parent.Err() == nil && errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return pluginLimitError{locales.PluginNameStoppedAfterSeconds(p.name, strconv.FormatFloat(timeout.Seconds(), 'f', -1, 64)), context.DeadlineExceeded}
 	}
 	return err
 }

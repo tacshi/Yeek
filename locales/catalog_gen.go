@@ -10710,6 +10710,30 @@ func (msgs Messages) PluginNameFailedFailure(name string, failure string) string
 	return Catalog.Format(msgs.locale, "pluginNameFailedFailure", map[string]any{"name": name, "failure": failure})
 }
 
+// PluginNameStoppedAfterSeconds says "plugin {name} was stopped after {seconds} seconds"
+// in the language the app shows.
+func PluginNameStoppedAfterSeconds(name string, seconds string) string {
+	return In(i18n.Locale()).PluginNameStoppedAfterSeconds(name, seconds)
+}
+
+// PluginNameStoppedAfterSeconds says "plugin {name} was stopped after {seconds} seconds"
+// in the language of msgs.
+func (msgs Messages) PluginNameStoppedAfterSeconds(name string, seconds string) string {
+	return Catalog.Format(msgs.locale, "pluginNameStoppedAfterSeconds", map[string]any{"name": name, "seconds": seconds})
+}
+
+// PluginNameUsedMoreThanMegabytes says "plugin {name} was stopped for using more than {megabytes} MB of memory"
+// in the language the app shows.
+func PluginNameUsedMoreThanMegabytes(name string, megabytes string) string {
+	return In(i18n.Locale()).PluginNameUsedMoreThanMegabytes(name, megabytes)
+}
+
+// PluginNameUsedMoreThanMegabytes says "plugin {name} was stopped for using more than {megabytes} MB of memory"
+// in the language of msgs.
+func (msgs Messages) PluginNameUsedMoreThanMegabytes(name string, megabytes string) string {
+	return Catalog.Format(msgs.locale, "pluginNameUsedMoreThanMegabytes", map[string]any{"name": name, "megabytes": megabytes})
+}
+
 // PluginNameWasReloadedTryAgain says "plugin {name} was reloaded, try again"
 // in the language the app shows.
 func PluginNameWasReloadedTryAgain(name string) string {

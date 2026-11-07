@@ -1369,6 +1369,8 @@
   "pluginBodyMustBeTextOrBytes": "plugin body must be text or bytes",
   "pluginInitializationFailedFailure": "plugin initialization failed: {failure}",
   "pluginNameFailedFailure": "plugin {name} failed: {failure}",
+  "pluginNameStoppedAfterSeconds": "plugin {name} was stopped after {seconds} seconds",
+  "pluginNameUsedMoreThanMegabytes": "plugin {name} was stopped for using more than {megabytes} MB of memory",
   "pluginNameWasReloadedTryAgain": "plugin {name} was reloaded, try again",
   "pluginNeedsAName": "plugin needs a name",
   "pluginNeverFinished": "plugin never finished",

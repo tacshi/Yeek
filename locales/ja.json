@@ -1033,6 +1033,8 @@
   "pluginBodyMustBeTextOrBytes": "プラグインの本文はテキストまたはバイトである必要があります",
   "pluginInitializationFailedFailure": "プラグインの初期化に失敗しました: {failure}",
   "pluginNameFailedFailure": "プラグイン {name} が失敗しました: {failure}",
+  "pluginNameStoppedAfterSeconds": "プラグイン {name} は {seconds} 秒後に停止されました",
+  "pluginNameUsedMoreThanMegabytes": "プラグイン {name} は {megabytes} MB を超えるメモリを使用したため停止されました",
   "pluginNameWasReloadedTryAgain": "プラグイン {name} は再読み込みされました。もう一度お試しください",
   "pluginNeedsAName": "プラグインには名前が必要です",
   "pluginNeverFinished": "プラグインが完了しませんでした",
