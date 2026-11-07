@@ -143,6 +143,9 @@ func serveMCP(args []string, o Options) error {
 	if err != nil {
 		return err
 	}
+	if settings, err := e.Store.Get(context.Background(), "default"); err != nil || settings["mcpServerEnabled"] != true {
+		return errors.Join(errMCPOff, e.Close())
+	}
 	if o.Secrets != nil {
 		e.Secrets = o.Secrets(o.Dir)
 	}
@@ -156,6 +159,8 @@ func serveMCP(args []string, o Options) error {
 	}
 	return errors.Join(err, e.Close())
 }
+
+var errMCPOff = errors.New("the MCP server is turned off: turn on \"Enable MCP server\" in Yeek's Settings > Agents")
 
 type nopWriteCloser struct{ io.Writer }
 

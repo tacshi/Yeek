@@ -176,6 +176,9 @@ func seed(t *testing.T, dir string) seeded {
 		t.Fatal(err)
 	}
 	defer func() { _ = e.Close() }()
+	if _, err := e.Save(t.Context(), engine.Object{"model": "settings", "id": "default", "mcpServerEnabled": true}); err != nil {
+		t.Fatal(err)
+	}
 	save := func(m engine.Object) string {
 		t.Helper()
 		saved, err := e.Save(t.Context(), m)
@@ -302,5 +305,13 @@ func TestMCPAsksWhichWorkspaceWhenThereAreMany(t *testing.T) {
 	}
 	if text := s.ok("list_workspaces", nil); !strings.Contains(text, `"Other"`) || !strings.Contains(text, `"Test"`) {
 		t.Fatalf("workspaces %q", text)
+	}
+}
+
+func TestMCPRefusesWhileTheServerIsOff(t *testing.T) {
+	var out, errOut bytes.Buffer
+	code := Main([]string{"--data-dir", t.TempDir(), "mcp"}, Options{Name: "yeek", Version: "test", In: strings.NewReader(""), Out: &out, Err: &errOut})
+	if code != 1 || out.Len() != 0 || !strings.Contains(errOut.String(), "the MCP server is turned off") {
+		t.Fatalf("%d %q %q", code, out.String(), errOut.String())
 	}
 }

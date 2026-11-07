@@ -192,7 +192,6 @@ func (a *App) commandRow(c *ui.Context, p colors) {
 
 func (a *App) settingsAgents(c *ui.Context, p colors) {
 	settingsHeading(c, p, locales.Agents(), locales.ConnectAICodingAgentsLikeClaude())
-	a.checkCommand()
 	url := "http://" + mcp.DefaultAddr + mcp.Path
 	enabled := b(a.settings, "mcpServerEnabled")
 	token := mcpToken(a.list("key_value"))
@@ -207,15 +206,19 @@ func (a *App) settingsAgents(c *ui.Context, p colors) {
 			settingRow(c, p, locales.Token(), locales.AgentsSendThisAsABearer(), nil, func() { settingValue(c, p, token, nil) })
 		}
 	})
-	command, args := a.cliInvocation(a.command.status)
+	a.checkCommand()
+	if enabled && token != "" {
+		a.connectAgent(c, p, url, token)
+	}
 	if a.command.status.supported {
 		describedSection(c, p, locales.CommandLine(), locales.AgentsLaunchCommandToReachYeek(commandName()+" mcp"), func() {
 			a.commandRow(c, p)
 		})
 	}
-	if !enabled || token == "" {
-		return
-	}
+}
+
+func (a *App) connectAgent(c *ui.Context, p colors, url, token string) {
+	command, args := a.cliInvocation(a.command.status)
 	describedSection(c, p, locales.ConnectAnAgent(), locales.PickYourAgentOrEditorTo(), func() {
 		client := a.agentClient()
 		ui.Row(c).FillWidth().Padding(14, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {

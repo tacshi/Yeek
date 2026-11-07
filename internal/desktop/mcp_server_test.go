@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -71,6 +72,9 @@ func TestAgentsSettingsServeTheOpenWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	cliSetup := "claude mcp add -s user yeek -- " + shellWord(executable()) + " mcp"
+	if runtime.GOOS == "darwin" && !tt.HasText("Command line") {
+		t.Fatal(tt.Texts())
+	}
 	if !tt.HasText("Enable MCP server") || tt.HasText("Token") || tt.HasText("Connect an agent") || tt.HasText("Codex") || tt.HasText(cliSetup) || tt.HasText("--transport http") {
 		t.Fatal(tt.Texts())
 	}
