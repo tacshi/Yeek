@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"io"
 	"log"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 
 	"github.com/egoist/mygo"
+	"yeek/internal/applog"
 	"yeek/internal/desktop"
 	"yeek/internal/engine"
 	"yeek/locales"
@@ -22,6 +25,24 @@ func main() {
 		log.Fatal(err)
 	}
 }
+func startLog() func() {
+	dir, err := mygo.App.Path(mygo.PathLogs)
+	if err != nil {
+		log.Print(err)
+		return func() {}
+	}
+	file, err := applog.Open(dir, applog.MaxSize)
+	if err != nil {
+		log.Print(err)
+		return func() {}
+	}
+	log.SetOutput(io.MultiWriter(file, os.Stderr))
+	return func() {
+		log.SetOutput(os.Stderr)
+		_ = file.Close()
+	}
+}
+
 func run() (runErr error) {
 	dataDir := flag.String("data-dir", "", "Directory for workspace data")
 	flag.Parse()
@@ -46,6 +67,7 @@ func run() (runErr error) {
 		mygo.App.SetPath(mygo.PathUserData, dir)
 		mygo.App.SetPath(mygo.PathLogs, filepath.Join(dir, "logs"))
 	}
+	defer startLog()()
 	if err := desktop.RegisterPreviewScheme(); err != nil {
 		return err
 	}

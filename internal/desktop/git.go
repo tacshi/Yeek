@@ -666,7 +666,7 @@ func (a *App) gitHistoryDialog(c *ui.Context, p colors) {
 	a.gitHistoryList.Key = func(row int) any { return a.gitState.Commits[row].Hash }
 	columns := []ui.TableColumn{{Title: locales.Message(), Fixed: true}, {Title: locales.Author(), Width: 140, Fixed: true}, {Title: locales.When(), Width: 110, Fixed: true}}
 	ui.Column(c).Height(420).Padding(8, 20, 12, 20).Children(func() {
-		ui.Table(c, &a.gitHistoryList, columns, count, func(row, col int) {
+		quietTable(c, p, &a.gitHistoryList, columns, count, func(row, col int) {
 			commit := a.gitState.Commits[row]
 			switch col {
 			case 0:

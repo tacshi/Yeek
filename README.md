@@ -177,7 +177,7 @@ A plugin that imports other files or npm packages has to be bundled into one ES 
 esbuild src/index.ts --bundle --format=esm --platform=neutral --outfile=plugin.js
 ```
 
-Plugins have `fetch`, `URL`, `TextEncoder`, `TextDecoder`, timers, `atob`, `btoa` and `structuredClone`, but not `crypto`, `FormData` or `Blob`.
+Plugins have `fetch`, `URL`, `TextEncoder`, `TextDecoder`, timers, `atob`, `btoa` and `structuredClone`, but not `crypto`, `FormData` or `Blob`. What a plugin writes with `console` goes to `yeek.log` in the logs directory that **Settings → General** shows.
 
 > [!WARNING]
 > Plugins can reach any address with `fetch`, through Yeek's proxy and certificate settings, including local services. They have no access to your files, and a call stops after 60 seconds or 256 MB of memory. Only load plugins you trust.
