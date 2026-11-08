@@ -1390,6 +1390,7 @@
   "templateFunctionHasNoImplementation": "テンプレート関数に実装がありません",
   "templateNeedsAnHTTPRequest": "テンプレートには HTTP リクエストが必要です",
   "templateNestingIsTooDeep": "テンプレートの入れ子が深すぎます",
+  "templateOutputIsTooLarge": "テンプレートの出力が大きすぎます",
   "templateTagIsIncomplete": "テンプレートタグが完結していません",
   "text": "テキスト",
   "theCommand": "{name} コマンド",

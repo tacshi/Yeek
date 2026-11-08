@@ -1747,6 +1747,7 @@
   "templateFunctionHasNoImplementation": "template function has no implementation",
   "templateNeedsAnHTTPRequest": "template needs an HTTP request",
   "templateNestingIsTooDeep": "template nesting is too deep",
+  "templateOutputIsTooLarge": "template output is too large",
   "templateTagIsIncomplete": "template tag is incomplete",
   "text": "Text",
   "theCommand": "The {name} command",

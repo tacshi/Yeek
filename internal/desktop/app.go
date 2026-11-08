@@ -58,6 +58,7 @@ type Draft struct {
 
 	AuthDisabled any
 	authPreview  authConditionPreview
+	pendingSaves []string
 }
 
 type App struct {
@@ -114,6 +115,7 @@ type App struct {
 	diverged                                   *engine.GitResult
 	asking                                     *askState
 	stopSync                                   func()
+	syncGeneration                             int
 	syncReview                                 *syncReview
 	snapshot                                   atomic.Pointer[windowSnapshot]
 	connections                                map[string]engine.Object
@@ -218,11 +220,7 @@ func (a *App) OpenWindow() {
 			return
 		}
 		event.PreventDefault()
-		a.persistSession()
-		for _, draft := range a.drafts {
-			a.save(draft)
-		}
-		a.run(func() (func(), error) { return func() { a.closing = true; a.Window.Close() }, nil })
+		a.Flush(a.Window.Close)
 	})
 	a.Window.OnFileDrop(func(event *mygo.FileDropEvent) {
 		if a.dialogOpen && a.dialog == "imports" {
@@ -287,6 +285,17 @@ func (a *App) OpenWindow() {
 	}()
 }
 func (a *App) Close() { a.closeOnce.Do(func() { a.closePreview(); a.cancel() }) }
+func (a *App) Flush(done func()) {
+	if a.closing || a.ctx.Err() != nil {
+		done()
+		return
+	}
+	a.persistSession()
+	for _, draft := range a.drafts {
+		a.save(draft)
+	}
+	a.run(func() (func(), error) { return func() { a.closing = true; done() }, nil })
+}
 func (a *App) worker() {
 	defer close(a.workerDone)
 	for {
@@ -349,6 +358,9 @@ func (a *App) applyModel(m engine.Object) {
 		a.running[s(m, "requestId")] = s(m, "state") != "closed"
 	}
 	a.models[s(m, "id")] = m
+	if d := a.drafts[s(m, "id")]; d != nil && d.Kind == s(m, "model") {
+		d.sync(m)
+	}
 	if s(m, "model") == "settings" {
 		a.settings = m
 	}
@@ -481,7 +493,13 @@ func (a *App) save(d *Draft) {
 	}
 	model := d.object()
 	d.Dirty = false
-	a.run(func() (func(), error) { _, err := a.Engine.Save(a.ctx, model); return nil, err })
+	d.pendingSaves = append(d.pendingSaves[max(0, len(d.pendingSaves)-15):], savedKey(model))
+	a.run(func() (func(), error) {
+		if _, err := a.Engine.Save(a.ctx, model); err != nil {
+			return func() { a.errorMessage, d.Dirty = err.Error(), true }, nil
+		}
+		return nil, nil
+	})
 }
 func (a *App) addRequest(kind, folder string) {
 	a.createRequest(engine.Object{"model": kind, "folderId": nilIfEmpty(folder)})
@@ -701,6 +719,29 @@ func newDraft(m engine.Object) *Draft {
 		d.Headers = kvRows(m, "metadata")
 	}
 	return d
+}
+func (d *Draft) sync(m engine.Object) {
+	key := savedKey(m)
+	if i := slices.Index(d.pendingSaves, key); i >= 0 {
+		d.pendingSaves = d.pendingSaves[i+1:]
+		return
+	}
+	fresh := newDraft(m)
+	if d.Dirty || savedKey(fresh.object()) == savedKey(d.object()) {
+		d.Model = fresh.Model
+		return
+	}
+	d.FilePath, d.OperationName, d.OperationExplicit = fresh.FilePath, fresh.OperationName, fresh.OperationExplicit
+	d.Name, d.URL, d.Method, d.BodyType, d.Body, d.Query, d.Variables = fresh.Name, fresh.URL, fresh.Method, fresh.BodyType, fresh.Body, fresh.Query, fresh.Variables
+	d.Description, d.Message, d.Service, d.RPCMethod = fresh.Description, fresh.Message, fresh.Service, fresh.RPCMethod
+	d.AuthType, d.Auth, d.AuthDisabled = fresh.AuthType, fresh.Auth, fresh.AuthDisabled
+	d.Headers, d.Parameters, d.Form, d.Model = fresh.Headers, fresh.Parameters, fresh.Form, fresh.Model
+}
+func savedKey(m engine.Object) string {
+	m = maps.Clone(m)
+	delete(m, "updatedAt")
+	value, _ := json.Marshal(m, json.Deterministic(true))
+	return string(value)
 }
 func (d *Draft) object() engine.Object {
 	m := deepCopy(d.Model)

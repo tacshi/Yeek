@@ -14390,6 +14390,16 @@ func (msgs Messages) TemplateNestingIsTooDeep() string {
 	return Catalog.Format(msgs.locale, "templateNestingIsTooDeep", nil)
 }
 
+// TemplateOutputIsTooLarge says "template output is too large"
+// in the language the app shows.
+func TemplateOutputIsTooLarge() string { return In(i18n.Locale()).TemplateOutputIsTooLarge() }
+
+// TemplateOutputIsTooLarge says "template output is too large"
+// in the language of msgs.
+func (msgs Messages) TemplateOutputIsTooLarge() string {
+	return Catalog.Format(msgs.locale, "templateOutputIsTooLarge", nil)
+}
+
 // TemplateTagIsIncomplete says "template tag is incomplete"
 // in the language the app shows.
 func TemplateTagIsIncomplete() string { return In(i18n.Locale()).TemplateTagIsIncomplete() }

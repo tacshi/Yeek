@@ -19,6 +19,10 @@ import (
 var ErrGitNotFound error = &localizedError{locales.GitWasNotFoundInstallGit}
 
 func gitCommand(ctx context.Context, dir string, stdin string, args ...string) (string, bool, error) {
+	return gitCommandEnv(ctx, dir, stdin, nil, args...)
+}
+
+func gitCommandEnv(ctx context.Context, dir string, stdin string, env []string, args ...string) (string, bool, error) {
 	path, err := exec.LookPath("git")
 	if err != nil {
 		return "", false, ErrGitNotFound
@@ -27,7 +31,7 @@ func gitCommand(ctx context.Context, dir string, stdin string, args ...string) (
 		args = append([]string{"-C", dir}, args...)
 	}
 	cmd := exec.CommandContext(ctx, path, args...) // #nosec G204 -- git is run with fixed subcommands; names are arguments, not shell text.
-	cmd.Env = append(cmd.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(append(cmd.Environ(), "GIT_TERMINAL_PROMPT=0"), env...)
 	hideConsole(cmd)
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
@@ -122,7 +126,7 @@ func (e *Engine) GitCheckoutBranch(ctx context.Context, dir, branch string, forc
 }
 
 func (e *Engine) GitCreateBranch(ctx context.Context, dir, name, base string) error {
-	args := []string{"branch", name}
+	args := []string{"branch", "--end-of-options", name}
 	if base != "" {
 		args = append(args, base)
 	}
@@ -164,7 +168,7 @@ func (e *Engine) GitDeleteRemoteBranch(ctx context.Context, dir, name string) er
 }
 
 func (e *Engine) GitRenameBranch(ctx context.Context, dir, oldName, newName string) error {
-	return gitRun(ctx, dir, locales.FailedToRenameBranch(), "branch", "-m", oldName, newName)
+	return gitRun(ctx, dir, locales.FailedToRenameBranch(), "branch", "-m", "--end-of-options", oldName, newName)
 }
 
 func (e *Engine) GitResetChanges(ctx context.Context, dir string) error {
@@ -374,7 +378,52 @@ func (e *Engine) GitCommitStaged(ctx context.Context, dir, message string) error
 	if len(staged) == 0 {
 		return errors.New(locales.NoStagedChangesToCommit())
 	}
-	return gitRun(ctx, root, locales.FailedToCommit(), append([]string{"--literal-pathspecs", "commit", "--message", message, "--"}, staged...)...)
+	temp, err := os.MkdirTemp("", "yeek-index-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(temp) }()
+	env := []string{"GIT_INDEX_FILE=" + filepath.Join(temp, "index")}
+	tree := "HEAD"
+	if _, ok, _ := gitCommand(ctx, root, "", "rev-parse", "--verify", "--quiet", "HEAD"); !ok {
+		tree = "--empty"
+	}
+	entries, ok, err := gitCommand(ctx, root, "", append([]string{"--literal-pathspecs", "ls-files", "--stage", "-z", "--"}, staged...)...)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New(locales.FailureError(locales.FailedToCommit(), strings.TrimSpace(entries)))
+	}
+	kept := map[string]bool{}
+	for record := range strings.SplitSeq(entries, "\x00") {
+		if _, path, found := strings.Cut(record, "\t"); found {
+			kept[path] = true
+		}
+	}
+	removed := slices.DeleteFunc(slices.Clone(staged), func(path string) bool { return kept[path] })
+	steps := []struct {
+		stdin string
+		args  []string
+	}{
+		{"", []string{"read-tree", tree}},
+		{entries, []string{"update-index", "-z", "--index-info"}},
+		{strings.Join(removed, "\x00"), []string{"update-index", "-z", "--force-remove", "--stdin"}},
+		{"", []string{"commit", "--message", message}},
+	}
+	for _, step := range steps {
+		if step.stdin == "" && step.args[0] == "update-index" {
+			continue
+		}
+		out, ok, err := gitCommandEnv(ctx, root, step.stdin, env, step.args...)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return errors.New(locales.FailureError(locales.FailedToCommit(), strings.TrimSpace(out)))
+		}
+	}
+	return nil
 }
 
 func (e *Engine) GitClone(ctx context.Context, address, dir string) (GitResult, error) {

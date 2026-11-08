@@ -113,7 +113,7 @@ func (e *Engine) IntrospectGraphQL(ctx context.Context, original Object, options
 	if err = e.beforeSend(ctx, resolved.Model, req); err != nil {
 		return nil, err
 	}
-	if err = e.authenticate(req, resolved.Model); err != nil {
+	if err = e.authenticate(req, resolved.Model, resolved.oauthOptions(options.EnvironmentID)); err != nil {
 		return nil, err
 	}
 	transport, err := e.transport(ctx, resolved)

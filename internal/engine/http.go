@@ -407,7 +407,15 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 		defer eventsMu.Unlock()
 		_, _ = e.Save(context.WithoutCancel(e.ctx), Object{"model": "http_response_event", "workspaceId": str(request, "workspaceId"), "responseId": responseID, "event": data})
 	}
+	var traceMu sync.Mutex
+	traced := Object{}
+	applyTrace := func() {
+		traceMu.Lock()
+		defer traceMu.Unlock()
+		maps.Copy(response, traced)
+	}
 	defer func() {
+		applyTrace()
 		response["state"] = "closed"
 		response["elapsed"] = float64(time.Since(started).Microseconds()) / 1000
 		if sendErr != nil {
@@ -559,16 +567,24 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 		return nil
 	}
 	var dnsStarted time.Time
-	trace := &httptrace.ClientTrace{DNSStart: func(info httptrace.DNSStartInfo) { dnsStarted = time.Now() }, DNSDone: func(info httptrace.DNSDoneInfo) {
+	trace := &httptrace.ClientTrace{DNSStart: func(info httptrace.DNSStartInfo) {
+		traceMu.Lock()
+		defer traceMu.Unlock()
+		dnsStarted = time.Now()
+	}, DNSDone: func(info httptrace.DNSDoneInfo) {
+		traceMu.Lock()
 		elapsed := time.Since(dnsStarted)
-		response["elapsedDns"] = float64(elapsed.Microseconds()) / 1000
+		traced["elapsedDns"] = float64(elapsed.Microseconds()) / 1000
+		traceMu.Unlock()
 		addresses := []any{}
 		for _, ip := range info.Addrs {
 			addresses = append(addresses, ip.String())
 		}
 		event(Object{"type": "dns_resolved", "hostname": target.Hostname(), "addresses": addresses, "duration": elapsed.Milliseconds(), "overridden": false})
 	}, GotConn: func(info httptrace.GotConnInfo) {
-		response["remoteAddr"] = info.Conn.RemoteAddr().String()
+		traceMu.Lock()
+		traced["remoteAddr"] = info.Conn.RemoteAddr().String()
+		traceMu.Unlock()
 		event(Object{"type": "info", "message": "Connected to " + info.Conn.RemoteAddr().String()})
 	}}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
@@ -577,6 +593,7 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 		return response, err
 	}
 	defer func() { _ = res.Body.Close() }()
+	applyTrace()
 	maps.Copy(response, Object{"status": res.StatusCode, "statusReason": http.StatusText(res.StatusCode), "headers": headerModels(res.Header), "elapsedHeaders": float64(time.Since(started).Microseconds()) / 1000, "version": res.Proto, "state": "connected", "url": res.Request.URL.String()})
 	if _, err = e.Save(ctx, response); err != nil {
 		return response, err
@@ -623,7 +640,7 @@ func (e *Engine) SendHTTP(ctx context.Context, id string, opts SendOptions) (res
 			return response, readErr
 		}
 	}
-	if len(e.pluginList()) > 0 {
+	if e.receivesResponses() {
 		data, err := e.Body(responseID)
 		if err != nil {
 			return response, err

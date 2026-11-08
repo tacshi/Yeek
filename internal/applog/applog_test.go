@@ -93,6 +93,24 @@ func TestOversizedLogRotatesWhenOpened(t *testing.T) {
 	}
 }
 
+func TestLogIsTruncatedWhenItCannotRotate(t *testing.T) {
+	dir := t.TempDir()
+	f, err := Open(dir, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := os.MkdirAll(filepath.Join(f.Path()+".1", "busy"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for range 50 {
+		write(t, f, "abcdef\n")
+	}
+	if got := read(t, f.Path()); got != "abcdef\n" {
+		t.Fatalf("%q", got)
+	}
+}
+
 func TestClosedLogRefusesWrites(t *testing.T) {
 	f, err := Open(t.TempDir(), 10)
 	if err != nil {

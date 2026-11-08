@@ -2,13 +2,59 @@ package engine
 
 import (
 	"errors"
+	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
 	"yeek/locales"
 )
 
+var (
+	brunoVariable     = regexp.MustCompile(`{{\s*([^{}]+?)\s*}}`)
+	brunoVariableName = regexp.MustCompile(`^[\p{L}_][\p{L}\p{N}_.-]*$`)
+	brunoPlainKeys    = []string{"id", "model", "workspaceId", "parentModel", "parentId", "name", "description", "method", "bodyType", "authenticationType"}
+)
+
+func brunoTemplate(text string) string {
+	return brunoVariable.ReplaceAllStringFunc(text, func(match string) string {
+		name := brunoVariable.FindStringSubmatch(match)[1]
+		if strings.HasPrefix(name, "process.env.") || name == "true" || name == "false" || name == "null" || !brunoVariableName.MatchString(name) {
+			return match
+		}
+		return "${[ " + name + " ]}"
+	})
+}
+
+func convertBrunoTemplates(value any) any {
+	switch v := value.(type) {
+	case string:
+		return brunoTemplate(v)
+	case Object:
+		for key, item := range v {
+			v[key] = convertBrunoTemplates(item)
+		}
+	case []any:
+		for i, item := range v {
+			v[i] = convertBrunoTemplates(item)
+		}
+	}
+	return value
+}
+
 func parseBruno(text string) ([]Object, error) {
+	models, err := parseBrunoModels(text)
+	for _, m := range models {
+		for key, value := range m {
+			if !slices.Contains(brunoPlainKeys, key) {
+				m[key] = convertBrunoTemplates(value)
+			}
+		}
+	}
+	return models, err
+}
+
+func parseBrunoModels(text string) ([]Object, error) {
 	blocks, err := brunoBlocks(text)
 	if err != nil {
 		return nil, err
@@ -100,45 +146,31 @@ func brunoBlocks(text string) (map[string]string, error) {
 		if strings.IndexFunc(name, unicode.IsSpace) >= 0 {
 			return nil, errors.New(locales.InvalidBrunoBlockName())
 		}
-		depth := 1
-		quote := byte(0)
-		escaped := false
-		end := -1
-		for i := open + 1; i < len(text); i++ {
-			ch := text[i]
-			if escaped {
-				escaped = false
-				continue
-			}
-			if quote != 0 {
-				switch ch {
-				case '\\':
-					escaped = true
-				case quote:
-					quote = 0
-				}
-				continue
-			}
-			switch ch {
-			case '\'', '"':
-				quote = ch
-			case '{':
-				depth++
-			case '}':
-				depth--
-				if depth == 0 {
-					end = i
-				}
-			}
-			if end >= 0 {
-				break
-			}
-		}
-		if end < 0 {
+		body, rest, ok := brunoBlockBody(text[open+1:])
+		if !ok {
 			return nil, errors.New(locales.BrunoBlockIsMissingAClosing())
 		}
-		result[name] = strings.TrimSpace(text[open+1 : end])
-		text = text[end+1:]
+		result[name] = strings.TrimSpace(body)
+		text = rest
 	}
 	return result, nil
+}
+
+func brunoBlockBody(text string) (body, rest string, ok bool) {
+	first, after, multiline := strings.Cut(text, "\n")
+	if line := strings.TrimSpace(first); line != "" || !multiline {
+		inner, closed := strings.CutSuffix(line, "}")
+		if !closed {
+			return "", "", false
+		}
+		return inner, after, true
+	}
+	offset := 0
+	for line := range strings.SplitAfterSeq(after, "\n") {
+		if strings.TrimRight(line, " \t\r\n") == "}" {
+			return after[:offset], after[offset+len(line):], true
+		}
+		offset += len(line)
+	}
+	return "", "", false
 }

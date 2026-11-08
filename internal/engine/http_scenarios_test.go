@@ -104,6 +104,17 @@ func TestDecodeContent(t *testing.T) {
 	if _, _, err := decodeContent(bytes.NewReader([]byte("not gzip")), "gzip"); err == nil {
 		t.Fatal("corrupt gzip should fail")
 	}
+	for _, encoding := range []string{"gzip", "deflate", "br", "zstd"} {
+		reader, closeDecoder, err := decodeContent(bytes.NewReader(nil), encoding)
+		if err != nil {
+			t.Fatal(encoding, err)
+		}
+		got, err := io.ReadAll(reader)
+		closeDecoder()
+		if err != nil || len(got) != 0 {
+			t.Fatalf("empty %s body: %q, %v", encoding, got, err)
+		}
+	}
 }
 
 func TestDuplicateNames(t *testing.T) {

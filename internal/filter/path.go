@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -35,14 +36,60 @@ const (
 
 var (
 	propertyType = regexp.MustCompile(`@[A-Za-z0-9_$\-]+\(\)`)
-	scriptStep   = regexp2.MustCompile(`[\['](\??\([^\n\r\u2028\u2029]*?\))[\]'](?![^\n\r\u2028\u2029]\])`, regexp2.None)
+	scriptStep   = timed(regexp2.MustCompile(`[\['](\??\([^\n\r\u2028\u2029]*?\))[\]'](?![^\n\r\u2028\u2029]\])`, regexp2.None))
 	quotedStep   = regexp.MustCompile(`\[['"]([^'\]]*)['"]\]`)
-	boundary     = regexp2.MustCompile(`['"]?\.['"]?(?![^\[]*\])|\[['"]?`, regexp2.None)
 	parentStep   = regexp.MustCompile(`(?:;)?(\^+)(?:;)?`)
 	descendant   = regexp.MustCompile(`;;;|;;`)
 	trailing     = regexp.MustCompile(`;$|'?\]|'$`)
 	subxStep     = regexp.MustCompile(`#([0-9]+)`)
 )
+
+var errPathTooComplex = errors.New("path is too complex")
+
+func timed(re *regexp2.Regexp) *regexp2.Regexp {
+	re.MatchTimeout = regexTimeout
+	return re
+}
+
+func replaceBoundaries(text string) string {
+	closes := make([]bool, len(text)+1)
+	for i := len(text) - 1; i >= 0; i-- {
+		switch text[i] {
+		case '[':
+		case ']':
+			closes[i] = true
+		default:
+			closes[i] = closes[i+1]
+		}
+	}
+	quote := func(i int) bool { return i < len(text) && (text[i] == '\'' || text[i] == '"') }
+	var out strings.Builder
+	for i := 0; i < len(text); {
+		dot := i
+		if quote(dot) {
+			dot++
+		}
+		if dot < len(text) && text[dot] == '.' && !closes[dot+1] {
+			i = dot + 1
+			if quote(i) {
+				i++
+			}
+			out.WriteByte(';')
+			continue
+		}
+		if text[i] == '[' {
+			i++
+			if quote(i) {
+				i++
+			}
+			out.WriteByte(';')
+			continue
+		}
+		out.WriteByte(text[i])
+		i++
+	}
+	return out.String()
+}
 
 func replaceGo(re *regexp.Regexp, text string, rep func(groups []string) string) string {
 	var out strings.Builder
@@ -65,7 +112,7 @@ func replaceGo(re *regexp.Regexp, text string, rep func(groups []string) string)
 func replaceRegexp2(re *regexp2.Regexp, text string, rep func(m regexp2.Match) string) (string, error) {
 	out, err := re.ReplaceFunc(text, rep, -1, -1)
 	if err != nil {
-		return "", fmt.Errorf("path is too complex: %w", err)
+		return "", errPathTooComplex
 	}
 	return out, nil
 }
@@ -88,10 +135,7 @@ func parsePath(path string) ([]loc, error) {
 		return "['" + strings.ReplaceAll(strings.ReplaceAll(g[1], ".", "%@%"), "~", "%%@@%%") + "']"
 	})
 	normalized = strings.ReplaceAll(normalized, "~", ";~;")
-	normalized, err = replaceRegexp2(boundary, normalized, func(regexp2.Match) string { return ";" })
-	if err != nil {
-		return nil, err
-	}
+	normalized = replaceBoundaries(normalized)
 	normalized = strings.ReplaceAll(strings.ReplaceAll(normalized, "%@%", "."), "%%@@%%", "~")
 	normalized = replaceGo(parentStep, normalized, func(g []string) string {
 		return ";" + strings.Join(strings.Split(g[1], ""), ";") + ";"

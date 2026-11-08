@@ -11,9 +11,14 @@ import (
 	"yeek/locales"
 )
 
-const maxTemplateDepth = 50
+const (
+	maxTemplateDepth  = 50
+	maxTemplateOutput = 128 << 20
+)
 
 var errTemplateStackExceeded error = &localizedError{locales.TemplateNestingIsTooDeep}
+
+var errTemplateOutputTooLarge error = &localizedError{locales.TemplateOutputIsTooLarge}
 
 type templateRunner func(string, map[string]string) (string, error)
 
@@ -31,6 +36,7 @@ type templateToken struct {
 type templateParser struct {
 	chars  []rune
 	pos    int
+	depth  int
 	tokens []templateToken
 	text   strings.Builder
 }
@@ -126,6 +132,11 @@ func (p *templateParser) function() (*templateValue, error) {
 		p.pos = start
 		return nil, nil
 	}
+	if p.depth >= maxTemplateDepth {
+		return nil, errTemplateStackExceeded
+	}
+	p.depth++
+	defer func() { p.depth-- }()
 	fn := &templateValue{kind: "function", text: name, args: map[string]templateValue{}}
 	p.space()
 	if p.match(")") {
@@ -239,7 +250,28 @@ func renderText(text string, vars map[string]string, stack map[string]bool, dept
 	return renderWith(text, vars, stack, depth, nil)
 }
 
+type templateRender struct {
+	vars   map[string]string
+	stack  map[string]bool
+	run    templateRunner
+	budget int
+}
+
 func renderWith(text string, vars map[string]string, stack map[string]bool, depth int, run templateRunner) (string, error) {
+	r := &templateRender{vars: vars, stack: stack, run: run, budget: maxTemplateOutput}
+	return r.render(text, depth)
+}
+
+func (r *templateRender) write(out *strings.Builder, text string) error {
+	r.budget -= len(text)
+	if r.budget < 0 {
+		return errTemplateOutputTooLarge
+	}
+	out.WriteString(text)
+	return nil
+}
+
+func (r *templateRender) render(text string, depth int) (string, error) {
 	tokens, err := parseTemplate(text)
 	if err != nil {
 		return "", err
@@ -250,32 +282,36 @@ func renderWith(text string, vars map[string]string, stack map[string]bool, dept
 	}
 	var result strings.Builder
 	for _, token := range tokens {
-		if token.tag == nil {
-			result.WriteString(token.raw)
-			continue
+		text := token.raw
+		if token.tag != nil {
+			if text, err = r.eval(*token.tag, depth); err != nil {
+				return "", err
+			}
 		}
-		rendered, err := evalTemplate(*token.tag, vars, stack, depth, run)
-		if err != nil {
+		if err = r.write(&result, text); err != nil {
 			return "", err
 		}
-		result.WriteString(rendered)
 	}
 	return result.String(), nil
 }
 
-func evalTemplate(value templateValue, vars map[string]string, stack map[string]bool, depth int, run templateRunner) (string, error) {
+func serverTemplateResult(name string) bool {
+	return name == "response" || name == "cookie.value" || strings.HasPrefix(name, "response.")
+}
+
+func (r *templateRender) eval(value templateValue, depth int) (string, error) {
 	if depth > maxTemplateDepth {
 		return "", errTemplateStackExceeded
 	}
 	switch value.kind {
 	case "string":
-		return renderWith(value.text, vars, stack, depth, run)
+		return r.render(value.text, depth)
 	case "boolean", "null":
 		return value.text, nil
 	case "function":
 		args := map[string]string{}
 		for name, argument := range value.args {
-			rendered, err := evalTemplate(argument, vars, stack, depth+1, run)
+			rendered, err := r.eval(argument, depth+1)
 			if err != nil {
 				return "", err
 			}
@@ -283,31 +319,34 @@ func evalTemplate(value templateValue, vars map[string]string, stack map[string]
 		}
 		var result string
 		var err error
-		if run != nil {
-			result, err = run(value.text, args)
+		if r.run != nil {
+			result, err = r.run(value.text, args)
 		} else {
 			result, err = templateFunction(value.text, args)
 		}
 		if err != nil {
 			return "", err
 		}
-		return renderWith(result, vars, stack, depth, run)
+		if serverTemplateResult(value.text) {
+			return result, nil
+		}
+		return r.render(result, depth)
 	case "variable":
 		name := value.text
-		text, ok := vars[name]
+		text, ok := r.vars[name]
 		if !ok && strings.HasPrefix(name, "_.") {
 			name = strings.TrimPrefix(name, "_.")
-			text, ok = vars[name]
+			text, ok = r.vars[name]
 		}
 		if !ok {
 			return "", errors.New(locales.VariableNameIsNotDefined(strconv.Quote(name)))
 		}
-		if stack[name] {
+		if r.stack[name] {
 			return "", errors.New(locales.VariableNameRefersToItself(strconv.Quote(name)))
 		}
-		stack[name] = true
-		defer delete(stack, name)
-		return renderWith(text, vars, stack, depth, run)
+		r.stack[name] = true
+		defer delete(r.stack, name)
+		return r.render(text, depth)
 	default:
 		return "", errors.New(locales.UnknownTemplateValue())
 	}

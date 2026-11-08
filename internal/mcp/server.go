@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	jsonv1 "encoding/json"
 	"encoding/json/jsontext"
@@ -243,6 +244,27 @@ func (s *server) resolveWorkspace(id *string) (Workspace, error) {
 	return Workspace{}, fmt.Errorf("Workspace with ID %q not found.\n\nAvailable workspaces:\n%s", *id, strings.Join(list, "\n")) //nolint:staticcheck
 }
 
+func (s *server) findRequest(workspace, id string) (engine.Object, error) {
+	request, err := s.host.GetHTTPRequest(id)
+	if err != nil || request == nil || request["workspaceId"] != workspace {
+		return nil, err
+	}
+	return request, nil
+}
+
+func (s *server) openModel(id string, find func(workspace, id string) (engine.Object, error)) (engine.Object, error) {
+	workspaces, err := s.host.ListWorkspaces()
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range workspaces {
+		if m, err := find(w.ID, id); err != nil || m != nil {
+			return m, err
+		}
+	}
+	return nil, nil
+}
+
 func (s *server) findFolder(workspace, id string) (engine.Object, error) {
 	folders, err := s.host.ListFolders(workspace)
 	if err != nil {
@@ -332,10 +354,11 @@ func (s *server) listHTTPRequests(_ context.Context, _ *mcp.CallToolRequest, p W
 }
 
 func (s *server) getHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p GetHTTPRequestParams) (result, any, error) {
-	if _, err := s.resolveWorkspace(p.WorkspaceID); err != nil {
+	w, err := s.resolveWorkspace(p.WorkspaceID)
+	if err != nil {
 		return nil, nil, err
 	}
-	request, err := s.host.GetHTTPRequest(p.ID)
+	request, err := s.findRequest(w.ID, p.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -347,7 +370,7 @@ func (s *server) sendHTTPRequest(ctx context.Context, _ *mcp.CallToolRequest, p 
 	if err != nil {
 		return nil, nil, err
 	}
-	request, err := s.host.GetHTTPRequest(p.ID)
+	request, err := s.findRequest(w.ID, p.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -383,10 +406,11 @@ func (s *server) createHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p 
 }
 
 func (s *server) updateHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p UpdateHTTPRequestParams) (result, any, error) {
-	if _, err := s.resolveWorkspace(p.WorkspaceID); err != nil {
+	w, err := s.resolveWorkspace(p.WorkspaceID)
+	if err != nil {
 		return nil, nil, err
 	}
-	existing, err := s.host.GetHTTPRequest(p.ID)
+	existing, err := s.findRequest(w.ID, p.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -401,6 +425,9 @@ func (s *server) updateHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p 
 }
 
 func (s *server) deleteHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p DeleteParams) (result, any, error) {
+	if existing, err := s.openModel(p.ID, s.findRequest); err != nil || existing == nil {
+		return nil, nil, cmp.Or(err, fmt.Errorf("HTTP request with ID %s not found", p.ID))
+	}
 	request, err := s.host.DeleteHTTPRequest(p.ID)
 	if err != nil {
 		return nil, nil, err
@@ -466,6 +493,9 @@ func (s *server) updateFolder(_ context.Context, _ *mcp.CallToolRequest, p Updat
 }
 
 func (s *server) deleteFolder(_ context.Context, _ *mcp.CallToolRequest, p DeleteParams) (result, any, error) {
+	if existing, err := s.openModel(p.ID, s.findFolder); err != nil || existing == nil {
+		return nil, nil, cmp.Or(err, fmt.Errorf("Folder with ID %s not found", p.ID)) //nolint:staticcheck
+	}
 	folder, err := s.host.DeleteFolder(p.ID)
 	if err != nil {
 		return nil, nil, err

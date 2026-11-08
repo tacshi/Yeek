@@ -5,7 +5,9 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"compress/zlib"
+	"errors"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/andybalholm/brotli"
@@ -14,15 +16,22 @@ import (
 
 func decodeContent(body io.Reader, encoding string) (io.Reader, func(), error) {
 	noop := func() {}
-	switch strings.ToLower(strings.TrimSpace(encoding)) {
+	encoding = strings.ToLower(strings.TrimSpace(encoding))
+	if !slices.Contains([]string{"gzip", "x-gzip", "deflate", "br", "zstd"}, encoding) {
+		return body, noop, nil
+	}
+	buffered := bufio.NewReader(body)
+	if _, err := buffered.Peek(1); errors.Is(err, io.EOF) {
+		return buffered, noop, nil
+	}
+	switch encoding {
 	case "gzip", "x-gzip":
-		r, err := gzip.NewReader(body)
+		r, err := gzip.NewReader(buffered)
 		if err != nil {
 			return nil, noop, err
 		}
 		return r, func() { _ = r.Close() }, nil
 	case "deflate":
-		buffered := bufio.NewReader(body)
 		if header, err := buffered.Peek(2); err == nil && header[0]&0x0f == 8 && (uint16(header[0])<<8|uint16(header[1]))%31 == 0 {
 			r, err := zlib.NewReader(buffered)
 			if err != nil {
@@ -33,13 +42,11 @@ func decodeContent(body io.Reader, encoding string) (io.Reader, func(), error) {
 		r := flate.NewReader(buffered)
 		return r, func() { _ = r.Close() }, nil
 	case "br":
-		return brotli.NewReader(body), noop, nil
-	case "zstd":
-		r, err := zstd.NewReader(body)
-		if err != nil {
-			return nil, noop, err
-		}
-		return r, r.Close, nil
+		return brotli.NewReader(buffered), noop, nil
 	}
-	return body, noop, nil
+	r, err := zstd.NewReader(buffered)
+	if err != nil {
+		return nil, noop, err
+	}
+	return r, r.Close, nil
 }

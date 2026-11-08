@@ -212,10 +212,16 @@ func TestImportDeepLinkOpensTheImportedWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	asked = ""
+	imported := a.workspace
 	a.confirmMessage = func(message, _ string) bool { asked = message; return false }
 	a.ImportDeepLink("", path, "")
-	if asked != "" || s(a.models[a.workspace], "name") != "Dummy" {
-		t.Fatalf("asked %q for a path", asked)
+	if asked != "Import data from "+path+"?" || a.workspace != imported {
+		t.Fatalf("asked %q for a path, workspace %s", asked, a.workspace)
+	}
+	a.confirmMessage = func(string, string) bool { return true }
+	a.ImportDeepLink("", path, "")
+	if a.workspace == imported || s(a.models[a.workspace], "name") != "Dummy" {
+		t.Fatalf("path import: workspace %v", a.models[a.workspace])
 	}
 	a.ImportDeepLink("", "", "")
 	if last := a.toastQueue[len(a.toastQueue)-1]; last.Title != "Failed to import data" {
