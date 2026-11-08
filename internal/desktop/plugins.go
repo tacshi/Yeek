@@ -8,6 +8,22 @@ import (
 
 func (a *App) pluginsSettings(c *ui.Context, p colors) {
 	ui.Text(c, locales.Plugins()).FontSize(18).FontWeight(600)
+	ui.Row(c).Gap(8).Children(func() {
+		if ui.PrimaryButton(c, locales.LoadPluginEllipsis()).Clicked() {
+			a.background(func() (func(), error) {
+				paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.LoadPlugin(), Filters: []mygo.FileFilter{{Name: locales.JavaScriptOrTypeScript(), Extensions: []string{"js", "mjs", "ts", "mts"}}}})
+				if err != nil || len(paths) == 0 {
+					return nil, err
+				}
+				_, err = a.Engine.InstallPlugin(a.ctx, paths[0])
+				return nil, err
+			})
+		}
+		if ui.Button(c, locales.Reload()).Clicked() {
+			a.background(func() (func(), error) { return nil, a.Engine.LoadPlugins(a.ctx) })
+		}
+	})
+	ui.Text(c, locales.PluginsCanReachTheNetworkLoad()).FontSize(11).TextColor(p.muted)
 	for _, plugin := range a.Engine.Plugins() {
 		ui.Column(c).Key(plugin.ID).Gap(7).Padding(12).Border(1, p.border).Radius(6).Children(func() {
 			ui.Row(c).Gap(10).Children(func() {
@@ -31,20 +47,4 @@ func (a *App) pluginsSettings(c *ui.Context, p colors) {
 			}
 		})
 	}
-	ui.Row(c).Gap(8).Children(func() {
-		if ui.PrimaryButton(c, locales.LoadPluginEllipsis()).Clicked() {
-			a.background(func() (func(), error) {
-				paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.Window, Title: locales.LoadPlugin(), Filters: []mygo.FileFilter{{Name: locales.JavaScriptOrTypeScript(), Extensions: []string{"js", "mjs", "ts", "mts"}}}})
-				if err != nil || len(paths) == 0 {
-					return nil, err
-				}
-				_, err = a.Engine.InstallPlugin(a.ctx, paths[0])
-				return nil, err
-			})
-		}
-		if ui.Button(c, locales.Reload()).Clicked() {
-			a.background(func() (func(), error) { return nil, a.Engine.LoadPlugins(a.ctx) })
-		}
-	})
-	ui.Text(c, locales.PluginsCanReachTheNetworkLoad()).FontSize(11).TextColor(p.muted)
 }

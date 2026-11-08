@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"yeek/locales"
 )
@@ -61,6 +62,11 @@ func Open(dir string) (*Engine, error) {
 		_ = e.Close()
 		return nil, err
 	}
+	e.workers.Add(1)
+	go func() {
+		defer e.workers.Done()
+		e.Store.WatchOthers(ctx, time.Second, func() { e.publish(nil) })
+	}()
 	return e, nil
 }
 func (e *Engine) Close() error {

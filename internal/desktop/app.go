@@ -63,6 +63,7 @@ type Draft struct {
 type App struct {
 	oauthBrowserCount          int
 	oauthEditors               map[string]*oauthEditorState
+	command                    commandUI
 	methodError                string
 	partEditor                 *multipartPartEditor
 	exports                    *exportDialog

@@ -43,6 +43,8 @@ func (goKeyring) Delete(service, account string) error { return keyring.Delete(s
 
 var newSecrets = func(dataDir string) engine.SecretStore { return newKeychain(dataDir) }
 
+func NewSecrets(dataDir string) engine.SecretStore { return newKeychain(dataDir) }
+
 func newKeychain(dataDir string) *keychain {
 	return &keychain{
 		moved:  filepath.Join(dataDir, "keychain-moved"),

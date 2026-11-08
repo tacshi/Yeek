@@ -15,6 +15,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"yeek/internal/applog"
+	"yeek/internal/cli"
 	"yeek/internal/desktop"
 	"yeek/internal/engine"
 	"yeek/locales"
@@ -44,11 +45,21 @@ func startLog() func() {
 }
 
 func run() (runErr error) {
+	name := appName(mygo.App.Name())
+	mygo.App.SetName(name)
+	if command := cli.CommandName(name); cli.Invoked(os.Args, command) {
+		dir, err := mygo.App.Path(mygo.PathUserData)
+		if err != nil {
+			return err
+		}
+		os.Exit(cli.Main(os.Args[1:], cli.Options{
+			Name: command, Dir: dir, Version: desktop.AppVersion(), Secrets: desktop.NewSecrets,
+			In: os.Stdin, Out: os.Stdout, Err: os.Stderr,
+		}))
+	}
 	dataDir := flag.String("data-dir", "", "Directory for workspace data")
 	flag.Parse()
-	name := appName(mygo.App.Name())
 	setProcessName(name)
-	mygo.App.SetName(name)
 	dir := *dataDir
 	var err error
 	if dir == "" {

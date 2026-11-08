@@ -208,6 +208,18 @@ func (msgs Messages) Addresses() string {
 	return Catalog.Format(msgs.locale, "addresses", nil)
 }
 
+// AddsCommandToFolder says "Adds {name} to {folder}, for agents and terminals."
+// in the language the app shows.
+func AddsCommandToFolder(name string, folder string) string {
+	return In(i18n.Locale()).AddsCommandToFolder(name, folder)
+}
+
+// AddsCommandToFolder says "Adds {name} to {folder}, for agents and terminals."
+// in the language of msgs.
+func (msgs Messages) AddsCommandToFolder(name string, folder string) string {
+	return Catalog.Format(msgs.locale, "addsCommandToFolder", map[string]any{"name": name, "folder": folder})
+}
+
 // AddSubEnvironment says "Add Sub-Environment"
 // in the language the app shows.
 func AddSubEnvironment() string { return In(i18n.Locale()).AddSubEnvironment() }
@@ -288,6 +300,18 @@ func Agents() string { return In(i18n.Locale()).Agents() }
 // in the language of msgs.
 func (msgs Messages) Agents() string {
 	return Catalog.Format(msgs.locale, "agents", nil)
+}
+
+// AgentsLaunchCommandToReachYeek says "Agents launch {command} to reach Yeek's tools, even with Yeek closed."
+// in the language the app shows.
+func AgentsLaunchCommandToReachYeek(command string) string {
+	return In(i18n.Locale()).AgentsLaunchCommandToReachYeek(command)
+}
+
+// AgentsLaunchCommandToReachYeek says "Agents launch {command} to reach Yeek's tools, even with Yeek closed."
+// in the language of msgs.
+func (msgs Messages) AgentsLaunchCommandToReachYeek(command string) string {
+	return Catalog.Format(msgs.locale, "agentsLaunchCommandToReachYeek", map[string]any{"command": command})
 }
 
 // AgentsSendThisAsABearer says "Agents send this as a bearer token."
@@ -2244,6 +2268,48 @@ func (msgs Messages) CommandCopiedToClipboard() string {
 	return Catalog.Format(msgs.locale, "commandCopiedToClipboard", nil)
 }
 
+// CommandInstalledAt says "Installed at {path}."
+// in the language the app shows.
+func CommandInstalledAt(path string) string { return In(i18n.Locale()).CommandInstalledAt(path) }
+
+// CommandInstalledAt says "Installed at {path}."
+// in the language of msgs.
+func (msgs Messages) CommandInstalledAt(path string) string {
+	return Catalog.Format(msgs.locale, "commandInstalledAt", map[string]any{"path": path})
+}
+
+// CommandLine says "Command line"
+// in the language the app shows.
+func CommandLine() string { return In(i18n.Locale()).CommandLine() }
+
+// CommandLine says "Command line"
+// in the language of msgs.
+func (msgs Messages) CommandLine() string {
+	return Catalog.Format(msgs.locale, "commandLine", nil)
+}
+
+// CommandRunsAnotherCopy says "{path} runs another copy of Yeek. Update it to run this one."
+// in the language the app shows.
+func CommandRunsAnotherCopy(path string) string {
+	return In(i18n.Locale()).CommandRunsAnotherCopy(path)
+}
+
+// CommandRunsAnotherCopy says "{path} runs another copy of Yeek. Update it to run this one."
+// in the language of msgs.
+func (msgs Messages) CommandRunsAnotherCopy(path string) string {
+	return Catalog.Format(msgs.locale, "commandRunsAnotherCopy", map[string]any{"path": path})
+}
+
+// CommandTaken says "{path} belongs to another program, so Yeek leaves it as it is."
+// in the language the app shows.
+func CommandTaken(path string) string { return In(i18n.Locale()).CommandTaken(path) }
+
+// CommandTaken says "{path} belongs to another program, so Yeek leaves it as it is."
+// in the language of msgs.
+func (msgs Messages) CommandTaken(path string) string {
+	return Catalog.Format(msgs.locale, "commandTaken", map[string]any{"path": path})
+}
+
 // Commit says "Commit"
 // in the language the app shows.
 func Commit() string { return In(i18n.Locale()).Commit() }
@@ -2878,6 +2944,30 @@ func CopyWorkspaceID() string { return In(i18n.Locale()).CopyWorkspaceID() }
 // in the language of msgs.
 func (msgs Messages) CopyWorkspaceID() string {
 	return Catalog.Format(msgs.locale, "copyWorkspaceID", nil)
+}
+
+// CouldNotInstallCommand says "Couldn't install {name}: {error}"
+// in the language the app shows.
+func CouldNotInstallCommand(name string, error string) string {
+	return In(i18n.Locale()).CouldNotInstallCommand(name, error)
+}
+
+// CouldNotInstallCommand says "Couldn't install {name}: {error}"
+// in the language of msgs.
+func (msgs Messages) CouldNotInstallCommand(name string, error string) string {
+	return Catalog.Format(msgs.locale, "couldNotInstallCommand", map[string]any{"name": name, "error": error})
+}
+
+// CouldNotRemoveCommand says "Couldn't remove {name}: {error}"
+// in the language the app shows.
+func CouldNotRemoveCommand(name string, error string) string {
+	return In(i18n.Locale()).CouldNotRemoveCommand(name, error)
+}
+
+// CouldNotRemoveCommand says "Couldn't remove {name}: {error}"
+// in the language of msgs.
+func (msgs Messages) CouldNotRemoveCommand(name string, error string) string {
+	return Catalog.Format(msgs.locale, "couldNotRemoveCommand", map[string]any{"name": name, "error": error})
 }
 
 // CountBytes says "{count, number} bytes"
@@ -6314,6 +6404,18 @@ func (msgs Messages) ForClientsThatReadAnMcpServers() string {
 	return Catalog.Format(msgs.locale, "forClientsThatReadAnMcpServers", nil)
 }
 
+// ForClientsThatReadAnMcpServersConfig says "For clients that read an mcpServers config, like Claude Desktop and Windsurf."
+// in the language the app shows.
+func ForClientsThatReadAnMcpServersConfig() string {
+	return In(i18n.Locale()).ForClientsThatReadAnMcpServersConfig()
+}
+
+// ForClientsThatReadAnMcpServersConfig says "For clients that read an mcpServers config, like Claude Desktop and Windsurf."
+// in the language of msgs.
+func (msgs Messages) ForClientsThatReadAnMcpServersConfig() string {
+	return Catalog.Format(msgs.locale, "forClientsThatReadAnMcpServersConfig", nil)
+}
+
 // Forever says "Forever"
 // in the language the app shows.
 func Forever() string { return In(i18n.Locale()).Forever() }
@@ -7538,6 +7640,26 @@ func (msgs Messages) InspectingSchema() string {
 	return Catalog.Format(msgs.locale, "inspectingSchema", nil)
 }
 
+// Install says "Install"
+// in the language the app shows.
+func Install() string { return In(i18n.Locale()).Install() }
+
+// Install says "Install"
+// in the language of msgs.
+func (msgs Messages) Install() string {
+	return Catalog.Format(msgs.locale, "install", nil)
+}
+
+// Installing says "Installing…"
+// in the language the app shows.
+func Installing() string { return In(i18n.Locale()).Installing() }
+
+// Installing says "Installing…"
+// in the language of msgs.
+func (msgs Messages) Installing() string {
+	return Catalog.Format(msgs.locale, "installing", nil)
+}
+
 // Interface says "Interface"
 // in the language the app shows.
 func Interface() string { return In(i18n.Locale()).Interface() }
@@ -8700,6 +8822,16 @@ func MoveSelectedToWorkspace() string { return In(i18n.Locale()).MoveSelectedToW
 // in the language of msgs.
 func (msgs Messages) MoveSelectedToWorkspace() string {
 	return Catalog.Format(msgs.locale, "moveSelectedToWorkspace", nil)
+}
+
+// MoveYeekToApplicationsFirst says "Move Yeek to the Applications folder first."
+// in the language the app shows.
+func MoveYeekToApplicationsFirst() string { return In(i18n.Locale()).MoveYeekToApplicationsFirst() }
+
+// MoveYeekToApplicationsFirst says "Move Yeek to the Applications folder first."
+// in the language of msgs.
+func (msgs Messages) MoveYeekToApplicationsFirst() string {
+	return Catalog.Format(msgs.locale, "moveYeekToApplicationsFirst", nil)
 }
 
 // MultiPart says "Multi-Part"
@@ -11716,6 +11848,16 @@ func (msgs Messages) RemoteOpenAPIReferencesMustUseHTTP() string {
 	return Catalog.Format(msgs.locale, "remoteOpenAPIReferencesMustUseHTTP", nil)
 }
 
+// Remove says "Remove"
+// in the language the app shows.
+func Remove() string { return In(i18n.Locale()).Remove() }
+
+// Remove says "Remove"
+// in the language of msgs.
+func (msgs Messages) Remove() string {
+	return Catalog.Format(msgs.locale, "remove", nil)
+}
+
 // RemoveCertificateIndex says "Remove certificate {index, number}"
 // in the language the app shows.
 func RemoveCertificateIndex(index int) string { return In(i18n.Locale()).RemoveCertificateIndex(index) }
@@ -11774,6 +11916,16 @@ func RemoveRemote(remote string) string { return In(i18n.Locale()).RemoveRemote(
 // in the language of msgs.
 func (msgs Messages) RemoveRemote(remote string) string {
 	return Catalog.Format(msgs.locale, "removeRemote", map[string]any{"remote": remote})
+}
+
+// Removing says "Removing…"
+// in the language the app shows.
+func Removing() string { return In(i18n.Locale()).Removing() }
+
+// Removing says "Removing…"
+// in the language of msgs.
+func (msgs Messages) Removing() string {
+	return Catalog.Format(msgs.locale, "removing", nil)
 }
 
 // Rename says "Rename"
@@ -14258,6 +14410,16 @@ func (msgs Messages) Text() string {
 	return Catalog.Format(msgs.locale, "text", nil)
 }
 
+// TheCommand says "The {name} command"
+// in the language the app shows.
+func TheCommand(name string) string { return In(i18n.Locale()).TheCommand(name) }
+
+// TheCommand says "The {name} command"
+// in the language of msgs.
+func (msgs Messages) TheCommand(name string) string {
+	return Catalog.Format(msgs.locale, "theCommand", map[string]any{"name": name})
+}
+
 // TheContentEncodingUsuallyACompression says "The content encoding (usually a compression algorithm) that the client can understand. The server uses content negoti…"
 // in the language the app shows.
 func TheContentEncodingUsuallyACompression() string {
@@ -14636,6 +14798,16 @@ func (msgs Messages) ThroughTheApp() string {
 	return Catalog.Format(msgs.locale, "throughTheApp", nil)
 }
 
+// ThroughTheCLI says "Through the CLI"
+// in the language the app shows.
+func ThroughTheCLI() string { return In(i18n.Locale()).ThroughTheCLI() }
+
+// ThroughTheCLI says "Through the CLI"
+// in the language of msgs.
+func (msgs Messages) ThroughTheCLI() string {
+	return Catalog.Format(msgs.locale, "throughTheCLI", nil)
+}
+
 // Timeline says "Timeline"
 // in the language the app shows.
 func Timeline() string { return In(i18n.Locale()).Timeline() }
@@ -14996,16 +15168,6 @@ func TTLSeconds() string { return In(i18n.Locale()).TTLSeconds() }
 // in the language of msgs.
 func (msgs Messages) TTLSeconds() string {
 	return Catalog.Format(msgs.locale, "TTLSeconds", nil)
-}
-
-// TurnOnTheMCPServerAbove says "Turn on the MCP server above to connect this way."
-// in the language the app shows.
-func TurnOnTheMCPServerAbove() string { return In(i18n.Locale()).TurnOnTheMCPServerAbove() }
-
-// TurnOnTheMCPServerAbove says "Turn on the MCP server above to connect this way."
-// in the language of msgs.
-func (msgs Messages) TurnOnTheMCPServerAbove() string {
-	return Catalog.Format(msgs.locale, "turnOnTheMCPServerAbove", nil)
 }
 
 // TweakSettingsRelatedToTheUser says "Tweak settings related to the user interface."
@@ -15380,6 +15542,16 @@ func UpdateBehavior() string { return In(i18n.Locale()).UpdateBehavior() }
 // in the language of msgs.
 func (msgs Messages) UpdateBehavior() string {
 	return Catalog.Format(msgs.locale, "updateBehavior", nil)
+}
+
+// UpdateCommand says "Update"
+// in the language the app shows.
+func UpdateCommand() string { return In(i18n.Locale()).UpdateCommand() }
+
+// UpdateCommand says "Update"
+// in the language of msgs.
+func (msgs Messages) UpdateCommand() string {
+	return Catalog.Format(msgs.locale, "updateCommand", nil)
 }
 
 // Updated says "updated"
@@ -16122,6 +16294,30 @@ func YeekVersionWasInstalled(version string) string {
 // in the language of msgs.
 func (msgs Messages) YeekVersionWasInstalled(version string) string {
 	return Catalog.Format(msgs.locale, "yeekVersionWasInstalled", map[string]any{"version": version})
+}
+
+// YeekWantsToInstallCommand says "Yeek wants to install the {name} command."
+// in the language the app shows.
+func YeekWantsToInstallCommand(name string) string {
+	return In(i18n.Locale()).YeekWantsToInstallCommand(name)
+}
+
+// YeekWantsToInstallCommand says "Yeek wants to install the {name} command."
+// in the language of msgs.
+func (msgs Messages) YeekWantsToInstallCommand(name string) string {
+	return Catalog.Format(msgs.locale, "yeekWantsToInstallCommand", map[string]any{"name": name})
+}
+
+// YeekWantsToRemoveCommand says "Yeek wants to remove the {name} command."
+// in the language the app shows.
+func YeekWantsToRemoveCommand(name string) string {
+	return In(i18n.Locale()).YeekWantsToRemoveCommand(name)
+}
+
+// YeekWantsToRemoveCommand says "Yeek wants to remove the {name} command."
+// in the language of msgs.
+func (msgs Messages) YeekWantsToRemoveCommand(name string) string {
+	return Catalog.Format(msgs.locale, "yeekWantsToRemoveCommand", map[string]any{"name": name})
 }
 
 // Yes says "Yes"

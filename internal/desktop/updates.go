@@ -28,6 +28,8 @@ var updates struct {
 
 func appVersion() string { return cmp.Or(mygo.App.Version(), "0.1.0") }
 
+func AppVersion() string { return appVersion() }
+
 func (a *App) maybeCheckForUpdates() {
 	if !b(a.settings, "autoupdate") || !mygo.Updater.Enabled() {
 		return

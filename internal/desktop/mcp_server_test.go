@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -70,7 +71,11 @@ func TestAgentsSettingsServeTheOpenWorkspace(t *testing.T) {
 	if err := tt.Click("Agents"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Turn on the MCP server above to connect this way.") || tt.HasText("Token") || tt.HasText("Codex") {
+	cliSetup := "claude mcp add -s user yeek -- " + shellWord(executable()) + " mcp"
+	if runtime.GOOS == "darwin" && !tt.HasText("Command line") {
+		t.Fatal(tt.Texts())
+	}
+	if !tt.HasText("Enable MCP server") || tt.HasText("Token") || tt.HasText("Connect an agent") || tt.HasText("Codex") || tt.HasText(cliSetup) || tt.HasText("--transport http") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("MCP server enabled"); err != nil {
@@ -87,7 +92,7 @@ func TestAgentsSettingsServeTheOpenWorkspace(t *testing.T) {
 	}
 	tt.Frame()
 	want := `claude mcp add --transport http yeek http://127.0.0.1:64343/mcp --header "Authorization: Bearer ` + token + `"`
-	if !tt.HasText(token) || !tt.HasText(want) {
+	if !tt.HasText(token) || !tt.HasText(want) || !tt.HasText(cliSetup) || !tt.HasText("Codex") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("Cursor"); err != nil {
@@ -161,6 +166,44 @@ func TestAppAgentSetup(t *testing.T) {
 	} {
 		if got := appAgentSetup(client, url, token); got != want {
 			t.Errorf("%s:\n%s\nwant\n%s", client, got.snippet, want.snippet)
+		}
+	}
+}
+
+func TestCLIAgentSetup(t *testing.T) {
+	quoted := func(s string) string { return "'" + s + "'" }
+	if runtime.GOOS == "windows" {
+		quoted = func(s string) string { return `"` + s + `"` }
+	}
+	exe := "/Applications/My Yeek.app/Contents/MacOS/Yeek"
+	args := []string{"--data-dir", "/tmp/yeek data", "mcp"}
+	for client, want := range map[string]string{
+		"claude_code": `claude mcp add -s user yeek -- ` + quoted("/Applications/My Yeek.app/Contents/MacOS/Yeek") + ` --data-dir ` + quoted("/tmp/yeek data") + ` mcp`,
+		"codex":       `codex mcp add yeek -- yeek mcp`,
+		"cursor":      "{\n  \"mcpServers\": {\n    \"yeek\": {\n      \"command\": \"yeek\",\n      \"args\": [\"mcp\"]\n    }\n  }\n}",
+		"vscode":      "{\n  \"servers\": {\n    \"yeek\": {\n      \"type\": \"stdio\",\n      \"command\": \"yeek\",\n      \"args\": [\"mcp\"]\n    }\n  }\n}",
+		"other":       "{\n  \"mcpServers\": {\n    \"yeek\": {\n      \"command\": \"yeek\",\n      \"args\": [\"mcp\"]\n    }\n  }\n}",
+	} {
+		command, commandArgs := "yeek", []string{"mcp"}
+		if client == "claude_code" {
+			command, commandArgs = exe, args
+		}
+		if got := cliAgentSetup(client, command, commandArgs).snippet; got != want {
+			t.Errorf("%s:\n%s\nwant\n%s", client, got, want)
+		}
+	}
+}
+
+func TestShellWord(t *testing.T) {
+	posix := map[string]string{"yeek": "yeek", "/a b/c": "'/a b/c'", "it's": `'it'\''s'`}
+	windows := map[string]string{"yeek": "yeek", `C:\Program Files\Yeek\Yeek.exe`: `"C:\Program Files\Yeek\Yeek.exe"`, `C:\Yeek\Yeek.exe`: `C:\Yeek\Yeek.exe`}
+	cases := posix
+	if runtime.GOOS == "windows" {
+		cases = windows
+	}
+	for in, want := range cases {
+		if got := shellWord(in); got != want {
+			t.Errorf("shellWord(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
