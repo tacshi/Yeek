@@ -278,14 +278,17 @@ func (e *Engine) AcquireOAuthToken(ctx context.Context, auth Object, options OAu
 	if e.oauthGenerations == nil {
 		e.oauthGenerations = map[string]uint64{}
 	}
-	if flight := e.oauthFlights[key]; flight != nil {
+	for flight := e.oauthFlights[key]; flight != nil; flight = e.oauthFlights[key] {
 		e.oauthMu.Unlock()
 		select {
 		case <-ctx.Done():
 			return OAuthToken{}, ctx.Err()
 		case <-flight.done:
+		}
+		if !errors.Is(flight.err, context.Canceled) && !errors.Is(flight.err, context.DeadlineExceeded) {
 			return flight.token, flight.err
 		}
+		e.oauthMu.Lock()
 	}
 	flight := &oauthFlight{done: make(chan struct{}), generation: e.oauthGenerations[key]}
 	e.oauthFlights[key] = flight

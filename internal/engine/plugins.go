@@ -252,6 +252,11 @@ func (e *Engine) beforeSend(ctx context.Context, m Object, req *http.Request) er
 	}
 	return nil
 }
+func (e *Engine) receivesResponses() bool {
+	return slices.ContainsFunc(e.pluginList(), func(p *loadedPlugin) bool {
+		return p.info.Enabled && p.info.Error == "" && p.definition.AfterReceive != nil
+	})
+}
 func (e *Engine) afterReceive(ctx context.Context, m Object, response *http.Response, body []byte) error {
 	for _, p := range e.pluginList() {
 		if !p.info.Enabled || p.info.Error != "" || p.definition.AfterReceive == nil {

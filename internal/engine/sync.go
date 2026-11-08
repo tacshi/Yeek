@@ -60,7 +60,9 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 	if err != nil {
 		return nil, err
 	}
+	stored := map[string]Object{}
 	for _, m := range models {
+		stored[str(m, "id")] = m
 		if syncedLocal(m, workspace) {
 			local[str(m, "id")] = m
 		}
@@ -122,6 +124,9 @@ func (e *Engine) PlanSync(ctx context.Context, workspace, dir string) ([]SyncCha
 		}
 		if modelWorkspace(m) != workspace {
 			continue
+		}
+		if err := foreignModel(stored[str(m, "id")], m, workspace); err != nil {
+			return nil, invalid(err.Error())
 		}
 		defaults, err := defaultModel(str(m, "model"))
 		if err != nil {
@@ -345,6 +350,11 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 						continue
 					}
 				}
+				if existing, err := t.get(ctx, change.ID); err == nil {
+					if err := foreignModel(existing, change.Remote, workspace); err != nil {
+						return err
+					}
+				}
 				if _, err := t.upsert(ctx, change.Remote); err != nil {
 					return err
 				}
@@ -398,6 +408,18 @@ func (e *Engine) ApplySync(ctx context.Context, workspace, dir string, plan []Sy
 		_, err = e.Save(ctx, meta)
 	}
 	return err
+}
+
+func foreignModel(existing, remote Object, workspace string) error {
+	switch {
+	case existing == nil:
+		return nil
+	case modelWorkspace(existing) != workspace:
+		return errors.New(locales.ExpectedWorkspaceIDExpectedFoundFound(workspace, modelWorkspace(existing)))
+	case str(existing, "model") != str(remote, "model"):
+		return errors.New(locales.ModelTypeDoesNotMatchThe())
+	}
+	return nil
 }
 
 func modelWorkspace(m Object) string {

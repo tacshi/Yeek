@@ -1390,6 +1390,7 @@
   "templateFunctionHasNoImplementation": "템플릿 함수에 구현이 없습니다",
   "templateNeedsAnHTTPRequest": "템플릿에는 HTTP 요청이 필요합니다",
   "templateNestingIsTooDeep": "템플릿 중첩이 너무 깊습니다",
+  "templateOutputIsTooLarge": "템플릿 출력이 너무 큽니다",
   "templateTagIsIncomplete": "템플릿 태그가 완전하지 않습니다",
   "text": "텍스트",
   "theCommand": "{name} 명령",

@@ -44,9 +44,10 @@ func (s *memorySecrets) Set(service, account, value string) error {
 }
 
 type fakeLegacy struct {
-	m      map[string]string
-	getErr error
-	gets   int
+	m         map[string]string
+	getErr    error
+	deleteErr error
+	gets      int
 }
 
 func (f *fakeLegacy) Get(service, account string) (string, error) {
@@ -67,6 +68,9 @@ func (f *fakeLegacy) Set(service, account, value string) error {
 }
 
 func (f *fakeLegacy) Delete(service, account string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	if _, ok := f.m[service+"\x00"+account]; !ok {
 		return keyring.ErrNotFound
 	}
@@ -140,6 +144,22 @@ func TestKeychainKeepsKeyWhenMoveFails(t *testing.T) {
 		t.Fatal(v, err, legacy.m)
 	}
 	store.setErr = nil
+	if v, err := k.Get(engine.EncryptionKeyService, engine.EncryptionKeyAccount); err != nil || v != "YKM_KEY" || len(legacy.m) != 0 {
+		t.Fatal(v, err, legacy.m)
+	}
+}
+
+func TestKeychainWritesTheNewKeyBeforeDeletingTheOld(t *testing.T) {
+	legacy := &fakeLegacy{m: map[string]string{ownKey: "YKM_KEY"}, deleteErr: errors.New("keychain locked")}
+	store := &fakeStore{m: map[string][]byte{}}
+	k := testKeychain(t, legacy, store)
+	if v, err := k.Get(engine.EncryptionKeyService, engine.EncryptionKeyAccount); err != nil || v != "YKM_KEY" {
+		t.Fatal(v, err)
+	}
+	if legacy.m[ownKey] != "YKM_KEY" || string(store.m[ownKey]) != "YKM_KEY" {
+		t.Fatal(legacy.m, store.m)
+	}
+	legacy.deleteErr = nil
 	if v, err := k.Get(engine.EncryptionKeyService, engine.EncryptionKeyAccount); err != nil || v != "YKM_KEY" || len(legacy.m) != 0 {
 		t.Fatal(v, err, legacy.m)
 	}

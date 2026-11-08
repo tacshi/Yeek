@@ -1,7 +1,11 @@
 package cli
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"yeek/internal/engine"
 	"yeek/internal/mcp"
@@ -146,13 +151,21 @@ func serveMCP(args []string, o Options) error {
 	if settings, err := e.Store.Get(context.Background(), "default"); err != nil || settings["mcpServerEnabled"] != true {
 		return errors.Join(errMCPOff, e.Close())
 	}
+	for _, flagged := range []struct{ id, model, name string }{{*environment, "environment", "environment"}, {*cookieJar, "cookie_jar", "cookie jar"}} {
+		if flagged.id == "" {
+			continue
+		}
+		if m, err := e.Store.Get(context.Background(), flagged.id); err != nil || m["model"] != flagged.model {
+			return errors.Join(fmt.Errorf("no %s with ID %s", flagged.name, flagged.id), e.Close())
+		}
+	}
 	if o.Secrets != nil {
 		e.Secrets = o.Secrets(o.Dir)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	host := &Host{Engine: e, EnvironmentID: *environment, CookieJarID: *cookieJar, Log: o.Err}
-	transport := &sdk.IOTransport{Reader: io.NopCloser(o.In), Writer: nopWriteCloser{o.Out}}
+	transport := &sdk.IOTransport{Reader: io.NopCloser(wellFormed(o.In, o.Err)), Writer: nopWriteCloser{o.Out}}
 	err = mcp.NewServer(host, o.Version).Run(ctx, transport)
 	if ctx.Err() != nil || errors.Is(err, io.EOF) {
 		err = nil
@@ -161,6 +174,72 @@ func serveMCP(args []string, o Options) error {
 }
 
 var errMCPOff = errors.New("the MCP server is turned off: turn on \"Enable MCP server\" in Yeek's Settings > Agents")
+
+func wellFormed(in io.Reader, log io.Writer) io.Reader {
+	r, w := io.Pipe()
+	go func() {
+		lines := bufio.NewReader(in)
+		for {
+			line, err := readLine(lines, sdk.DefaultMaxLineLength)
+			if line = bytes.TrimSpace(line); len(line) > 0 || errors.Is(err, errLineTooLong) {
+				if wellFormedMessage(line) {
+					if _, err := w.Write(append(line, '\n')); err != nil {
+						return
+					}
+				} else if log != nil {
+					_, _ = fmt.Fprintln(log, "[mcp] ignored a malformed message")
+				}
+			}
+			if err != nil && !errors.Is(err, errLineTooLong) {
+				_ = w.CloseWithError(err)
+				return
+			}
+		}
+	}()
+	return r
+}
+
+var errLineTooLong = errors.New("line too long")
+
+func readLine(r *bufio.Reader, limit int) ([]byte, error) {
+	var line []byte
+	tooLong := false
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if !tooLong && len(line)+len(chunk) <= limit {
+			line = append(line, chunk...)
+		} else {
+			tooLong, line = true, nil
+		}
+		if errors.Is(err, bufio.ErrBufferFull) {
+			continue
+		}
+		if tooLong && err == nil {
+			err = errLineTooLong
+		}
+		return line, err
+	}
+}
+
+func wellFormedMessage(line []byte) bool {
+	if len(line) == 0 {
+		return false
+	}
+	if line[0] != '[' {
+		_, err := jsonrpc.DecodeMessage(line)
+		return err == nil
+	}
+	var batch []jsontext.Value
+	if err := json.Unmarshal(line, &batch); err != nil || len(batch) == 0 {
+		return false
+	}
+	for _, message := range batch {
+		if _, err := jsonrpc.DecodeMessage(message); err != nil {
+			return false
+		}
+	}
+	return true
+}
 
 type nopWriteCloser struct{ io.Writer }
 

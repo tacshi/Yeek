@@ -315,3 +315,33 @@ func TestMCPRefusesWhileTheServerIsOff(t *testing.T) {
 		t.Fatalf("%d %q %q", code, out.String(), errOut.String())
 	}
 }
+
+func TestMCPSkipsMalformedMessages(t *testing.T) {
+	dir := t.TempDir()
+	fx := seed(t, dir)
+	s := startMCP(t, dir)
+	for _, line := range []string{"not json\n", "{}\n", `[{"jsonrpc":"2.0"}]` + "\n", strings.Repeat("x", 100) + "\n"} {
+		if _, err := s.stdin.Write([]byte(line)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := s.ok("get_workspace_id", nil); got != fx.workspace {
+		t.Fatalf("workspace %q", got)
+	}
+	s.stop()
+	if got := strings.Count(s.stderr.String(), "[mcp] ignored a malformed message"); got != 4 {
+		t.Fatalf("stderr %q", s.stderr.String())
+	}
+}
+
+func TestMCPRefusesUnknownEnvironmentAndCookieJar(t *testing.T) {
+	dir := t.TempDir()
+	fx := seed(t, dir)
+	for _, args := range [][]string{{"--environment", "ev_missing"}, {"--environment", fx.request}, {"--cookie-jar", "cj_missing"}} {
+		var out, errOut bytes.Buffer
+		code := Main(append([]string{"--data-dir", dir, "mcp"}, args...), Options{Name: "yeek", Version: "test", In: strings.NewReader(""), Out: &out, Err: &errOut})
+		if code != 1 || out.Len() != 0 || !strings.Contains(errOut.String(), args[1]) {
+			t.Fatalf("%v: %d %q %q", args, code, out.String(), errOut.String())
+		}
+	}
+}

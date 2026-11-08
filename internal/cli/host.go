@@ -92,7 +92,12 @@ func (h *Host) SendHTTPRequest(ctx context.Context, workspace string, request en
 	} else if environment, err = h.ActiveEnvironmentID(owner); err != nil {
 		return nil, err
 	}
-	jar := h.CookieJarID
+	jar := ""
+	if h.CookieJarID != "" {
+		if m, err := h.Engine.Store.Get(ctx, h.CookieJarID); err == nil && str(m, "model") == "cookie_jar" && str(m, "workspaceId") == owner {
+			jar = h.CookieJarID
+		}
+	}
 	if jar == "" {
 		jars, err := h.Engine.Store.List(ctx, "cookie_jar", owner)
 		if err != nil {

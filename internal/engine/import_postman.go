@@ -3,10 +3,65 @@ package engine
 import (
 	"cmp"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
+var (
+	postmanVariable         = regexp.MustCompile(`{{\s*(_\.)?([^}]*)\s*}}`)
+	postmanDynamicVariables = map[string]string{
+		"$guid":         "uuid.v4()",
+		"$randomUUID":   "uuid.v4()",
+		"$timestamp":    "timestamp.unix()",
+		"$isoTimestamp": "timestamp.iso8601()",
+		"$randomInt":    "random.range(min='0',max='1000',decimals='0')",
+	}
+)
+
+func postmanTemplates(text string, dynamic bool) string {
+	return postmanVariable.ReplaceAllStringFunc(text, func(match string) string {
+		name := strings.TrimSpace(postmanVariable.FindStringSubmatch(match)[2])
+		if !dynamic {
+			return "${[" + name + "]}"
+		}
+		if function, ok := postmanDynamicVariables[name]; ok {
+			return "${[" + function + "]}"
+		}
+		return "${[" + strings.TrimPrefix(name, "vault:") + "]}"
+	})
+}
+
+func convertPostmanTemplates(value any) any {
+	switch v := value.(type) {
+	case string:
+		return postmanTemplates(v, true)
+	case Object:
+		for key, item := range v {
+			if key != "importScripts" {
+				v[key] = convertPostmanTemplates(item)
+			}
+		}
+	case []any:
+		for i, item := range v {
+			v[i] = convertPostmanTemplates(item)
+		}
+	case []Object:
+		for _, item := range v {
+			convertPostmanTemplates(item)
+		}
+	}
+	return value
+}
+
 func parsePostman(root Object) []Object {
+	models := parsePostmanModels(root)
+	for _, m := range models {
+		convertPostmanTemplates(m)
+	}
+	return models
+}
+
+func parsePostmanModels(root Object) []Object {
 	workspace := "import_workspace"
 	info := obj(root, "info")
 	name := str(info, "name")

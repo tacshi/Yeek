@@ -330,3 +330,61 @@ func TestGitInitOnMain(t *testing.T) {
 		t.Fatal("after the first commit", status.Branch, status.Branches, err)
 	}
 }
+
+func TestGitCommitStagedUsesTheIndex(t *testing.T) {
+	gitFixture(t)
+	e := testEngine(t)
+	dir := t.TempDir()
+	if err := e.GitInit(dir); err != nil {
+		t.Fatal(err)
+	}
+	commitFile(t, e, dir, "a.yaml", "v1\n", "first")
+	commitFile(t, e, dir, "gone.yaml", "x\n", "second")
+	if err := os.WriteFile(filepath.Join(dir, "a.yaml"), []byte("v2\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(dir, "gone.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.GitStage(dir, []string{"a.yaml", "gone.yaml"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.yaml"), []byte("v3\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.GitCommitStaged(t.Context(), dir, "staged only"); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, _ := gitCommand(t.Context(), dir, "", "show", "HEAD:a.yaml"); out != "v2\n" {
+		t.Fatalf("HEAD:a.yaml = %q", out)
+	}
+	if _, ok, _ := gitCommand(t.Context(), dir, "", "cat-file", "-e", "HEAD:gone.yaml"); ok {
+		t.Fatal("staged deletion was not committed")
+	}
+	if out, _, _ := gitCommand(t.Context(), dir, "", "status", "--porcelain"); out != " M a.yaml\n" {
+		t.Fatalf("status = %q", out)
+	}
+}
+
+func TestGitBranchNamesAreNotOptions(t *testing.T) {
+	gitFixture(t)
+	e := testEngine(t)
+	dir := t.TempDir()
+	if err := e.GitInit(dir); err != nil {
+		t.Fatal(err)
+	}
+	commitFile(t, e, dir, "a.yaml", "v1\n", "first")
+	if err := e.GitCreateBranch(t.Context(), dir, "feature", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.GitRenameBranch(t.Context(), dir, "feature", "-f"); err == nil {
+		t.Fatal("renamed a branch to -f")
+	}
+	if err := e.GitCreateBranch(t.Context(), dir, "-D", "feature"); err == nil {
+		t.Fatal("created a branch named -D")
+	}
+	info, err := e.GitBranchInfo(t.Context(), dir)
+	if err != nil || !slices.Contains(info.LocalBranches, "feature") || len(info.LocalBranches) != 2 {
+		t.Fatal(info, err)
+	}
+}

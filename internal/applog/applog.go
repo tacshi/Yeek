@@ -80,7 +80,7 @@ func (f *File) rotate() error {
 	closed := f.file.Close()
 	f.file = nil
 	renamed := os.Rename(f.path, f.path+".1")
-	if errors.Is(renamed, fs.ErrNotExist) {
+	if errors.Is(renamed, fs.ErrNotExist) || renamed != nil && os.Truncate(f.path, 0) == nil {
 		renamed = nil
 	}
 	return errors.Join(closed, renamed, f.open())

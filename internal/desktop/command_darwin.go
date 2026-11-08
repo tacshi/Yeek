@@ -36,10 +36,13 @@ func commandState(name, exe string) commandStatus {
 		s.taken = link
 	default:
 		target, err := filepath.EvalSymlinks(link)
+		if err != nil {
+			target, _ = os.Readlink(link)
+		}
 		switch {
 		case err == nil && target == exe:
 			s.installed = true
-		case err != nil || isAppExecutable(target):
+		case isAppExecutable(target) && filepath.Base(target) == filepath.Base(exe):
 			s.other = true
 		default:
 			s.taken = link

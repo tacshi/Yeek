@@ -131,10 +131,13 @@ func cliAgentSetup(client, command string, args []string) agentSetup {
 	return agentSetup{locales.ForClientsThatReadAnMcpServersConfig(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": server}})}
 }
 
-func setupSnippet(c *ui.Context, p colors, key, title string, setup agentSetup) {
+func setupSnippet(c *ui.Context, p colors, key, title, warning string, setup agentSetup) {
 	ui.Column(c).Key(key).FillWidth().Padding(14, 0).Gap(4).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 		ui.Text(c, title).FontSize(13)
 		ui.Text(c, setup.where).FontSize(12).TextColor(p.muted)
+		if warning != "" {
+			ui.Text(c, warning).FontSize(12).TextColor(p.orange)
+		}
 		ui.Row(c).FillWidth().Margin(8, 0, 0, 0).Padding(8, 8, 8, 10).Gap(8).Radius(6).Border(1, p.border).AlignItems(ui.Start).Children(func() {
 			ui.Text(c, setup.snippet).Font("monospace").FontSize(12).Wrap().Selectable().Grow(1).MinWidth(0)
 			if smallIconButton(c, "copy", locales.CopySetup()).Border(1, p.border).Clicked() {
@@ -238,7 +241,11 @@ func (a *App) connectAgent(c *ui.Context, p colors, url, token string) {
 			}
 			ui.Spacer(c)
 		})
-		setupSnippet(c, p, "Through the CLI", locales.ThroughTheCLI(), cliAgentSetup(client, command, args))
-		setupSnippet(c, p, "Through the app", locales.ThroughTheApp(), appAgentSetup(client, url, token))
+		warning := ""
+		if s := a.command.status; s.translocated && !s.installed {
+			warning = locales.MoveYeekToApplicationsFirst()
+		}
+		setupSnippet(c, p, "Through the CLI", locales.ThroughTheCLI(), warning, cliAgentSetup(client, command, args))
+		setupSnippet(c, p, "Through the app", locales.ThroughTheApp(), "", appAgentSetup(client, url, token))
 	})
 }

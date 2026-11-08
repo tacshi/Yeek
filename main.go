@@ -77,6 +77,7 @@ func run() (runErr error) {
 		}
 		mygo.App.SetPath(mygo.PathUserData, dir)
 		mygo.App.SetPath(mygo.PathLogs, filepath.Join(dir, "logs"))
+		desktop.UseCustomDataDir()
 	}
 	defer startLog()()
 	if err := desktop.RegisterPreviewScheme(); err != nil {
@@ -245,6 +246,25 @@ func run() (runErr error) {
 			mygo.App.Relaunch()
 		} else {
 			mygo.App.Quit()
+		}
+	})
+	quitReady := false
+	mygo.App.OnBeforeQuit(func(event *mygo.QuitEvent) {
+		windowsMu.Lock()
+		open := slices.Clone(windows)
+		windowsMu.Unlock()
+		if quitReady || len(open) == 0 {
+			return
+		}
+		event.PreventDefault()
+		remaining := len(open)
+		for _, a := range open {
+			a.Flush(func() {
+				if remaining--; remaining == 0 {
+					quitReady = true
+					mygo.App.Quit()
+				}
+			})
 		}
 	})
 	mygo.App.OnQuit(func() {

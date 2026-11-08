@@ -164,9 +164,16 @@ func rewriteTemplateReferences(value any, ids map[string]string) any {
 	}
 }
 
+type scanState struct {
+	pos   int
+	state uint8
+}
+
 func remapTemplateText(text string, ids map[string]string) string {
 	var out strings.Builder
 	copied, cursor := 0, 0
+	var unclosed []uint8
+	var visited []scanState
 	for {
 		relative := strings.Index(text[cursor:], "${[")
 		if relative < 0 {
@@ -181,8 +188,20 @@ func remapTemplateText(text string, ids map[string]string) string {
 		if escapes%2 != 0 {
 			continue
 		}
-		end, quoted := cursor, false
+		if unclosed == nil {
+			unclosed = make([]uint8, len(text))
+		}
+		end, quoted, closed := cursor, false, false
+		visited = visited[:0]
 		for end < len(text) {
+			state := uint8(1)
+			if quoted {
+				state = 2
+			}
+			if unclosed[end]&state != 0 {
+				break
+			}
+			visited = append(visited, scanState{end, state})
 			if quoted && text[end] == '\\' {
 				end += 2
 				continue
@@ -192,11 +211,15 @@ func remapTemplateText(text string, ids map[string]string) string {
 			}
 			if !quoted && strings.HasPrefix(text[end:], "]}") {
 				end += 2
+				closed = true
 				break
 			}
 			end++
 		}
-		if end > len(text) || !strings.HasSuffix(text[start:end], "]}") {
+		if !closed {
+			for _, v := range visited {
+				unclosed[v.pos] |= v.state
+			}
 			continue
 		}
 		if tokens, err := parseTemplate(text[start:end]); err == nil && len(tokens) == 1 && tokens[0].tag != nil {

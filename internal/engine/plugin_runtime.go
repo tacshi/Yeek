@@ -256,7 +256,7 @@ func (p *jsPlugin) call(c api.Context, path []string, arguments func(*moejs.Runt
 	if p.closed {
 		return errors.New(locales.PluginNameWasReloadedTryAgain(p.name))
 	}
-	if p.stale {
+	if p.stale || p.runtime == nil {
 		p.close()
 		if err := p.start(c.Context); err != nil {
 			return err

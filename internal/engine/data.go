@@ -75,7 +75,7 @@ func ParseImport(data []byte) ([]Object, error) {
 	if _, ok := root["values"]; ok && str(root, "_postman_variable_scope") != "" {
 		vars := []any{}
 		for _, value := range objects(array(root, "values")) {
-			vars = append(vars, Object{"name": str(value, "key"), "value": str(value, "value"), "enabled": enabled(value)})
+			vars = append(vars, Object{"name": str(value, "key"), "value": postmanTemplates(str(value, "value"), false), "enabled": enabled(value)})
 		}
 		return []Object{{"model": "workspace", "id": "environment_workspace", "name": str(root, "name")}, {"model": "environment", "id": "environment_import", "workspaceId": "environment_workspace", "parentId": "environment_workspace", "parentModel": "workspace", "variables": vars, "name": "Global Variables"}}, nil
 	}

@@ -158,6 +158,23 @@ func openAPICoerceExample(value any, schema Object) any {
 			}
 		}
 	}
+	return copyOpenAPIExample(value)
+}
+func copyOpenAPIExample(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for key, child := range v {
+			out[key] = copyOpenAPIExample(child)
+		}
+		return out
+	case []any:
+		out := make([]any, len(v))
+		for i, child := range v {
+			out[i] = copyOpenAPIExample(child)
+		}
+		return out
+	}
 	return value
 }
 func (s *openAPIImport) schemaExample(schema Object) any {
@@ -188,7 +205,7 @@ func (s *openAPIImport) schemaExample(schema Object) any {
 			}
 		}
 		if values := array(schema, "enum"); len(values) > 0 {
-			return values[0]
+			return copyOpenAPIExample(values[0])
 		}
 		properties := Object{}
 		keys := slices.Sorted(maps.Keys(obj(schema, "properties")))

@@ -36,6 +36,8 @@ func (a *App) keepSyncing() {
 		a.stopSync = nil
 	}
 	a.syncing, a.gitInfo, a.gitState, a.gitNoRepo = dir+"\x00"+workspace, nil, nil, false
+	a.syncGeneration++
+	generation := a.syncGeneration
 	if dir == "" {
 		return
 	}
@@ -44,7 +46,7 @@ func (a *App) keepSyncing() {
 		changed := func() { a.Window.Update(func() { a.reviewSync(workspace, dir, 1) }) }
 		stop, err := a.Engine.WatchSync(a.ctx, workspace, dir, changed, func(err error) { a.Window.Update(func() { a.errorMessage = err.Error() }) })
 		return func() {
-			if a.syncing == dir+"\x00"+workspace {
+			if a.syncGeneration == generation {
 				a.stopSync = stop
 			} else if stop != nil {
 				stop()

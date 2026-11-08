@@ -106,13 +106,10 @@ func (k *keychain) migrate(service, account string) (string, error) {
 	case err != nil:
 		return "", fmt.Errorf("read OS keychain: %w", err)
 	default:
-		if err := k.legacy.Delete(service, account); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		if err := k.store(service).Set(account, []byte(old)); err != nil {
 			return old, fmt.Errorf("move OS keychain key: %w", err)
 		}
-		if err := k.store(service).Set(account, []byte(old)); err != nil {
-			if back := k.legacy.Set(service, account, old); back != nil {
-				return old, fmt.Errorf("move OS keychain key: %w (and putting it back: %v)", err, back)
-			}
+		if err := k.legacy.Delete(service, account); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 			return old, fmt.Errorf("move OS keychain key: %w", err)
 		}
 	}

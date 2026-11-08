@@ -299,3 +299,28 @@ func TestHTTPRequiresTheBearerToken(t *testing.T) {
 		t.Error("still listening")
 	}
 }
+
+func TestToolsOnlyReachModelsInTheirWorkspace(t *testing.T) {
+	h := newFakeHost(Workspace{ID: "wk_a", Name: "A"}, Workspace{ID: "wk_b", Name: "B"})
+	h.models["rq_b"] = engine.Object{"model": "http_request", "id": "rq_b", "workspaceId": "wk_b", "name": "B request"}
+	h.models["rq_closed"] = engine.Object{"model": "http_request", "id": "rq_closed", "workspaceId": "wk_closed"}
+	h.models["fl_closed"] = engine.Object{"model": "folder", "id": "fl_closed", "workspaceId": "wk_closed"}
+	c := connect(t, h)
+	if got := call(t, c, "send_http_request", map[string]any{"id": "rq_b", "workspaceId": "wk_a"}, true); got != "HTTP request with ID rq_b not found" {
+		t.Errorf("%s", got)
+	}
+	if got := call(t, c, "get_http_request", map[string]any{"id": "rq_b", "workspaceId": "wk_a"}, false); got != "null" {
+		t.Errorf("%s", got)
+	}
+	call(t, c, "update_http_request", map[string]any{"id": "rq_b", "workspaceId": "wk_a", "name": "x"}, true)
+	call(t, c, "delete_http_request", map[string]any{"id": "rq_closed"}, true)
+	call(t, c, "delete_folder", map[string]any{"id": "fl_closed"}, true)
+	if len(h.sent) != 0 || h.models["rq_closed"] == nil || h.models["fl_closed"] == nil || h.models["rq_b"]["name"] != "B request" {
+		t.Fatalf("sent %v, models %v", h.sent, h.models)
+	}
+	call(t, c, "send_http_request", map[string]any{"id": "rq_b", "workspaceId": "wk_b"}, false)
+	call(t, c, "delete_http_request", map[string]any{"id": "rq_b"}, false)
+	if len(h.sent) != 1 || h.sent[0] != "wk_b rq_b " || h.models["rq_b"] != nil {
+		t.Fatalf("sent %v", h.sent)
+	}
+}

@@ -1019,6 +1019,8 @@ func (a *App) ImportDeepLink(fileURL, path, name string) {
 	} else if path == "" {
 		a.showToast("", locales.FailedToImportData(), "danger", 0)
 		return
+	} else if !a.confirmNative(locales.ImportNameFromUrl(name, path), locales.Import()) {
+		return
 	}
 	a.saveActive()
 	a.background(func() (func(), error) {

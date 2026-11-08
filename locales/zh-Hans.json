@@ -1390,6 +1390,7 @@
   "templateFunctionHasNoImplementation": "模板函数没有实现",
   "templateNeedsAnHTTPRequest": "模板需要一个 HTTP 请求",
   "templateNestingIsTooDeep": "模板嵌套过深",
+  "templateOutputIsTooLarge": "模板输出过大",
   "templateTagIsIncomplete": "模板标签不完整",
   "text": "文本",
   "theCommand": "{name} 命令",
