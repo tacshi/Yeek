@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/tacshi/Yeek/releases/latest"><img src="https://img.shields.io/github/v/release/tacshi/Yeek?label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/tacshi/Yeek" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/Go-1.27.3%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.27.3 or newer">
+  <img src="https://img.shields.io/badge/Go-1.27.4%2B-00ADD8?logo=go&logoColor=white" alt="Go 1.27.4 or newer">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey" alt="macOS and Windows">
   <a href="https://awesomemygo.dev/apps/yeek"><img src="https://awesomemygo.dev/badge.svg" height="20" alt="Listed on Awesome MyGo"></a>
 </p>
@@ -95,7 +95,7 @@ macOS builds are signed and notarized. The Windows installers install for the cu
 
 Requirements:
 
-- Go 1.27.3 or newer
+- Go 1.27.4 or newer
 - Git, for Git sync features at runtime
 
 ```sh
