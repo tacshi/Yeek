@@ -91,6 +91,8 @@ func TestProxyEditorAuthenticationAndTabSwitch(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Type("fixture-user")
+	tt.Scroll(680, 500, 0, 300)
+	tt.Frame()
 	if err = tt.Click("Proxy password"); err != nil {
 		t.Fatal(err)
 	}

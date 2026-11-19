@@ -176,7 +176,7 @@ func TestToolsActOnTheOpenWorkspace(t *testing.T) {
 	if got := decodeObject(t, call(t, c, "get_http_request", map[string]any{"id": id}, false)); got["method"] != "POST" {
 		t.Errorf("get_http_request %v", got)
 	}
-	if got := call(t, c, "get_http_request", map[string]any{"id": "rq_missing"}, false); got != "null" {
+	if got := call(t, c, "get_http_request", map[string]any{"id": "rq_missing"}, true); got != "HTTP request with ID rq_missing not found" {
 		t.Errorf("missing request = %s", got)
 	}
 	if list := call(t, c, "list_http_requests", nil, false); !strings.Contains(list, id) {
@@ -193,6 +193,19 @@ func TestToolsActOnTheOpenWorkspace(t *testing.T) {
 	}
 	if got := call(t, c, "send_http_request", map[string]any{"id": "rq_missing"}, true); got != "HTTP request with ID rq_missing not found" {
 		t.Errorf("send missing = %s", got)
+	}
+	for tool, args := range map[string]map[string]any{
+		"get_http_request":    {"id": "gr_stream"},
+		"send_http_request":   {"id": "gr_stream"},
+		"update_http_request": {"id": "gr_stream", "name": "x"},
+		"delete_http_request": {"id": "gr_stream"},
+	} {
+		if got := call(t, c, tool, args, true); got != "gr_stream is a gRPC request, and these tools only work with HTTP requests. Use the Yeek app for it." {
+			t.Errorf("%s = %s", tool, got)
+		}
+	}
+	if got := call(t, c, "get_http_request", map[string]any{"id": "wr_socket"}, true); got != "wr_socket is a WebSocket request, and these tools only work with HTTP requests. Use the Yeek app for it." {
+		t.Errorf("websocket = %s", got)
 	}
 
 	folder := decodeObject(t, call(t, c, "create_folder", map[string]any{"name": "Folder", "sortPriority": 3}, false))
@@ -309,7 +322,7 @@ func TestToolsOnlyReachModelsInTheirWorkspace(t *testing.T) {
 	if got := call(t, c, "send_http_request", map[string]any{"id": "rq_b", "workspaceId": "wk_a"}, true); got != "HTTP request with ID rq_b not found" {
 		t.Errorf("%s", got)
 	}
-	if got := call(t, c, "get_http_request", map[string]any{"id": "rq_b", "workspaceId": "wk_a"}, false); got != "null" {
+	if got := call(t, c, "get_http_request", map[string]any{"id": "rq_b", "workspaceId": "wk_a"}, true); got != "HTTP request with ID rq_b not found" {
 		t.Errorf("%s", got)
 	}
 	call(t, c, "update_http_request", map[string]any{"id": "rq_b", "workspaceId": "wk_a", "name": "x"}, true)

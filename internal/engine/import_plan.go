@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -170,6 +171,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 		return nil, err
 	}
 	plan := &ImportPlan{Destination: destination, expectedSources: map[string]string{}}
+	separatedFolderEnvironment := false
 	all, err := e.Store.List(ctx, "", "")
 	if err != nil {
 		return nil, err
@@ -178,6 +180,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 	for _, model := range all {
 		current[str(model, "id")] = model
 	}
+	keeper := newImportIDs(current, destination)
 	for _, document := range documents {
 		plan.Warnings = append(plan.Warnings, importedElsewhere(all, destination.WorkspaceID, document)...)
 		for _, prior := range plan.Sources {
@@ -224,10 +227,11 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 		}
 		sources := map[string]*importPlanSource{}
 		ids := map[string]string{}
+		keeper.keep = document.Format == "Yeek"
 		for _, old := range workspaceIDs {
 			wid := destination.WorkspaceID
 			if wid == "" {
-				wid = newID("workspace")
+				wid = keeper.assign(old, "workspace")
 			}
 			ids[old] = wid
 			source := &importPlanSource{ID: newID("import_source"), Format: document.Format, Origin: document.Origin, Label: document.Label, WorkspaceID: wid, SourceWorkspaceID: old, bindings: map[string]Object{}, incoming: map[string]*ImportItem{}}
@@ -282,7 +286,7 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 			binding := source.bindings[key]
 			id := str(binding, "modelId")
 			if id == "" {
-				id = newID(str(model, "model"))
+				id = keeper.assign(old, str(model, "model"))
 			}
 			ids[old] = id
 		}
@@ -307,6 +311,8 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 				if parent := str(model, key); parent != "" {
 					if mapped, ok := ids[parent]; ok {
 						model[key] = mapped
+					} else if keeper.destinationFolder(parent) {
+						model[key] = parent
 					} else {
 						return nil, errors.New(locales.ResourceNameReferencesMissingParentParent(strconv.Quote(str(model, "name")), strconv.Quote(parent)))
 					}
@@ -315,11 +321,20 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 			if destination.FolderID != "" && kind != "environment" && kind != "workspace" && str(model, "folderId") == "" {
 				model["folderId"] = destination.FolderID
 			}
-			if kind == "environment" && str(model, "parentModel") == "workspace" && destination.WorkspaceID != "" && !boolean(binding, "baseEnvironment") {
+			matchedBase := keeper.matched[str(model, "id")] && str(current[str(model, "id")], "parentModel") == "workspace"
+			if kind == "environment" && str(model, "parentModel") == "workspace" && destination.WorkspaceID != "" && !boolean(binding, "baseEnvironment") && !matchedBase {
 				model["parentModel"] = "environment"
 				model["parentId"] = nil
 				model["name"] = str(model, "name") + " (Imported)"
 				plan.Warnings = append(plan.Warnings, ImportWarning{Title: locales.BaseEnvironmentKeptSeparate(), Detail: str(model, "name")})
+			}
+			if kind == "environment" && str(model, "parentModel") == "folder" && keeper.matched[str(model, "parentId")] && keeper.folderHasOtherEnvironment(str(model, "parentId"), str(model, "id")) {
+				model["parentModel"], model["parentId"] = "environment", nil
+				separatedFolderEnvironment = true
+			}
+			if kind == "environment" && keeper.matched[str(model, "id")] && str(current[str(model, "id")], "parentModel") != str(model, "parentModel") {
+				delete(keeper.matched, str(model, "id"))
+				model["id"] = newID("environment")
 			}
 			model, err = normalizedImport(model)
 			if err != nil {
@@ -334,7 +349,17 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 				item.Action = "ignored"
 				item.Selected = false
 			}
-			if before != nil {
+			if before != nil && binding == nil && keeper.matched[str(model, "id")] {
+				item.ChangedFields = changedImportFields(before, model)
+				switch {
+				case importContentHash(model) == importContentHash(before):
+					item.Action, item.Selected = "unchanged", false
+				case editedSinceExport(before, original):
+					item.Action, item.Resolution = "conflict", "keep_mine"
+				default:
+					item.Action = "update"
+				}
+			} else if before != nil {
 				incomingHash, currentHash := importContentHash(model), importContentHash(before)
 				baseline := str(binding, "contentHash")
 				item.ChangedFields = changedImportFields(before, model)
@@ -359,9 +384,24 @@ func (e *Engine) planImportDocuments(ctx context.Context, documents []ImportDocu
 			plan.Items = append(plan.Items, item)
 		}
 	}
+	if separatedFolderEnvironment {
+		plan.Warnings = append(plan.Warnings, ImportWarning{Title: locales.FolderEnvironmentsSeparated(), Detail: locales.OnlyTheFirstRemainsAttachedTo()})
+	}
+	if warning, ok := keeper.warning(); ok {
+		plan.Warnings = append(plan.Warnings, warning)
+	}
+	if breakImportFolderCycles(plan, all) {
+		plan.Warnings = append(plan.Warnings, ImportWarning{Title: locales.FolderMovedToTheTopLevel(), Detail: locales.ItsNewPlaceWouldHavePut(), Level: "warning"})
+	}
+	planned := map[string]bool{}
+	for _, item := range plan.Items {
+		if item.After != nil {
+			planned[item.ID] = true
+		}
+	}
 	for _, source := range plan.Sources {
 		for key, binding := range source.bindings {
-			if source.incoming[key] != nil {
+			if source.incoming[key] != nil || planned[str(binding, "modelId")] {
 				continue
 			}
 			model := current[str(binding, "modelId")]
@@ -851,4 +891,141 @@ func displayList(items []string) string {
 		return items[0] + " and " + items[1]
 	}
 	return strings.Join(items[:len(items)-1], ", ") + ", and " + items[len(items)-1]
+}
+
+type importIDs struct {
+	keep           bool
+	current        map[string]Object
+	target         string
+	used, reserved map[string]bool
+	matched        map[string]bool
+	takenElsewhere map[string]int
+}
+
+func newImportIDs(current map[string]Object, destination ImportDestination) *importIDs {
+	k := &importIDs{current: current, target: destination.WorkspaceID, used: map[string]bool{}, reserved: map[string]bool{}, matched: map[string]bool{}, takenElsewhere: map[string]int{}}
+	for id := destination.FolderID; id != "" && !k.reserved[id]; id = str(current[id], "folderId") {
+		k.reserved[id] = true
+	}
+	return k
+}
+
+func hasImportIDPrefix(id, kind string) bool {
+	prefix := prefixes[kind]
+	rest, ok := strings.CutPrefix(id, prefix)
+	if prefix == "" || !ok || rest == "" {
+		return false
+	}
+	return !strings.ContainsFunc(rest, func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_' && r != '-'
+	})
+}
+
+func (k *importIDs) assign(source, kind string) string {
+	fresh := newID(kind)
+	if !k.keep || !hasImportIDPrefix(source, kind) || k.used[source] || k.reserved[source] {
+		return fresh
+	}
+	if existing := k.current[source]; existing != nil {
+		owner := str(existing, "workspaceId")
+		if str(existing, "model") == "workspace" {
+			owner = source
+		}
+		if kind == "workspace" || k.target == "" || owner != k.target || str(existing, "model") != kind {
+			k.takenElsewhere[owner]++
+			return fresh
+		}
+		k.matched[source] = true
+	}
+	k.used[source] = true
+	return source
+}
+
+func (k *importIDs) destinationFolder(id string) bool {
+	folder := k.current[id]
+	return k.keep && k.target != "" && str(folder, "model") == "folder" && str(folder, "workspaceId") == k.target
+}
+
+func (k *importIDs) folderHasOtherEnvironment(folder, environment string) bool {
+	for id, model := range k.current {
+		if id != environment && str(model, "model") == "environment" && str(model, "parentModel") == "folder" && str(model, "parentId") == folder {
+			return true
+		}
+	}
+	return false
+}
+
+func (k *importIDs) warning() (ImportWarning, bool) {
+	if len(k.takenElsewhere) == 0 {
+		return ImportWarning{}, false
+	}
+	count := 0
+	var names []string
+	for workspace, n := range k.takenElsewhere {
+		count += n
+		name := cmp.Or(str(k.current[workspace], "name"), workspace)
+		if !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return ImportWarning{Title: locales.NewIDsAssigned(), Detail: locales.CountResourcesAlreadyExistInWorkspaces(count, displayList(names)), Level: "warning"}, true
+}
+
+func breakImportFolderCycles(plan *ImportPlan, all []Object) bool {
+	parents := map[string]string{}
+	for _, model := range all {
+		if str(model, "model") == "folder" {
+			parents[str(model, "id")] = str(model, "folderId")
+		}
+	}
+	planned := map[string]bool{}
+	for _, item := range plan.Items {
+		if item.Kind == "folder" && item.After != nil {
+			parents[item.ID] = str(item.After, "folderId")
+			planned[item.ID] = true
+		}
+	}
+	moved := false
+	for _, item := range plan.Items {
+		if item.Kind != "folder" || item.After == nil {
+			continue
+		}
+		members := importFolderCycle(parents, item.ID)
+		if members == nil || !slices.ContainsFunc(members, func(id string) bool { return !planned[id] }) {
+			continue
+		}
+		item.After["folderId"] = nil
+		item.ParentID = importItemParent(item.After)
+		parents[item.ID] = ""
+		moved = true
+		if item.Before != nil {
+			item.ChangedFields = changedImportFields(item.Before, item.After)
+			if item.Action == "unchanged" && len(item.ChangedFields) > 0 {
+				item.Action, item.Selected = "update", true
+			}
+		}
+	}
+	return moved
+}
+
+func importFolderCycle(parents map[string]string, start string) []string {
+	seen := map[string]bool{}
+	var members []string
+	for id := parents[start]; id != ""; id = parents[id] {
+		if id == start {
+			return members
+		}
+		if seen[id] {
+			return nil
+		}
+		seen[id] = true
+		members = append(members, id)
+	}
+	return nil
+}
+
+func editedSinceExport(current, exported Object) bool {
+	local, incoming := str(current, "updatedAt"), str(exported, "updatedAt")
+	return incoming == "" || local == "" || local > incoming
 }

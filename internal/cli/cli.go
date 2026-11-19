@@ -4,16 +4,20 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -24,6 +28,7 @@ import (
 )
 
 type Options struct {
+	Context context.Context
 	Name    string
 	Dir     string
 	Version string
@@ -118,7 +123,7 @@ func usage(w io.Writer, name string) {
 	_, _ = fmt.Fprintf(w, `Usage: %[1]s <command>
 
 Commands:
-  mcp        Serve Yeek's MCP tools over stdio, for AI coding agents
+  mcp        Serve Yeek's MCP tools to AI coding agents, over stdio or with --http
 
 Flags:
   --data-dir DIR  Yeek's data directory (default: the app's)
@@ -134,8 +139,11 @@ func serveMCP(args []string, o Options) error {
 	flags.SetOutput(o.Err)
 	environment := flags.String("environment", "", "environment ID to send requests with (default: the base environment)")
 	cookieJar := flags.String("cookie-jar", "", "cookie jar ID to send requests with (default: the workspace's first)")
+	overHTTP := flags.Bool("http", false, "serve over HTTP on 127.0.0.1 instead of stdio, for agents that cannot run this command")
+	port := flags.Int("port", mcp.DefaultPort, "port to listen on with --http")
+	token := flags.String("token", "", "bearer token clients must send with --http (default: generated and printed)")
 	flags.Usage = func() {
-		_, _ = fmt.Fprintf(o.Err, "Usage: %s mcp [flags]\n\nServe Yeek's MCP tools over stdio. Every workspace is open to the agent.\n\nFlags:\n", o.Name)
+		_, _ = fmt.Fprintf(o.Err, "Usage: %s mcp [flags]\n\nServe Yeek's MCP tools over stdio, or over HTTP with --http. Every workspace is open to the agent.\n\nFlags:\n", o.Name)
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -143,6 +151,16 @@ func serveMCP(args []string, o Options) error {
 	}
 	if flags.NArg() > 0 {
 		return fmt.Errorf("mcp takes no arguments, got %q", flags.Arg(0))
+	}
+	set := map[string]bool{}
+	flags.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	for _, name := range []string{"port", "token"} {
+		if set[name] && !*overHTTP {
+			return fmt.Errorf("--%s needs --http", name)
+		}
+	}
+	if *port < 0 || *port > 65535 {
+		return fmt.Errorf("--port %d is not a port", *port)
 	}
 	e, err := engine.Open(o.Dir)
 	if err != nil {
@@ -162,9 +180,16 @@ func serveMCP(args []string, o Options) error {
 	if o.Secrets != nil {
 		e.Secrets = o.Secrets(o.Dir)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	base := o.Context
+	if base == nil {
+		base = context.Background()
+	}
+	ctx, stop := signal.NotifyContext(base, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	host := &Host{Engine: e, EnvironmentID: *environment, CookieJarID: *cookieJar, Log: o.Err}
+	if *overHTTP {
+		return errors.Join(serveHTTP(ctx, host, o, *port, *token), e.Close())
+	}
 	transport := &sdk.IOTransport{Reader: io.NopCloser(wellFormed(o.In, o.Err)), Writer: nopWriteCloser{o.Out}}
 	err = mcp.NewServer(host, o.Version).Run(ctx, transport)
 	if ctx.Err() != nil || errors.Is(err, io.EOF) {
@@ -174,6 +199,25 @@ func serveMCP(args []string, o Options) error {
 }
 
 var errMCPOff = errors.New("the MCP server is turned off: turn on \"Enable MCP server\" in Yeek's Settings > Agents")
+
+func serveHTTP(ctx context.Context, host mcp.Host, o Options, port int, token string) error {
+	if token == "" {
+		var raw [32]byte
+		if _, err := rand.Read(raw[:]); err != nil {
+			return err
+		}
+		token = hex.EncodeToString(raw[:])
+	}
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	server, err := mcp.Serve(host, o.Version, addr, token)
+	if err != nil {
+		return fmt.Errorf("failed to start MCP server on %s: %w", addr, err)
+	}
+	_, _ = fmt.Fprintf(o.Err, "Yeek MCP server listening on http://%s%s\nToken: %s\nClients must send it as \"Authorization: Bearer <token>\". Press Ctrl+C to stop.\n", server.Addr, mcp.Path, token)
+	<-ctx.Done()
+	server.Stop()
+	return nil
+}
 
 func wellFormed(in io.Reader, log io.Writer) io.Reader {
 	r, w := io.Pipe()

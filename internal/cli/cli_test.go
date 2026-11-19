@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"yeek/internal/engine"
@@ -288,6 +290,34 @@ func TestMCPWithoutAnEnvironmentUsesTheBase(t *testing.T) {
 	}
 }
 
+func TestMCPUsesTheAppsSelection(t *testing.T) {
+	dir := t.TempDir()
+	fx := seed(t, dir)
+	e, err := engine.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _ := json.Marshal(map[string]any{"Workspace": fx.workspace, "Environment": fx.b})
+	if _, err := e.Save(t.Context(), engine.Object{"model": "key_value", "namespace": "no_sync", "key": "main-window", "value": string(state)}); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.Close()
+	s := startMCP(t, dir)
+	if got := s.ok("get_environment_id", nil); got != fx.b {
+		t.Fatalf("environment %q", got)
+	}
+	s.ok("send_http_request", map[string]any{"id": fx.request})
+	if got := <-fx.markers; got != "b" {
+		t.Fatalf("sent %q", got)
+	}
+	s.stop()
+	flagged := startMCP(t, dir, "--environment", fx.a)
+	flagged.ok("send_http_request", map[string]any{"id": fx.request})
+	if got := <-fx.markers; got != "a" {
+		t.Fatalf("the flag should win, sent %q", got)
+	}
+}
+
 func TestMCPAsksWhichWorkspaceWhenThereAreMany(t *testing.T) {
 	dir := t.TempDir()
 	fx := seed(t, dir)
@@ -308,11 +338,75 @@ func TestMCPAsksWhichWorkspaceWhenThereAreMany(t *testing.T) {
 	}
 }
 
+type bearer struct{ token string }
+
+func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", "Bearer "+b.token)
+	return http.DefaultTransport.RoundTrip(r)
+}
+
+func TestMCPServesOverHTTP(t *testing.T) {
+	dir := t.TempDir()
+	fx := seed(t, dir)
+	ctx, cancel := context.WithCancel(t.Context())
+	stderr := &lockedBuffer{}
+	done := make(chan int, 1)
+	go func() {
+		done <- Main([]string{"--data-dir", dir, "mcp", "--http", "--port", "0", "--token", "secret"}, Options{Context: ctx, Name: "yeek", Version: "test", In: strings.NewReader(""), Out: io.Discard, Err: stderr})
+	}()
+	listening := regexp.MustCompile(`listening on (http://\S+)`)
+	var url string
+	for deadline := time.Now().Add(5 * time.Second); url == ""; time.Sleep(20 * time.Millisecond) {
+		if m := listening.FindStringSubmatch(stderr.String()); m != nil {
+			url = m[1]
+		} else if time.Now().After(deadline) {
+			t.Fatalf("not listening: %q", stderr.String())
+		}
+	}
+	if !strings.Contains(stderr.String(), "Token: secret") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+	res, err := http.Post(url, "application/json", strings.NewReader("{}")) // #nosec G107 -- the test posts to the server it just started.
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("without a token: %d", res.StatusCode)
+	}
+	client, err := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "1.0"}, nil).Connect(t.Context(), &sdk.StreamableClientTransport{Endpoint: url, HTTPClient: &http.Client{Transport: bearer{"secret"}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	called, err := client.CallTool(t.Context(), &sdk.CallToolParams{Name: "get_workspace_id"})
+	if err != nil || len(called.Content) == 0 || called.Content[0].(*sdk.TextContent).Text != fx.workspace {
+		t.Fatalf("%+v %v", called, err)
+	}
+	_ = client.Close()
+	cancel()
+	if code := <-done; code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+}
+
 func TestMCPRefusesWhileTheServerIsOff(t *testing.T) {
-	var out, errOut bytes.Buffer
-	code := Main([]string{"--data-dir", t.TempDir(), "mcp"}, Options{Name: "yeek", Version: "test", In: strings.NewReader(""), Out: &out, Err: &errOut})
-	if code != 1 || out.Len() != 0 || !strings.Contains(errOut.String(), "the MCP server is turned off") {
-		t.Fatalf("%d %q %q", code, out.String(), errOut.String())
+	for _, args := range [][]string{nil, {"--http", "--port", "0"}} {
+		var out, errOut bytes.Buffer
+		code := Main(append([]string{"--data-dir", t.TempDir(), "mcp"}, args...), Options{Name: "yeek", Version: "test", In: strings.NewReader(""), Out: &out, Err: &errOut})
+		if code != 1 || out.Len() != 0 || !strings.Contains(errOut.String(), "the MCP server is turned off") {
+			t.Fatalf("%v: %d %q %q", args, code, out.String(), errOut.String())
+		}
+	}
+}
+
+func TestMCPHTTPFlagsNeedHTTP(t *testing.T) {
+	for _, args := range [][]string{{"--port", "1"}, {"--token", "x"}} {
+		var out, errOut bytes.Buffer
+		code := Main(append([]string{"--data-dir", t.TempDir(), "mcp"}, args...), Options{Name: "yeek", Version: "test", In: strings.NewReader(""), Out: &out, Err: &errOut})
+		if code != 1 || !strings.Contains(errOut.String(), args[0]+" needs --http") {
+			t.Fatalf("%v: %d %q", args, code, errOut.String())
+		}
 	}
 }
 

@@ -362,6 +362,9 @@ func (s *server) getHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p Get
 	if err != nil {
 		return nil, nil, err
 	}
+	if request == nil {
+		return nil, nil, missingHTTPRequest(p.ID)
+	}
 	return toJSON(request)
 }
 
@@ -375,7 +378,7 @@ func (s *server) sendHTTPRequest(ctx context.Context, _ *mcp.CallToolRequest, p 
 		return nil, nil, err
 	}
 	if request == nil {
-		return nil, nil, fmt.Errorf("HTTP request with ID %s not found", p.ID)
+		return nil, nil, missingHTTPRequest(p.ID)
 	}
 	environment := ""
 	if p.EnvironmentID != nil {
@@ -415,7 +418,7 @@ func (s *server) updateHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p 
 		return nil, nil, err
 	}
 	if existing == nil {
-		return nil, nil, fmt.Errorf("HTTP request with ID %s not found", p.ID)
+		return nil, nil, missingHTTPRequest(p.ID)
 	}
 	request, err := s.host.UpsertHTTPRequest(merge(existing, givenFields(p)))
 	if err != nil {
@@ -426,7 +429,7 @@ func (s *server) updateHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p 
 
 func (s *server) deleteHTTPRequest(_ context.Context, _ *mcp.CallToolRequest, p DeleteParams) (result, any, error) {
 	if existing, err := s.openModel(p.ID, s.findRequest); err != nil || existing == nil {
-		return nil, nil, cmp.Or(err, fmt.Errorf("HTTP request with ID %s not found", p.ID))
+		return nil, nil, cmp.Or(err, missingHTTPRequest(p.ID))
 	}
 	request, err := s.host.DeleteHTTPRequest(p.ID)
 	if err != nil {
@@ -525,4 +528,17 @@ func orEmpty(models []engine.Object) []engine.Object {
 		return []engine.Object{}
 	}
 	return models
+}
+
+func missingHTTPRequest(id string) error {
+	kind := ""
+	switch {
+	case strings.HasPrefix(id, "gr_"):
+		kind = "a gRPC request"
+	case strings.HasPrefix(id, "wr_"):
+		kind = "a WebSocket request"
+	default:
+		return fmt.Errorf("HTTP request with ID %s not found", id)
+	}
+	return fmt.Errorf("%s is %s, and these tools only work with HTTP requests. Use the Yeek app for it.", id, kind) //nolint:staticcheck
 }

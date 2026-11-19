@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	DefaultAddr = "127.0.0.1:64343"
+	DefaultPort = 64343
 	Path        = "/mcp"
 )
 

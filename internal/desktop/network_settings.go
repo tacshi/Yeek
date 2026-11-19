@@ -102,8 +102,10 @@ func (a *App) certificateSettings(c *ui.Context, p colors) {
 		}
 	}
 	changed := false
-	ui.Row(c).Gap(12).Children(func() {
-		ui.Text(c, locales.ClientCertificates()).FontSize(18).FontWeight(600).Grow(1)
+	ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			settingsHeading(c, p, locales.ClientCertificates(), locales.AddAndManageTLSCertificatesOn())
+		})
 		if ui.Button(c, locales.AddCertificate()).Clicked() {
 			state.rows = append(state.rows, &certificateDraft{id: uuid.NewV4().String(), kind: "PEM", enabled: true, open: true})
 			changed = true
@@ -312,7 +314,7 @@ func (a *App) proxySettingsView(c *ui.Context, p colors) {
 		d.auth = proxy["auth"] != nil
 		d.user, d.password = s(o(proxy, "auth"), "user"), s(o(proxy, "auth"), "password")
 	}
-	ui.Text(c, locales.Proxy()).FontSize(18).FontWeight(600)
+	settingsHeading(c, p, locales.Proxy(), locales.ConfigureAProxyServerForHTTP())
 	modes, labels := []string{"automatic", "disabled", "enabled"}, []string{locales.Automatic(), locales.NoProxy(), locales.Custom()}
 	label := labels[max(0, slices.Index(modes, d.mode))]
 	changed := ui.Select(c, &label, labels).Label(locales.ProxyMode()).Changed()

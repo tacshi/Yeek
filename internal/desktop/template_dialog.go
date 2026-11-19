@@ -17,6 +17,8 @@ import (
 
 type templateArgument struct {
 	text, kind string
+	original   *engine.TemplateExpression
+	initial    string
 }
 type templateForm struct {
 	open, busy       bool
@@ -149,6 +151,7 @@ func (f *templateForm) selectExpression(value engine.TemplateExpression) {
 		switch arg.Kind {
 		case "variable", "function":
 			entry.text, entry.kind = engine.FormatTemplateTag(arg), "string"
+			entry.original, entry.initial = &arg, entry.text
 		case "null":
 			entry.text, entry.kind = f.args[key].text, "string"
 		}
@@ -174,6 +177,10 @@ func (f *templateForm) expression() (engine.TemplateExpression, error) {
 		}
 		value.Arguments = map[string]engine.TemplateExpression{}
 		for key, arg := range f.args {
+			if arg.original != nil && arg.text == arg.initial {
+				value.Arguments[key] = *arg.original
+				continue
+			}
 			value.Arguments[key] = engine.TemplateExpression{Kind: arg.kind, Value: arg.text}
 		}
 	}

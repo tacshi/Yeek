@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -50,6 +49,7 @@ type Draft struct {
 	Headers, Parameters, Form                                                                                         []KV
 	Auth                                                                                                              map[string]string
 	Tab, ResponseTab, PartIndex, EventIndex, TimelineIndex                                                            int
+	PartIndexes                                                                                                       map[string]int
 	TimelineText, TimelineRaw                                                                                         bool
 	Dirty                                                                                                             bool
 	Model                                                                                                             engine.Object
@@ -117,7 +117,6 @@ type App struct {
 	stopSync                                   func()
 	syncGeneration                             int
 	syncReview                                 *syncReview
-	snapshot                                   atomic.Pointer[windowSnapshot]
 	connections                                map[string]engine.Object
 	closing                                    bool
 	Engine                                     *engine.Engine
@@ -137,6 +136,7 @@ type App struct {
 	sidebarWidth, requestWidth                 float32
 	vertical, hideSidebar                      bool
 	search                                     string
+	filter                                     sidebarFilter
 	dialog, dialogTitle, dialogValue, dialogID string
 	dialogOpen                                 bool
 	modalTab                                   int
@@ -206,7 +206,6 @@ func New(e *engine.Engine) (*App, error) {
 	} else {
 		a.active = ""
 	}
-	a.publishSnapshot()
 	return a, nil
 }
 func (a *App) OpenWindow() {
@@ -449,7 +448,7 @@ func (a *App) openRequest(id string) {
 			}
 			events, err := a.Engine.Store.Find(a.ctx, "http_response_event", "responseId", rid)
 			return func() {
-				a.bodies[rid] = string(body)
+				a.bodies[rid] = storedBodyText(body, responseHeader(response, "Content-Type"))
 				for _, event := range events {
 					a.applyModel(event)
 				}

@@ -18,7 +18,6 @@ import (
 
 func (a *App) View(c *ui.Context) {
 	a.inView = true
-	a.publishSnapshot()
 	c.SetZoom(float32(cmp.Or(n(a.settings, "interfaceScale"), 1)))
 	p := a.theme(c)
 	if !a.dialogOpen && a.templateForm == nil && len(a.valuePrompts) == 0 && !a.palette.open && !a.switcher.open {
@@ -357,9 +356,7 @@ func (a *App) sidebar(c *ui.Context, p colors) {
 		}
 		ui.Scroll(c).Grow(1).MinHeight(0).Padding(8, 12, 8, 8).Gap(1).Children(func() {
 			if !a.requestTree(c, p) && a.search != "" {
-				ui.Column(c).Padding(12).Center().Children(func() {
-					ui.Text(c, locales.NoResultsForQuery(a.search)).FontSize(12).TextColor(p.muted).MaxLines(2)
-				})
+				a.sidebarNoResults(c, p)
 			}
 		})
 		a.gitButton(c, p)
@@ -373,18 +370,13 @@ func (a *App) revealInSidebar(id string) {
 }
 
 func (a *App) treeMatch(m engine.Object, depth int) bool {
-	query := strings.ToLower(strings.TrimSpace(a.search))
-	if query == "" {
+	if a.sidebarMatcher().IsEmpty() {
 		return true
 	}
-	text := strings.ToLower(requestName(m) + " " + s(m, "url"))
-	if s(m, "model") == "http_request" {
-		text = strings.ToLower(s(m, "method")) + " " + text
+	if s(m, "model") != "folder" {
+		return a.sidebarItemMatches(m)
 	}
-	if strings.Contains(text, query) {
-		return true
-	}
-	if s(m, "model") != "folder" || depth > 32 {
+	if depth > 32 {
 		return false
 	}
 	for _, child := range a.treeItems(s(m, "id")) {
@@ -1371,7 +1363,7 @@ func (a *App) responsePane(c *ui.Context, p colors, d *Draft) {
 					if err != nil {
 						return nil, nil
 					}
-					return func() { a.bodies[rid] = string(data) }, nil
+					return func() { a.bodies[rid] = decodeBodyText(data, requestContentType(response)) }, nil
 				})
 			}
 			if requestBody := a.bodies[rid]; requestBody == "" {
@@ -1652,7 +1644,7 @@ func (a *App) loadResponseBody(response engine.Object) {
 	}
 	a.run(func() (func(), error) {
 		body, _, err := a.Engine.BodyPreview(id, 2<<20)
-		return func() { a.bodies[id] = string(body) }, err
+		return func() { a.bodies[id] = storedBodyText(body, responseHeader(response, "Content-Type")) }, err
 	})
 }
 
