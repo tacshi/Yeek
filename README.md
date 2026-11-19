@@ -74,7 +74,7 @@ Client certificates (PEM, encrypted PKCS#8, PFX/PKCS#12) scoped by host and port
 - **Keyboard shortcuts:** every shortcut can be remapped.
 - **Themes:** built-in light and dark themes, themes from plugins, and your own font choices.
 - **Languages:** English, Simplified Chinese (简体中文), Japanese (日本語) and Korean (한국어).
-- **AI agents:** a built-in [Model Context Protocol](https://modelcontextprotocol.io) server lets coding agents such as Claude Code, Codex and Cursor read, edit and send your requests.
+- **AI agents:** a [Model Context Protocol](https://modelcontextprotocol.io) server, `yeek mcp`, lets coding agents such as Claude Code, Codex and Cursor read, edit and send your requests.
 - **Updates:** automatic updates, signed and delivered from GitHub Releases.
 
 ## Installation
@@ -144,7 +144,9 @@ Yeek follows the system language by default. To pick another one, open **Setting
 
 ### Connecting AI agents
 
-Turn on **Settings → Agents → Enable MCP server**. While Yeek is open, it then serves its tools at `http://127.0.0.1:64343/mcp`. The same page shows the setup snippet and access token for Claude Code, Codex, Cursor, VS Code and other MCP clients.
+Turn on **Settings → Agents → Enable MCP server**. Agents then reach Yeek through its command line: `yeek mcp` serves Yeek's tools over stdio, even while the app is closed, and sends requests with the environment and cookie jar last selected in the app (`--environment` and `--cookie-jar` choose others). The same page shows the setup for Claude Code, Codex, Cursor, VS Code and other MCP clients, and on macOS installs the `yeek` command in `/usr/local/bin`.
+
+For an agent that can only connect over HTTP, run `yeek mcp --http`. It listens on `http://127.0.0.1:64343/mcp` (change the port with `--port`) and prints a bearer token that clients must send, or uses the one given with `--token`.
 
 ## Plugins
 

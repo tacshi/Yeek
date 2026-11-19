@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"io"
@@ -181,16 +180,8 @@ func run() (runErr error) {
 			a.ImportPath(arg)
 		}
 	})
-	mcpCtx, stopMCP := context.WithCancel(context.Background())
-	defer stopMCP()
-	mcpServer := &desktop.MCPServer{Engine: e, Windows: func() []*desktop.App {
-		windowsMu.Lock()
-		defer windowsMu.Unlock()
-		return slices.Clone(windows)
-	}}
 	mygo.App.WhenReady(func() {
 		ready = true
-		mcpServer.Run(mcpCtx)
 		action := func(fn func(*desktop.App)) func(*mygo.MenuItem, *mygo.Window) {
 			return func(_ *mygo.MenuItem, w *mygo.Window) {
 				if a := active(w); a != nil {
@@ -268,7 +259,6 @@ func run() (runErr error) {
 		}
 	})
 	mygo.App.OnQuit(func() {
-		stopMCP()
 		for _, a := range windows {
 			a.Close()
 		}

@@ -64,6 +64,8 @@ func (a *App) toastCard(c *ui.Context, p colors, t ui.Toast, held bool) {
 		switch t.Type {
 		case "success":
 			glyph, color = "checkCircle", p.green
+		case "primary":
+			color = p.accent
 		case "danger", "warning", "notice":
 			glyph, color = "alert", map[string]ui.Color{"danger": p.red, "warning": p.orange, "notice": p.notice}[t.Type]
 		}

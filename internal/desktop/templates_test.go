@@ -224,11 +224,27 @@ func TestTemplateFunctionPreservesNestedAndUnknownArguments(t *testing.T) {
 	f := templateForm{definitions: (*engine.Engine)(nil).TemplateDefinitions()}
 	f.selectExpression(expression)
 	got, err := f.expression()
-	if err != nil || got.Arguments["request"].Value != "${[ ctx.request() ]}" || got.Arguments["custom"].Kind != "boolean" {
+	if err != nil || got.Arguments["request"].Kind != "function" || got.Arguments["request"].Value != "ctx.request" || got.Arguments["custom"].Kind != "boolean" {
 		t.Fatalf("edited expression: %#v %v", got, err)
 	}
-	if !strings.Contains(engine.FormatTemplateTag(got), "ctx.request()") {
-		t.Fatal("nested function was converted to a string")
+	if f.args["request"].text != "${[ ctx.request() ]}" {
+		t.Fatalf("shown as %q", f.args["request"].text)
+	}
+	if tag := engine.FormatTemplateTag(got); !strings.Contains(tag, "request=ctx.request()") {
+		t.Fatalf("nested function was converted to a string: %s", tag)
+	}
+	f.args["request"].text = "${[ ctx.workspace() ]}"
+	got, err = f.expression()
+	if err != nil || got.Arguments["request"].Kind != "string" || got.Arguments["request"].Value != "${[ ctx.workspace() ]}" {
+		t.Fatalf("changed argument: %#v %v", got.Arguments["request"], err)
+	}
+	vars, err := engine.ParseTemplateExpression(`${[ base64.encode(value=my_var) ]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.selectExpression(vars)
+	if got, err := f.expression(); err != nil || got.Arguments["value"].Kind != "variable" || got.Arguments["value"].Value != "my_var" {
+		t.Fatalf("variable argument: %#v %v", got.Arguments["value"], err)
 	}
 }
 

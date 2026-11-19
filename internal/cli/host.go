@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"cmp"
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -46,15 +48,47 @@ func (h *Host) environment(workspace, id string) (string, error) {
 	return id, nil
 }
 
-func (h *Host) ActiveEnvironmentID(workspace string) (string, error) {
-	if h.EnvironmentID == "" {
-		return "", nil
-	}
-	id, err := h.environment(workspace, h.EnvironmentID)
+type appSelection struct {
+	Workspace, Environment, CookieJar string
+	CookieJars                        map[string]string
+}
+
+func (h *Host) appSelection(workspace string) (environment, cookieJar string) {
+	models, err := h.Engine.Store.List(context.Background(), "key_value", "")
 	if err != nil {
-		return "", nil
+		return "", ""
 	}
-	return id, nil
+	for _, m := range models {
+		if str(m, "namespace") != "no_sync" || str(m, "key") != "main-window" {
+			continue
+		}
+		var state appSelection
+		if json.Unmarshal([]byte(str(m, "value")), &state) != nil {
+			return "", ""
+		}
+		cookieJar = state.CookieJars[workspace]
+		if state.Workspace == workspace {
+			environment, cookieJar = state.Environment, cmp.Or(state.CookieJar, cookieJar)
+		}
+		return environment, cookieJar
+	}
+	return "", ""
+}
+
+func (h *Host) ActiveEnvironmentID(workspace string) (string, error) {
+	if h.EnvironmentID != "" {
+		id, err := h.environment(workspace, h.EnvironmentID)
+		if err != nil {
+			return "", nil
+		}
+		return id, nil
+	}
+	if selected, _ := h.appSelection(workspace); selected != "" {
+		if id, err := h.environment(workspace, selected); err == nil {
+			return id, nil
+		}
+	}
+	return "", nil
 }
 
 func (h *Host) ListHTTPRequests(workspace string) ([]engine.Object, error) {
@@ -93,9 +127,13 @@ func (h *Host) SendHTTPRequest(ctx context.Context, workspace string, request en
 		return nil, err
 	}
 	jar := ""
-	if h.CookieJarID != "" {
-		if m, err := h.Engine.Store.Get(ctx, h.CookieJarID); err == nil && str(m, "model") == "cookie_jar" && str(m, "workspaceId") == owner {
-			jar = h.CookieJarID
+	candidate := h.CookieJarID
+	if candidate == "" {
+		_, candidate = h.appSelection(owner)
+	}
+	if candidate != "" {
+		if m, err := h.Engine.Store.Get(ctx, candidate); err == nil && str(m, "model") == "cookie_jar" && str(m, "workspaceId") == owner {
+			jar = candidate
 		}
 	}
 	if jar == "" {

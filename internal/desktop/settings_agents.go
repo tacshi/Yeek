@@ -2,13 +2,11 @@ package desktop
 
 import (
 	"encoding/json"
-	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/egoist/mygo/yeekui"
-	"yeek/internal/mcp"
 	"yeek/locales"
 )
 
@@ -16,29 +14,9 @@ var agentClients = []struct{ label, value string }{
 	{"Claude Code", "claude_code"}, {"Codex", "codex"}, {"Cursor", "cursor"}, {"VS Code", "vscode"}, {"Other", "other"},
 }
 
-type agentSetup struct{ where, snippet string }
-
-func appAgentSetup(client, url, token string) agentSetup {
-	authorization := "Bearer " + token
-	switch client {
-	case "claude_code":
-		return agentSetup{locales.RunInATerminal(), fmt.Sprintf(`claude mcp add --transport http yeek %s --header "Authorization: %s"`, url, authorization)}
-	case "codex":
-		quoted := func(s string) string { data, _ := json.Marshal(s); return string(data) }
-		return agentSetup{locales.AddToCodexConfigToml(), strings.Join([]string{
-			"[mcp_servers.yeek]",
-			"url = " + quoted(url),
-			`http_headers = { "Authorization" = ` + quoted(authorization) + " }",
-		}, "\n")}
-	case "cursor":
-		return agentSetup{locales.AddToCursorMcpJson(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": map[string]any{"url": url, "headers": map[string]any{"Authorization": authorization}}}})}
-	case "vscode":
-		return agentSetup{locales.AddToYourUserMcpJson(), setupJSON(map[string]any{"servers": map[string]any{"yeek": orderedSetup{{"type", "http"}, {"url", url}, {"headers", map[string]any{"Authorization": authorization}}}}})}
-	}
-	return agentSetup{locales.ForClientsThatReadAnMcpServers(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": orderedSetup{
-		{"command", "npx"},
-		{"args", []string{"-y", "mcp-remote", url, "--header", "Authorization: " + authorization}},
-	}}})}
+type agentSetup struct {
+	where, snippet string
+	shell          bool
 }
 
 type orderedSetup []struct {
@@ -102,16 +80,6 @@ func (a *App) setAgentClient(client string) {
 	a.saveModel(model)
 }
 
-func describedSection(c *ui.Context, p colors, title, description string, rows func()) {
-	ui.Column(c).Key(title).FillWidth().Children(func() {
-		ui.Column(c).FillWidth().Gap(4).Padding(0, 0, 8, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-			ui.Text(c, title).FontSize(13).TextColor(p.muted)
-			ui.Text(c, description).FontSize(12).TextColor(p.subtle).MaxLines(3)
-		})
-		rows()
-	})
-}
-
 func cliAgentSetup(client, command string, args []string) agentSetup {
 	line := shellWord(command)
 	for _, arg := range args {
@@ -120,38 +88,82 @@ func cliAgentSetup(client, command string, args []string) agentSetup {
 	server := orderedSetup{{"command", command}, {"args", args}}
 	switch client {
 	case "claude_code":
-		return agentSetup{locales.RunInATerminal(), "claude mcp add -s user yeek -- " + line}
+		return agentSetup{"", "claude mcp add -s user yeek -- " + line, true}
 	case "codex":
-		return agentSetup{locales.RunInATerminal(), "codex mcp add yeek -- " + line}
+		return agentSetup{"", "codex mcp add yeek -- " + line, true}
 	case "cursor":
-		return agentSetup{locales.AddToCursorMcpJson(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": server}})}
+		return agentSetup{locales.AddToCursorMcpJson(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": server}}), false}
 	case "vscode":
-		return agentSetup{locales.AddToYourUserMcpJson(), setupJSON(map[string]any{"servers": map[string]any{"yeek": append(orderedSetup{{"type", "stdio"}}, server...)}})}
+		return agentSetup{locales.AddToYourUserMcpJson(), setupJSON(map[string]any{"servers": map[string]any{"yeek": append(orderedSetup{{"type", "stdio"}}, server...)}}), false}
 	}
-	return agentSetup{locales.ForClientsThatReadAnMcpServersConfig(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": server}})}
+	return agentSetup{locales.ForClientsThatReadAnMcpServersConfig(), setupJSON(map[string]any{"mcpServers": map[string]any{"yeek": server}}), false}
 }
 
-func setupSnippet(c *ui.Context, p colors, key, title, warning string, setup agentSetup) {
-	ui.Column(c).Key(key).FillWidth().Padding(14, 0).Gap(4).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-		ui.Text(c, title).FontSize(13)
-		ui.Text(c, setup.where).FontSize(12).TextColor(p.muted)
-		if warning != "" {
-			ui.Text(c, warning).FontSize(12).TextColor(p.orange)
-		}
-		ui.Row(c).FillWidth().Margin(8, 0, 0, 0).Padding(8, 8, 8, 10).Gap(8).Radius(6).Border(1, p.border).AlignItems(ui.Start).Children(func() {
-			ui.Text(c, setup.snippet).Font("monospace").FontSize(12).Wrap().Selectable().Grow(1).MinWidth(0)
-			if smallIconButton(c, "copy", locales.CopySetup()).Border(1, p.border).Clicked() {
-				c.WriteClipboard(setup.snippet)
+func settingSnippet(c *ui.Context, p colors, setup agentSetup) {
+	ui.Row(c).FillWidth().Margin(8, 0, 0, 0).Padding(6, 6, 6, 12).Gap(8).Radius(6).Border(1, p.border).Background(p.border.Alpha(.2)).AlignItems(ui.Start).Children(func() {
+		ui.Row(c).Grow(1).MinWidth(0).Padding(4, 0).Gap(8).AlignItems(ui.Start).Children(func() {
+			if setup.shell {
+				ui.Text(c, "$").Font("monospace").FontSize(12).TextColor(p.subtle)
 			}
+			ui.Text(c, setup.snippet).Font("monospace").FontSize(12).Wrap().Selectable().Grow(1).MinWidth(0)
 		})
+		if smallIconButton(c, "copy", locales.Copy()).Border(1, p.border).Clicked() {
+			c.WriteClipboard(setup.snippet)
+		}
 	})
 }
 
-func (a *App) commandRow(c *ui.Context, p colors) {
+func settingCommand(c *ui.Context, p colors, key, title, warning string, setup agentSetup) {
+	ui.Column(c).Key(key).FillWidth().Padding(16, 0).Gap(4).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
+		ui.Text(c, title).FontSize(13)
+		if setup.where != "" {
+			ui.Text(c, setup.where).FontSize(12).TextColor(p.muted).MaxWidth(640)
+		}
+		if warning != "" {
+			ui.Text(c, warning).FontSize(12).TextColor(p.orange)
+		}
+		settingSnippet(c, p, setup)
+	})
+}
+
+func (a *App) commandButtons(c *ui.Context) {
 	st := &a.command
 	s := st.status
+	switch {
+	case st.busy:
+		label := locales.Installing()
+		if st.removing {
+			label = locales.Removing()
+		}
+		ui.Button(c, label).Disabled(true)
+	case s.installed:
+		if ui.Button(c, locales.Remove()).Clicked() {
+			a.changeCommand(true)
+		}
+	case s.taken != "":
+	default:
+		label := locales.Install()
+		if s.other {
+			label = locales.UpdateCommand()
+		}
+		if ui.PrimaryButton(c, label).Disabled(s.translocated).Clicked() {
+			a.changeCommand(false)
+		}
+	}
+}
+
+func (a *App) commandStatusRow(c *ui.Context, p colors) {
+	s := a.command.status
 	name := commandName()
-	description, color := locales.AddsCommandToFolder(name, filepath.Dir(s.link)), p.muted
+	if s.installed && !a.command.busy {
+		ui.Row(c).Key("command").FillWidth().Padding(12, 0).Gap(8).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
+			icon(c, "check").FontSize(14).TextColor(p.green)
+			ui.Text(c, locales.CommandIsInstalledAt(name, s.link)).FontSize(12).TextColor(p.muted).Grow(1).MinWidth(0).MaxLines(2)
+			a.commandButtons(c)
+		})
+		return
+	}
+	description, color := locales.AddsCommandToFolder(name, filepath.Dir(s.link)), p.subtle
 	switch {
 	case s.translocated:
 		description, color = locales.MoveYeekToApplicationsFirst(), p.orange
@@ -159,72 +171,40 @@ func (a *App) commandRow(c *ui.Context, p colors) {
 		description, color = locales.CommandTaken(s.taken), p.orange
 	case s.other:
 		description, color = locales.CommandRunsAnotherCopy(s.link), p.orange
-	case s.installed:
-		description, color = locales.CommandInstalledAt(s.link), p.green
 	}
-	ui.Row(c).Key("command").FillWidth().Padding(14, 0).Gap(16).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-			ui.Text(c, locales.TheCommand(name)).FontSize(13)
-			ui.Text(c, description).FontSize(12).TextColor(color).MaxLines(3)
-		})
-		ui.Row(c).Shrink(0).Gap(6).Children(func() {
-			switch {
-			case st.busy:
-				label := locales.Installing()
-				if st.removing {
-					label = locales.Removing()
-				}
-				ui.Button(c, label).Disabled(true)
-			case s.installed:
-				if ui.Button(c, locales.Remove()).Clicked() {
-					a.changeCommand(true)
-				}
-			case s.taken != "":
-			default:
-				label := locales.Install()
-				if s.other {
-					label = locales.UpdateCommand()
-				}
-				if ui.PrimaryButton(c, label).Disabled(s.translocated).Clicked() {
-					a.changeCommand(false)
-				}
-			}
+	ui.Column(c).Key("command").FillWidth().Padding(16, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
+		ui.Column(c).FillWidth().Padding(12, 14).Gap(4).Radius(6).Border(1, p.blue.Alpha(.35)).Background(p.blue.Alpha(.08)).Children(func() {
+			ui.Row(c).Gap(8).Children(func() {
+				icon(c, "square_terminal").FontSize(16).TextColor(p.blue)
+				ui.Text(c, locales.InstallTheCommand(name)).FontSize(13)
+			})
+			ui.Text(c, locales.AgentsLaunchItToReachYeek()).FontSize(12).TextColor(p.muted).MaxLines(3)
+			ui.Row(c).FillWidth().Margin(8, 0, 0, 0).Gap(12).Children(func() {
+				ui.Text(c, description).FontSize(12).TextColor(color).MaxLines(3).Grow(1).MinWidth(0)
+				ui.Row(c).Shrink(0).Gap(6).Children(func() { a.commandButtons(c) })
+			})
 		})
 	})
 }
 
 func (a *App) settingsAgents(c *ui.Context, p colors) {
 	settingsHeading(c, p, locales.Agents(), locales.ConnectAICodingAgentsLikeClaude())
-	url := "http://" + mcp.DefaultAddr + mcp.Path
-	enabled := b(a.settings, "mcpServerEnabled")
-	token := mcpToken(a.list("key_value"))
-	describedSection(c, p, locales.MCPServerInTheApp(), locales.ForAgentsThatConnectOverHTTP(), func() {
-		settingRow(c, p, locales.EnableMCPServer(), locales.ServeYeeksToolsAtUrlWhile(url), nil, func() {
-			on := enabled
-			if ui.Checkbox(c, &on, "").Label(locales.MCPServerEnabled()).Changed() {
-				a.saveSetting("mcpServerEnabled", on)
-			}
-		})
-		if enabled && token != "" {
-			settingRow(c, p, locales.Token(), locales.AgentsSendThisAsABearer(), nil, func() { settingValue(c, p, token, nil) })
-		}
-	})
 	a.checkCommand()
-	if enabled && token != "" {
-		a.connectAgent(c, p, url, token)
-	}
-	if a.command.status.supported {
-		describedSection(c, p, locales.CommandLine(), locales.AgentsLaunchCommandToReachYeek(commandName()+" mcp"), func() {
-			a.commandRow(c, p)
+	client := a.agentClient()
+	enabled := b(a.settings, "mcpServerEnabled")
+	ui.Column(c).FillWidth().Children(func() {
+		ui.Column(c).FillWidth().Margin(0, 0, 16, 0).Children(func() {
+			settingRow(c, p, locales.EnableMCPServer(), locales.LetsAgentsReadEditAndSend(commandName()), nil, func() {
+				on := enabled
+				if ui.Checkbox(c, &on, "").Label(locales.MCPServerEnabled()).Changed() {
+					a.saveSetting("mcpServerEnabled", on)
+				}
+			})
 		})
-	}
-}
-
-func (a *App) connectAgent(c *ui.Context, p colors, url, token string) {
-	command, args := a.cliInvocation(a.command.status)
-	describedSection(c, p, locales.ConnectAnAgent(), locales.PickYourAgentOrEditorTo(), func() {
-		client := a.agentClient()
-		ui.Row(c).FillWidth().Padding(14, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
+		if !enabled {
+			return
+		}
+		ui.Row(c).FillWidth().Padding(0, 0, 16, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Children(func() {
 			selected := 0
 			labels := make([]string, len(agentClients))
 			for i, option := range agentClients {
@@ -241,11 +221,14 @@ func (a *App) connectAgent(c *ui.Context, p colors, url, token string) {
 			}
 			ui.Spacer(c)
 		})
+		if a.command.status.supported {
+			a.commandStatusRow(c, p)
+		}
+		command, args := a.cliInvocation(a.command.status)
 		warning := ""
 		if s := a.command.status; s.translocated && !s.installed {
 			warning = locales.MoveYeekToApplicationsFirst()
 		}
-		setupSnippet(c, p, "Through the CLI", locales.ThroughTheCLI(), warning, cliAgentSetup(client, command, args))
-		setupSnippet(c, p, "Through the app", locales.ThroughTheApp(), "", appAgentSetup(client, url, token))
+		settingCommand(c, p, "Add the MCP server", locales.AddTheMCPServer(), warning, cliAgentSetup(client, command, args))
 	})
 }

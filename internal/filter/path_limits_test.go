@@ -13,7 +13,7 @@ func TestLongPathsParseQuickly(t *testing.T) {
 		if _, err := parsePath(path); err != nil {
 			t.Fatal(err)
 		}
-		if elapsed := time.Since(start); elapsed > 2*time.Second {
+		if elapsed := time.Since(start); elapsed > raceSlowdown*2*time.Second {
 			t.Fatalf("%d bytes took %v", len(path), elapsed)
 		}
 	}

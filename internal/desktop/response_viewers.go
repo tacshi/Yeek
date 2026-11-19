@@ -1,15 +1,13 @@
 package desktop
 
 import (
-	"bytes"
 	"cmp"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json/jsontext"
 	"fmt"
 	"io"
 	"mime"
-	"mime/multipart"
-	"net/textproto"
 	"regexp"
 	"strconv"
 	"strings"
@@ -41,6 +39,7 @@ func responseContentType(response engine.Object) (string, map[string]string) {
 			if err == nil {
 				return kind, params
 			}
+			return mediaTypeOf(s(header, "value")), headerParams(s(header, "value"))
 		}
 	}
 	return "", nil
@@ -72,7 +71,7 @@ func (a *App) responseBody(c *ui.Context, p colors, d *Draft, response engine.Ob
 	case s(response, "state") == "closed" && n(response, "contentLength") == 0 && raw == "":
 		emptyState(c, p, locales.Empty())
 	case strings.HasPrefix(kind, "text/event-stream") && pretty:
-		a.eventStreamView(c, p, d, raw)
+		a.eventStreamView(c, p, d, decodeBodyText([]byte(raw), ""))
 	case strings.HasPrefix(kind, "image/"):
 		a.imageView(c, p, id, kind, []byte(raw))
 	case audioMIME.MatchString(kind), videoMIME.MatchString(kind), pdfMIME.MatchString(kind):
@@ -242,82 +241,177 @@ func banner(c *ui.Context, p colors, message string, actions func()) {
 	})
 }
 
-type multipartPart struct {
-	name, filename, kind string
-	header               textproto.MIMEHeader
-	data                 []byte
-}
-
-func parseMultipart(body []byte, boundary string) ([]multipartPart, error) {
-	reader := multipart.NewReader(bytes.NewReader(body), boundary)
-	parts := []multipartPart{}
-	for {
-		part, err := reader.NextRawPart()
-		if err == io.EOF {
-			return parts, nil
-		}
-		if err != nil {
-			return parts, err
-		}
-		data, err := io.ReadAll(io.LimitReader(part, 10<<20))
-		if err != nil {
-			return parts, err
-		}
-		kind, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
-		parts = append(parts, multipartPart{name: part.FormName(), filename: part.FileName(), kind: kind, header: part.Header, data: data})
-	}
-}
-
 func (a *App) multipartView(c *ui.Context, p colors, d *Draft, id string, body []byte, boundary string) {
-	parts, err := parseMultipart(body, boundary)
-	if err != nil && len(parts) == 0 {
+	a.multipartParts(c, p, d, id, "", body, boundary, 1)
+}
+
+const maxMultipartDepth = 4
+
+func (d *Draft) partIndex(key string) int {
+	if key == "" {
+		return d.PartIndex
+	}
+	return d.PartIndexes[key]
+}
+
+func (d *Draft) setPartIndex(key string, i int) {
+	if key == "" {
+		d.PartIndex = i
+		return
+	}
+	if d.PartIndexes == nil {
+		d.PartIndexes = map[string]int{}
+	}
+	d.PartIndexes[key] = i
+}
+
+func partLabel(part multipartPart, i int) string {
+	return cmp.Or(part.name, part.filename, part.contentID, locales.PartIndex(strconv.Itoa(i+1)))
+}
+
+func toneBanner(c *ui.Context, p colors, message string, tone ui.Color) {
+	ui.Column(c).Margin(0, 12, 8, 0).Padding(8, 12).Radius(6).Border(1, tone.Alpha(.35)).Background(tone.Alpha(.08)).Children(func() {
+		ui.Text(c, message).FontSize(12).MaxLines(3)
+	})
+}
+
+func (a *App) multipartParts(c *ui.Context, p colors, d *Draft, id, key string, body []byte, boundary string, depth int) {
+	result, err := parseMultipart(body, boundary)
+	if err != nil {
 		banner(c, p, locales.FailedToParseMultipartDataError(err.Error()), func() {})
 		return
 	}
+	parts := result.parts
 	if len(parts) == 0 {
 		banner(c, p, locales.NoMultipartPartsFound(), func() {})
 		return
 	}
-	d.PartIndex = max(0, min(d.PartIndex, len(parts)-1))
-	ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		ui.Scroll(c).Width(180).Shrink(0).Padding(4, 8, 4, 0).Gap(2).BorderWidth(0, 1, 0, 0).BorderColor(p.border).Children(func() {
-			for i, part := range parts {
-				label := part.name
-				if label == "" {
-					label = locales.PartIndex(string(rune('1' + i)))
-				}
-				if navItem(c, p, label, i == d.PartIndex).Key(i).Clicked() {
-					d.PartIndex = i
-				}
-			}
-		})
-		part := parts[d.PartIndex]
-		ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, 12).Children(func() {
-			text := string(part.data)
-			partKey := id + ":part:" + strconv.Itoa(d.PartIndex)
-			switch {
-			case strings.HasPrefix(part.kind, "image/"):
-				a.imageView(c, p, id+":part:"+part.name+":"+string(rune('0'+d.PartIndex)), part.kind, part.data)
-			case audioMIME.MatchString(part.kind), videoMIME.MatchString(part.kind), pdfMIME.MatchString(part.kind):
-				a.webPreview(c, p, partKey, &previewItem{kind: mediaKind(part.kind), mimeType: part.kind, color: cssColor(p.text), open: bytesPreview(part.data)})
-			case csvMIME.MatchString(part.kind):
-				csvView(c, p, text, strings.Contains(part.kind, "tab-separated"))
-			case strings.Contains(part.kind, "html"):
-				a.webPreview(c, p, partKey, &previewItem{kind: "html", mimeType: cmp.Or(part.header.Get("Content-Type"), "text/html"), open: bytesPreview(part.data)})
-			case !utf8.Valid(part.data):
-				banner(c, p, locales.ContentTypeContentTypeCannotBePreviewed(part.kind), func() {})
-			default:
-				language := ""
-				if strings.Contains(part.kind, "json") || jsontext.Value(part.data).IsValid() {
-					language = "json"
-					if pretty := jsontext.Value(slicesClone(part.data)); pretty.Indent(jsontext.WithIndent("  ")) == nil {
-						text = string(pretty)
+	index := max(0, min(d.partIndex(key), len(parts)-1))
+	d.setPartIndex(key, index)
+	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
+		if !result.complete {
+			toneBanner(c, p, locales.TheBodyEndsWithoutItsClosing(), p.orange)
+		}
+		ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+			ui.Scroll(c).Width(180).Shrink(0).Padding(4, 8, 4, 0).Gap(2).BorderWidth(0, 1, 0, 0).BorderColor(p.border).Children(func() {
+				for i, part := range parts {
+					if navItem(c, p, partLabel(part, i), i == index).Key(i).Clicked() {
+						d.setPartIndex(key, i)
 					}
 				}
-				a.codeView(c, p, text, language, "Multipart part")
-			}
+			})
+			part := parts[index]
+			partKey := key + "." + strconv.Itoa(index)
+			ui.Column(c).Grow(1).MinWidth(0).Padding(0, 0, 0, 12).Children(func() {
+				if part.mediaType == "application/http" {
+					if message := parseHTTPMessage(part.data); message != nil {
+						a.httpMessagePart(c, p, d, id, partKey, message, depth)
+						return
+					}
+				}
+				a.partBody(c, p, d, id, partKey, part.data, part.contentType, depth)
+			})
 		})
 	})
+}
+
+func (a *App) httpMessagePart(c *ui.Context, p colors, d *Draft, id, key string, message *httpMessage, depth int) {
+	ui.Column(c).Grow(1).MinHeight(0).Gap(8).Children(func() {
+		ui.Row(c).Gap(6).Padding(4, 0, 0, 0).Children(func() {
+			if message.status != 0 {
+				status := engine.Object{"status": float64(message.status)}
+				ui.Text(c, strings.TrimSpace(strconv.Itoa(message.status)+" "+message.statusReason)).Font("monospace").FontSize(13).TextColor(statusColor(status, p)).SingleLine()
+				return
+			}
+			ui.Text(c, message.method).Font("monospace").FontSize(13).TextColor(p.blue).SingleLine()
+			ui.Text(c, message.url).Font("monospace").FontSize(13).SingleLine().Shrink(1)
+		})
+		a.detailsBanner(c, p, id+":part"+key+".headers", true, func() {
+			ui.Row(c).Gap(6).Children(func() {
+				ui.Text(c, locales.Headers()).FontSize(13)
+				badgePair(len(message.headers), 0).viewSingle(c, p)
+			})
+		}, func() {
+			if len(message.headers) == 0 {
+				ui.Text(c, locales.NoHeaders()).FontSize(12).Italic().TextColor(p.subtle)
+				return
+			}
+			rows := make([]keyValue, len(message.headers))
+			for i, h := range message.headers {
+				rows[i] = keyValue{label: h.name, value: h.value, color: p.accent}
+			}
+			keyValueRows(c, p, rows)
+		})
+		contentType, _ := headerValue(message.headers, "content-type")
+		a.partBody(c, p, d, id, key, message.body, contentType, depth)
+	})
+}
+
+func (a *App) partBody(c *ui.Context, p colors, d *Draft, id, key string, body []byte, contentType string, depth int) {
+	if len(body) == 0 {
+		ui.Text(c, locales.Empty()).FontSize(13).Italic().TextColor(p.subtle).Padding(4, 0)
+		return
+	}
+	kind := mediaTypeOf(contentType)
+	if strings.HasPrefix(kind, "multipart/") {
+		if boundary := boundaryFromContentType(contentType); boundary != "" {
+			if depth < maxMultipartDepth {
+				a.multipartParts(c, p, d, id, key, body, boundary, depth+1)
+				return
+			}
+			ui.Column(c).Grow(1).MinHeight(0).Children(func() {
+				toneBanner(c, p, locales.MultipartNestedMoreThanDepthLevels(maxMultipartDepth), p.blue)
+				a.leafBody(c, p, id, key, body, "", "", true)
+			})
+			return
+		}
+	}
+	a.leafBody(c, p, id, key, body, contentType, kind, false)
+}
+
+func isBinaryPart(kind string, body []byte) bool {
+	if textMIME.MatchString(kind) {
+		return false
+	}
+	return isProbablyBinary(body)
+}
+
+var textMIME = regexp.MustCompile(`^text/|json|xml|javascript|yaml|csv|x-www-form-urlencoded`)
+
+func (a *App) leafBody(c *ui.Context, p colors, id, key string, body []byte, contentType, kind string, raw bool) {
+	binary := isBinaryPart(kind, body)
+	text := string(body)
+	partKey := id + ":part" + key
+	if raw {
+		if binary {
+			text = hex.Dump(body)
+		}
+		a.codeView(c, p, text, "", "Multipart part")
+		return
+	}
+	switch {
+	case strings.HasPrefix(kind, "image/"):
+		a.imageView(c, p, partKey, kind, body)
+	case audioMIME.MatchString(kind), videoMIME.MatchString(kind):
+		a.webPreview(c, p, partKey, &previewItem{kind: mediaKind(kind), mimeType: kind, color: cssColor(p.text), open: bytesPreview(body)})
+	case csvMIME.MatchString(kind):
+		csvView(c, p, text, strings.Contains(kind, "tab-separated"))
+	case strings.HasPrefix(kind, "text/html"), !binary && strings.Contains(kind, "html"):
+		a.webPreview(c, p, partKey, &previewItem{kind: "html", mimeType: cmp.Or(contentType, "text/html"), open: bytesPreview(body)})
+	case pdfMIME.MatchString(kind):
+		a.webPreview(c, p, partKey, &previewItem{kind: mediaKind(kind), mimeType: kind, color: cssColor(p.text), open: bytesPreview(body)})
+	case binary:
+		a.codeView(c, p, hex.Dump(body), "", "Multipart part")
+	default:
+		language := ""
+		if strings.Contains(kind, "json") || jsontext.Value(body).IsValid() {
+			language = "json"
+			if pretty := jsontext.Value(slicesClone(body)); pretty.Indent(jsontext.WithIndent("  ")) == nil {
+				text = string(pretty)
+			}
+		}
+		a.codeView(c, p, text, language, "Multipart part")
+	}
 }
 
 func slicesClone(b []byte) []byte { return append([]byte(nil), b...) }
