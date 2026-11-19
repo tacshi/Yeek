@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/MoeForge/moego v0.1.0-alpha.3 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
@@ -56,7 +57,7 @@ tool github.com/egoist/mygo/cmd/mygo
 require (
 	github.com/1password/onepassword-sdk-go v0.4.1
 	github.com/Azure/go-ntlmssp v0.1.1
-	github.com/MoeForge/moejs v0.1.0-alpha.11
+	github.com/MoeForge/moejs v0.1.1
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/andybalholm/brotli v1.2.7
 	github.com/antchfx/xmlquery v1.5.2
