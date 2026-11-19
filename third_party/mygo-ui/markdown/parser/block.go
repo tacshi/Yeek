@@ -109,7 +109,7 @@ func isASCIILetter(c byte) bool { return c|0x20 >= 'a' && c|0x20 <= 'z' }
 // parseTail parses the source again from the restart point.
 func (d *Document) parseTail() {
 	at, off := d.restartAt, d.restart
-	removed := d.truncate(at, off)
+	removed := d.truncate(at, off, true)
 	d.parseShown(nil)
 	d.refsChanged(removed, at, off)
 	d.unheal()
@@ -138,7 +138,7 @@ func (d *Document) parseShown(resync func(line int) bool) bool {
 	if d.streaming && d.ext&ExtTables != 0 {
 		// A table's header waits for its delimiter row.
 		if c := d.heldTableRow(cut); c < cut {
-			d.truncate(d.restartAt, d.restart)
+			d.truncate(d.restartAt, d.restart, true)
 			d.parse(d.restart, c, nil)
 			cut = c
 		}
@@ -159,21 +159,25 @@ func (d *Document) edit(from, to int, text string) {
 		if int(d.blocks[j].parse.firstLine) > from {
 			break
 		}
-		prev, k = k, j
+		// A table made of a paragraph's last line goes with the paragraph.
+		if d.blocks[j].parse.joined == 0 {
+			prev = k
+		}
+		k = j
 	}
 	at, off := 1, 0
 	if prev > 0 {
 		at, off = d.restartOf(prev)
 	}
-	tail := append([]Block(nil), d.blocks[at:]...)
-	oldSegs := append([]seg(nil), d.segs...)
-	oldDefs := append([]definition(nil), d.defs...)
-	oldRefs := make(map[string]linkRef, len(d.refs))
-	for key, r := range d.refs {
-		oldRefs[key] = r
+	segBase := len(d.segs)
+	if at < len(d.blocks) {
+		segBase = int(d.blocks[at].segMark)
 	}
+	tail := append([]Block(nil), d.blocks[at:]...)
+	oldSegs := append([]seg(nil), d.segs[segBase:]...)
+	oldDefs := append([]definition(nil), d.defs...)
 	oldRestart, oldRestartAt, oldTail, oldCut := d.restart, d.restartAt, d.tail, d.cut
-	removed := d.truncate(at, off)
+	removed := d.truncate(at, off, false)
 	d.src = old[:from] + text + old[to:]
 	d.restart, d.restartAt = off, at
 	editEnd := from + len(text)
@@ -191,7 +195,9 @@ func (d *Document) edit(from, to int, text string) {
 		}
 		return false
 	}
+	inlLimit := len(tail)
 	if d.parseShown(resync) {
+		inlLimit = met
 		splitAt := int(tail[met].parse.firstLine)
 		shift := len(d.blocks) - (at + met)
 		for m := met; m < len(tail); m++ {
@@ -206,7 +212,7 @@ func (d *Document) edit(from, to int, text string) {
 			if b.parse.joined > 0 {
 				b.parse.joined += int32(shift)
 			}
-			segs := oldSegs[b.segA:b.segB]
+			segs := oldSegs[int(b.segA)-segBase : int(b.segB)-segBase]
 			b.segMark = int32(len(d.segs))
 			b.segA = b.segMark
 			for _, sg := range segs {
@@ -218,8 +224,7 @@ func (d *Document) edit(from, to int, text string) {
 			if b.textS >= 0 {
 				b.textS += int32(delta)
 			}
-			if b.inlOK && len(b.inl) > 0 {
-				b.inl = append([]Inline(nil), b.inl...)
+			if delta != 0 && b.inlOK && len(b.inl) > 0 {
 				for x := range b.inl {
 					b.inl[x].Start += delta
 					b.inl[x].End += delta
@@ -255,6 +260,13 @@ func (d *Document) edit(from, to int, text string) {
 		}
 		d.cut = oldCut + delta
 	}
+	for m := 0; m < inlLimit; m++ {
+		b := &tail[m]
+		if b.inlOK && b.segB > b.segA {
+			segs := oldSegs[int(b.segA)-segBase : int(b.segB)-segBase]
+			d.oldInl = append(d.oldInl, oldInline{int(segs[0].start), b.rev, b.text, slices.Clone(segs), b.inl, b.labels, b.healed})
+		}
+	}
 	d.refsChanged(removed, at, off)
 	d.unheal()
 }
@@ -262,13 +274,15 @@ func (d *Document) edit(from, to int, text string) {
 // truncate drops the blocks from index at, parsed from offset off, and
 // the definitions made there, which it returns, keeping their inlines
 // to reuse.
-func (d *Document) truncate(at, off int) map[string]linkRef {
+func (d *Document) truncate(at, off int, saveOldInl bool) map[string]linkRef {
 	clear(d.oldInl)
 	d.oldInl = d.oldInl[:0]
-	for i := at; i < len(d.blocks); i++ {
-		b := &d.blocks[i]
-		if b.inlOK && b.segB > b.segA {
-			d.oldInl = append(d.oldInl, oldInline{int(d.segs[b.segA].start), b.rev, b.text, slices.Clone(d.segsOf(b)), b.inl, b.labels, b.healed})
+	if saveOldInl {
+		for i := at; i < len(d.blocks); i++ {
+			b := &d.blocks[i]
+			if b.inlOK && b.segB > b.segA {
+				d.oldInl = append(d.oldInl, oldInline{int(d.segs[b.segA].start), b.rev, b.text, slices.Clone(d.segsOf(b)), b.inl, b.labels, b.healed})
+			}
 		}
 	}
 	root := &d.blocks[0]
@@ -645,6 +659,7 @@ func (p *blockParser) finalize(i int) int {
 	b.parse.open = false
 	b.Next = len(d.blocks)
 	switch {
+	case b.Kind == MathBlock && b.parse.mathDone:
 	case b.segB > b.segA:
 		b.End = int(d.segs[b.segB-1].end)
 	case b.parse.lastChild >= 0:
@@ -688,7 +703,9 @@ func (p *blockParser) finalize(i int) int {
 		}
 	case Item:
 		if b.parse.lastChild < 0 {
-			b.End = b.Start + 1
+			// A childless item spans its own line, so its end is that line's
+			// end rather than one byte into a multi-byte marker.
+			b.End = max(b.End, lineEndFrom(p.src, b.Start))
 		}
 	case Quote:
 		if b.parse.alert != NoAlert {
@@ -758,6 +775,18 @@ func (p *blockParser) firstChild(i int) int {
 		return -1
 	}
 	return i + 1
+}
+
+// lineEndFrom returns the offset of the line ending that ends the line
+// starting at from, or len(src) when that line reaches the end of src.
+func lineEndFrom(src string, from int) int {
+	from = max(0, min(from, len(src)))
+	for at := from; at < len(src); at++ {
+		if isLineEnd(src[at]) {
+			return at
+		}
+	}
+	return len(src)
 }
 
 func (p *blockParser) nextSibling(i int) int {

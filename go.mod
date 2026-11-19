@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/ProtonMail/go-crypto v1.1.6 // indirect
+	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
@@ -35,8 +35,10 @@ require (
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 // indirect
 	github.com/tetratelabs/wazero v1.11.0 // indirect
+	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	go.digitalxero.dev/rpm v0.3.4 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
@@ -64,7 +66,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/dlclark/regexp2/v2 v2.2.1
 	github.com/ebitengine/purego v0.11.1
-	github.com/egoist/mygo v0.8.3
+	github.com/egoist/mygo v0.10.0
 	github.com/egoist/mygo/yeekui v0.0.0
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/golang-jwt/jwt/v5 v5.3.1

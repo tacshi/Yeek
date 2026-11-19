@@ -192,7 +192,7 @@ func (a *App) dialogs(c *ui.Context, p colors) {
 			ui.Column(c).Padding(22).Gap(15).Children(func() {
 				ui.Text(c, a.dialogValue).Font("monospace").FontSize(13).Selectable()
 				if ui.Button(c, locales.CopyKey()).Clicked() {
-					c.WriteClipboard(a.dialogValue)
+					copySecret(a.dialogValue)
 				}
 			})
 		case "set_encryption_key":

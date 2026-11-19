@@ -6,6 +6,7 @@ import (
 	"uuid"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	"yeek/internal/engine"
 	"yeek/locales"
 )
@@ -46,6 +47,10 @@ func (a *App) copyGrpcurl(id string) {
 		mygo.Clipboard.WriteText(text)
 		return a.copiedToast, nil
 	})
+}
+
+func copySecret(text string) {
+	_ = mygo.Clipboard.Write(transfer.TextData(text), mygo.ClipboardOptions{Concealed: true})
 }
 
 func (a *App) copiedToast() {

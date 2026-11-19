@@ -36,6 +36,13 @@ type documentEditor struct {
 	matchIndex                                             int
 	findError                                              string
 	findCase, findRegex                                    bool
+	findField                                              ui.Handle
+}
+
+func (d *documentEditor) openFind(replace bool) {
+	d.find = true
+	d.replace = d.replace || replace
+	d.findField.SelectAll()
 }
 
 func (a *App) editorDocument(label string) *documentEditor {
@@ -60,11 +67,10 @@ func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKe
 	scope := ui.Column(c).Key(a.active + ":" + stateKey).Grow(1).MinHeight(0).MinWidth(0)
 	scope.Children(func() {
 		if scope.Shortcut(ui.Cmd, ui.KeyF) {
-			doc.find = true
+			doc.openFind(false)
 		}
 		if scope.Shortcut(ui.Cmd|ui.Alt, ui.KeyF) && !readOnly {
-			doc.find = true
-			doc.replace = true
+			doc.openFind(true)
 		}
 		if scope.Shortcut(ui.Ctrl, ui.KeyG) {
 			doc.goTo = true
@@ -190,11 +196,10 @@ func (a *App) keyedEditor(c *ui.Context, p colors, value *string, label, stateKe
 				}
 				menu.Separator()
 				if menu.Item(locales.FindEllipsis()).Shortcut(ui.Cmd, ui.KeyF).Chosen() {
-					doc.find = true
+					doc.openFind(false)
 				}
 				if menu.Item(locales.ReplaceEllipsis()).Disabled(readOnly).Shortcut(ui.Cmd|ui.Alt, ui.KeyF).Chosen() {
-					doc.find = true
-					doc.replace = true
+					doc.openFind(true)
 				}
 				if menu.Item(locales.GoToLineEllipsis()).Shortcut(ui.Ctrl, ui.KeyG).Chosen() {
 					doc.goTo = true
@@ -296,7 +301,8 @@ func (a *App) editorFindBar(c *ui.Context, p colors, doc *documentEditor, value 
 	doc.updateMatches(*value)
 	ui.Column(c).Background(p.sidebar).BorderWidth(0, 0, 1, 0).BorderColor(p.border).Padding(6, 9).Gap(5).Children(func() {
 		ui.Row(c).Gap(5).Children(func() {
-			field := ui.TextInput(c, &doc.query).Label(locales.FindInEditor(label)).Placeholder(locales.Find()).Grow(1).MinWidth(0).AutoFocus().FontSize(12)
+			field := ui.TextInput(c, &doc.query).Label(locales.FindInEditor(label)).Placeholder(locales.Find()).Grow(1).MinWidth(0).FontSize(12)
+			field.Bind(&doc.findField)
 			changed := field.Changed()
 			if changed {
 				doc.findSource = ""

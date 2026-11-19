@@ -814,7 +814,7 @@ If the files date.c, newstrftime.3, and strftime.c are present, they
 contain material derived from BSD and use the BSD 3-clause license.
 
 ========================================================================
-github.com/ProtonMail/go-crypto v1.1.6
+github.com/ProtonMail/go-crypto v1.4.1
 ========================================================================
 Copyright (c) 2009 The Go Authors. All rights reserved.
 
@@ -2606,7 +2606,7 @@ github.com/ebitengine/purego v0.11.1
 
 
 ========================================================================
-github.com/egoist/mygo v0.4.5
+github.com/egoist/mygo v0.10.0
 ========================================================================
 MIT License
 

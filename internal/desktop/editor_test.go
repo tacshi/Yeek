@@ -166,6 +166,35 @@ func TestNativeEditorFindReplaceUnicode(t *testing.T) {
 	}
 }
 
+func TestNativeEditorFindAgainSelectsQuery(t *testing.T) {
+	a := &App{settings: engine.Object{"editorSoftWrap": true, "editorFontSize": 12}, active: "request"}
+	value := "alpha beta"
+	p := colors{text: ui.Hex("#222222"), muted: ui.Hex("#888888"), border: ui.Hex("#cccccc"), sidebar: ui.Hex("#ffffff"), accent: ui.Hex("#6633ff")}
+	tt := ui.NewTester(func(c *ui.Context) { a.nativeEditor(c, p, &value, "Body", "json", false) }, 620, 250)
+	if err := tt.Click("Body"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Frame()
+	tt.Type("alpha")
+	doc := a.editorDocument("Body")
+	if doc.query != "alpha" {
+		t.Fatalf("find did not take the keyboard: query %q", doc.query)
+	}
+	if err := tt.Click("Body"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyF)
+	tt.Frame()
+	if !tt.Focused("Find in Body") {
+		t.Fatal("find again left the focus in the editor")
+	}
+	tt.Type("beta")
+	if doc.query != "beta" || value != "alpha beta" {
+		t.Fatalf("find again: query %q, value %q", doc.query, value)
+	}
+}
+
 func TestCodeReplacementTypingIsOneUndoStep(t *testing.T) {
 	value := "日本"
 	var state ui.CodeEditorState

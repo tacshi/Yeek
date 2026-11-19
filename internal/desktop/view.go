@@ -1070,7 +1070,11 @@ func (a *App) pairEditor(c *ui.Context, p colors, rows *[]KV, name, value string
 						})
 					}
 					if m.Item(locales.CopyValue()).Chosen() {
-						c.WriteClipboard(fieldValue)
+						if mask {
+							copySecret(fieldValue)
+						} else {
+							c.WriteClipboard(fieldValue)
+						}
 					}
 				})
 			})

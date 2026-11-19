@@ -219,7 +219,7 @@ func (a *area) paintFold(e *node, p *Painter, line int, ox, oy float32) {
 		params := e.textParams(0)
 		params.Width = 0
 		params.Text = marker
-		label := textSystem().Layout(params)
+		label := ed.sys.Layout(params)
 		p.textLayout(label, ox+layout.Width+4, y, color, e.resolvedText(), nil)
 	}
 }
