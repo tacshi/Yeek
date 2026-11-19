@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -118,10 +117,13 @@ type editor struct {
 	undo, redo       []undoStep
 	lastEdit         time.Time
 	// now is the time, the engine's (engine.now), for what depends on it.
+	// sys is the text system of the window the editor draws in, the
+	// engine's: a Tester's window shapes apart from the others' (#1722).
 	now       func() time.Time
+	sys       *text.System
 	coalesce  bool
 	dragging  bool
-	dragUnit  int // 1 rune, 2 word, 3 line
+	dragUnit  int // 1 rune, 2 word, 3 paragraph
 	dragStart [2]int
 	pressMods Modifiers
 	contentW  float32
@@ -131,7 +133,9 @@ type editor struct {
 	created bool
 }
 
-func newEditor(now func() time.Time) *editor { return &editor{hoverChip: -1, now: now} }
+func newEditor(now func() time.Time, sys *text.System) *editor {
+	return &editor{hoverChip: -1, now: now, sys: sys}
+}
 
 func (ed *editor) String() string { return ed.buf.string() }
 
@@ -184,7 +188,7 @@ func (ed *editor) insert(s string) {
 	if ed.readOnly {
 		return
 	}
-	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = lineBreaks.Replace(s)
 	a, b := ed.selection()
 	ranges := ed.selectedRanges()
 	if a == b && len(ranges) == 0 && ed.fit(a, a, s) == "" {

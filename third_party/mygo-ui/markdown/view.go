@@ -43,13 +43,30 @@ type Options struct {
 	// asked again whenever the paragraph changes: keep what it makes.
 	LinkIcon func(dest string, size float32) (InlineObject, bool)
 	// Anchor scrolls to the heading of this slug, with or without its "#",
-	// when the document first shows, when another document replaces it,
-	// and when Anchor changes: a docs reader opens guide.md#install at
-	// its heading. An OnLink that takes #a-heading links sets it.
+	// or to the block AnchorBlock finds for it, when the document first
+	// shows, when another document replaces it, and when Anchor changes:
+	// a docs reader opens guide.md#install at its heading. An OnLink that
+	// takes #a-heading links sets it.
 	Anchor string
 	// AnchorVersion scrolls to Anchor again when it changes, for the same
 	// heading asked for twice.
 	AnchorVersion uint64
+	// AnchorBlock, when set, finds the block an anchor names, given the
+	// view's document and the anchor without its "#", for Anchor and for
+	// the links to #an-anchor the view follows itself: a notes app finds
+	// the paragraph that ends in ^block-id. It returns the block's index,
+	// or -1 to look for the heading of that slug, as without it. A row or
+	// a cell of a table scrolls the table into view. The document is the
+	// view's: read it, never change it.
+	AnchorBlock func(d *parser.Document, name string) int
+	// OnTask, when set, makes the check boxes of task list items controls
+	// of the app's: a click on one, or Space or Enter while it has the
+	// focus, calls it with the item's line in the view's source, from 1,
+	// and the state asked for, the other one. The box keeps showing what
+	// the source says, so the app writes the change into its Markdown,
+	// which the view then shows. Without it, the boxes only show whether
+	// their tasks are done.
+	OnTask func(line int, checked bool)
 	// Resolve, when set, makes mentions (@octocat) and references to
 	// issues and pull requests (#123) links: it returns where one goes,
 	// which OnLink, or else the router or a ui.Link, opens, as a path of
@@ -59,6 +76,13 @@ type Options struct {
 	// builds, so it looks up what the app has at hand, as in a map, and
 	// paragraphs follow when its answers change.
 	Resolve func(in parser.Inline) (dest string, ok bool)
+	// CodeLink, when set, makes code within text a link where it returns
+	// one: a chat links `src/app.go:12` to the file it names. It is asked
+	// for each piece of code shown whenever the view builds, as Resolve
+	// is, and paragraphs follow when its answers change. The code keeps
+	// its look; its source is untouched, so a document streaming in
+	// parses as it would without.
+	CodeLink func(code string) (dest string, ok bool)
 	// Preview, when set, returns what shows while the pointer rests on a
 	// link to dest, a mention's or a reference's included: a function
 	// filling the tip, as ui.TooltipBase does, or nil for the address
@@ -101,7 +125,9 @@ type Options struct {
 	Reveal *Reveal
 	// ShareSelection leaves the selection to a Selectable container around
 	// the view, as one across a chat's messages, rather than giving the
-	// view one of its own.
+	// view one of its own. Within another view, as a block Block builds,
+	// it shares that view's, whose Copy as Markdown copies its text as
+	// the Markdown of its own source.
 	ShareSelection bool
 
 	images sync.Map // url → *imageEntry
@@ -190,6 +216,9 @@ type viewState struct {
 	def   *Theme
 	th    Theme
 	paras []paraCache
+	// tasks name the check boxes of tasks, by their items' blocks, while
+	// Options.OnTask makes them controls.
+	tasks []taskLabel
 	// elems notes, for copying, the block each paragraph's element shows,
 	// and, for a code block's, its first line.
 	elems  []elemInfo
@@ -203,6 +232,51 @@ type viewState struct {
 	notes         map[string]int
 	sb            spanBuilder
 	fade          func(src int) float32
+	// nested are the views with ShareSelection built within this one's
+	// blocks, whose text this one's selection holds, for copying it as
+	// Markdown; cur is the block being built, which a nested view is
+	// noted in.
+	nested []nestedView
+	cur    int
+}
+
+// nestedView is a view sharing the selection of the view around it,
+// built in its block.
+type nestedView struct {
+	st    *viewState
+	block int
+}
+
+// building maps a window's context to the view whose blocks are being
+// built in it, for the views within it that share its selection to note
+// themselves in it.
+// A plain map under a lock rather than a sync.Map, whose stores
+// allocate, so a steady frame stays free of allocations.
+var building struct {
+	sync.Mutex
+	m map[*ui.Context]*viewState
+}
+
+// outerView returns the view whose blocks are being built in c.
+func outerView(c *ui.Context) *viewState {
+	building.Lock()
+	defer building.Unlock()
+	return building.m[c]
+}
+
+// setBuilding notes st as the view whose blocks are being built in c,
+// or that none is when st is nil.
+func setBuilding(c *ui.Context, st *viewState) {
+	building.Lock()
+	defer building.Unlock()
+	if st == nil {
+		delete(building.m, c)
+		return
+	}
+	if building.m == nil {
+		building.m = map[*ui.Context]*viewState{}
+	}
+	building.m[c] = st
 }
 
 type paraCache struct {
@@ -236,7 +310,7 @@ func build(c *ui.Context, src string, o *Options, streaming bool) ui.Element {
 	documentChanged := st.doc == nil || st.ext != ext
 	if documentChanged {
 		st.doc, st.ext = parser.New(ext), ext
-		st.paras = st.paras[:0]
+		st.paras, st.tasks = st.paras[:0], st.tasks[:0]
 	}
 	st.theme(c)
 	th := &st.th
@@ -251,7 +325,7 @@ func build(c *ui.Context, src string, o *Options, streaming bool) ui.Element {
 	}
 	st.doc.Set(src[:shown])
 	if o.Anchor != "" && (documentChanged || st.anchor != o.Anchor || st.anchorVersion != o.AnchorVersion) {
-		st.scrollTo = st.headingNamed(strings.TrimPrefix(o.Anchor, "#"))
+		st.scrollTo = st.anchorNamed(strings.TrimPrefix(o.Anchor, "#"))
 	}
 	st.anchor, st.anchorVersion = o.Anchor, o.AnchorVersion
 	st.fade = st.reveal.fader(c, o.Reveal)
@@ -260,7 +334,11 @@ func build(c *ui.Context, src string, o *Options, streaming bool) ui.Element {
 	if th.Font != "" {
 		root.Font(th.Font)
 	}
-	if !o.ShareSelection {
+	if o.ShareSelection {
+		if outer := outerView(c); outer != nil {
+			outer.nested = append(outer.nested, nestedView{st, outer.cur})
+		}
+	} else {
 		root.Selectable()
 		root.CopyData(st.copyData)
 		root.ContextMenu(func(m *ui.Menu) {
@@ -274,8 +352,13 @@ func build(c *ui.Context, src string, o *Options, streaming bool) ui.Element {
 		}
 	}
 	st.elems = st.elems[:0]
+	clear(st.nested)
+	st.nested, st.cur = st.nested[:0], 0
 	st.numberNotes()
 	root.Children(func() {
+		prev := outerView(c)
+		setBuilding(c, st)
+		defer setBuilding(c, prev)
 		st.blocks(c, 0, false, spanStyle{})
 		st.footnotes(c)
 	})
@@ -310,6 +393,7 @@ func (st *viewState) forget() {
 	clear(st.paras)
 	clear(st.codes)
 	clear(st.tables)
+	clear(st.tasks)
 }
 
 func (st *viewState) note(id uint64, block, line int) {
@@ -365,6 +449,8 @@ func (st *viewState) block(c *ui.Context, i int, tight bool, base spanStyle) ui.
 	o := st.o
 	th := &st.th
 	b := d.Block(i)
+	defer func(prev int) { st.cur = prev }(st.cur)
+	st.cur = i
 	if o.Block != nil {
 		box := ui.Column(c)
 		done := false
@@ -493,27 +579,58 @@ func (st *viewState) para(i int, base spanStyle) *para {
 	sb.notes = st.noteNumber
 	sb.math = st.o.InlineMath
 	sb.linkIcon = st.o.LinkIcon
-	sb.resolve = st.o.Resolve
+	sb.resolve, sb.resolvers = nil, st.o.resolvers()
+	if sb.resolvers != 0 {
+		sb.resolve = st.o.resolveInline
+	}
 	sb.build(&pc.p, base)
 	return &pc.p
 }
 
-// sameResolved reports whether the mentions and references of block i
-// resolve where they did as p was built, Options.Resolve set or not
-// alike.
+// resolvers says which of Resolve and CodeLink are set, as bits.
+func (o *Options) resolvers() uint8 {
+	var r uint8
+	if o.Resolve != nil {
+		r |= 1
+	}
+	if o.CodeLink != nil {
+		r |= 2
+	}
+	return r
+}
+
+// resolveInline asks where an inline goes: Resolve for a mention or a
+// reference, CodeLink for code.
+func (o *Options) resolveInline(in parser.Inline) (string, bool) {
+	switch in.Kind {
+	case parser.Mention, parser.Reference:
+		if o.Resolve != nil {
+			return o.Resolve(in)
+		}
+	case parser.Code:
+		if o.CodeLink != nil {
+			return o.CodeLink(in.Text)
+		}
+	}
+	return "", false
+}
+
+// sameResolved reports whether the mentions, references and code of block i
+// resolve where they did as p was built, Options.Resolve and CodeLink set
+// or not alike.
 func (st *viewState) sameResolved(i int, p *para) bool {
 	if len(p.refs) == 0 {
 		return true
 	}
-	if (st.o.Resolve != nil) != p.withResolve {
+	if st.o.resolvers() != p.resolvers {
 		return false
 	}
-	if st.o.Resolve == nil {
+	if p.resolvers == 0 {
 		return true
 	}
 	in := st.doc.Inlines(i)
 	for k, x := range p.refs {
-		dest, ok := st.o.Resolve(in[x])
+		dest, ok := st.o.resolveInline(in[x])
 		if !ok {
 			dest = ""
 		}
@@ -574,7 +691,8 @@ func (st *viewState) piece(c *ui.Context, block int, pc *piece) {
 	default:
 		in := st.doc.Inlines(block)[pc.link]
 		if pc.dest != "" {
-			// A mention or a reference, which Options.Resolve made a link.
+			// A mention or a reference, which Options.Resolve made a link,
+			// or code, which Options.CodeLink did.
 			in.Dest, in.Auto = pc.dest, true
 		}
 		st.link(c, &in, func() { ui.RichText(c, pc.spans...) })
@@ -596,7 +714,7 @@ func (st *viewState) link(c *ui.Context, in *parser.Inline, children func()) {
 	case strings.HasPrefix(dest, "#"):
 		l = ui.Link(c, "", "")
 		if l.Clicked() {
-			st.scrollTo = st.headingNamed(dest[1:])
+			st.scrollTo = st.anchorNamed(dest[1:])
 		}
 	case linkAllowed(dest, c.Router() != nil):
 		l = ui.Link(c, "", dest)
@@ -639,6 +757,22 @@ func linkAllowed(dest string, router bool) bool {
 		return router
 	}
 	return ui.SafeToOpen(dest)
+}
+
+// anchorNamed returns the block to scroll to for the anchor name: the one
+// Options.AnchorBlock finds, else the heading of that slug, or -1.
+func (st *viewState) anchorNamed(name string) int {
+	if find := st.o.AnchorBlock; find != nil {
+		d := st.doc
+		if i := find(d, name); i > 0 && i < d.Len() {
+			// A table shows its rows and cells itself.
+			for k := d.Block(i).Kind; k == parser.TableRow || k == parser.TableCell; k = d.Block(i).Kind {
+				i = d.Block(i).Parent
+			}
+			return i
+		}
+	}
+	return st.headingNamed(name)
 }
 
 // headingNamed returns the heading whose slug, as GitHub makes it, is
@@ -690,7 +824,6 @@ func (st *viewState) list(c *ui.Context, i int, base spanStyle) ui.Element {
 		n := b.Number
 		first := true
 		for j := i + 1; j < d.Block(i).Next; j = d.Block(j).Next {
-			item := d.Block(j)
 			row := ui.Row(c).AlignItems(ui.Start).Role(ui.RoleListItem)
 			if !first {
 				gap := th.BlockSpacing
@@ -699,9 +832,14 @@ func (st *viewState) list(c *ui.Context, i int, base spanStyle) ui.Element {
 				}
 				row.Margin(th.em(gap), 0, 0, 0)
 			}
+			if st.scrollTo == j {
+				// An item an anchor named (Options.AnchorBlock).
+				row.ScrollIntoView()
+				st.scrollTo = -1
+			}
 			num := n
 			row.Children(func() {
-				st.marker(c, b, item, num, depth, width)
+				st.marker(c, b, j, num, depth, width)
 				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() { st.blocks(c, j, b.Tight, base) })
 			})
 			n++
@@ -718,9 +856,11 @@ func (st *viewState) countChildren(i int) int {
 	return n
 }
 
-// marker builds an item's marker: a bullet, its number, or its check box.
-func (st *viewState) marker(c *ui.Context, list, item *parser.Block, n, depth int, width float32) {
+// marker builds the marker of item j of list: a bullet, its number, or its
+// check box.
+func (st *viewState) marker(c *ui.Context, list *parser.Block, j, n, depth int, width float32) {
 	th := &st.th
+	item := st.doc.Block(j)
 	box := ui.Row(c).Width(width).Shrink(0).Unselectable()
 	if st.fade != nil {
 		if a := st.fade(item.Start); a < 1 {
@@ -734,6 +874,16 @@ func (st *viewState) marker(c *ui.Context, list, item *parser.Block, n, depth in
 			lineH := th.FontSize * th.LineHeight * 1.2
 			checked := item.Task == parser.Checked
 			cb := ui.Box(c).Size(size, size).Radius(max(3, size/5)).Margin(max(0, (lineH-size)/2-1), 0, 0, 0).Role(ui.RoleCheckBox).Checked(checked)
+			if onTask := st.o.OnTask; onTask != nil {
+				// A control, named by its task, which asks the app for
+				// the other state: the source decides what it shows.
+				cb.Focusable().Label(st.taskName(j))
+				if cb.Clicked() {
+					onTask(lineAt(st.doc.Source(), item.Start), !checked)
+				}
+			} else {
+				cb.ReadOnly(true)
+			}
 			if checked {
 				cb.Background(th.Checkbox).Draw(func(p *ui.Painter, r ui.Rect) {
 					path := &ui.Path{}
@@ -752,6 +902,49 @@ func (st *viewState) marker(c *ui.Context, list, item *parser.Block, n, depth in
 			ui.Text(c, bullets[min(depth, 2)]).TextColor(th.Muted).Width(width - th.em(0.5)).TextAlign(ui.Center)
 		}
 	})
+}
+
+// taskLabel is the name of a task's check box: the text of its item's
+// first paragraph, kept while that paragraph stays as it was, so that a
+// steady frame does not make it again.
+type taskLabel struct {
+	start, end int
+	rev        uint32
+	ok         bool
+	text       string
+}
+
+// taskName returns the name of the check box of item j.
+func (st *viewState) taskName(j int) string {
+	d := st.doc
+	k := j + 1
+	if k >= d.Block(j).Next || d.Block(k).Kind != parser.Paragraph {
+		return ""
+	}
+	for len(st.tasks) < d.Len() {
+		st.tasks = append(st.tasks, taskLabel{})
+	}
+	in := d.Inlines(k) // their revision
+	b := d.Block(k)
+	tn := &st.tasks[j]
+	if !tn.ok || tn.start != b.Start || tn.end != b.End || tn.rev != b.Revision() {
+		*tn = taskLabel{b.Start, b.End, b.Revision(), true, parser.PlainText(in)}
+	}
+	return tn.text
+}
+
+// lineAt returns the line of src that byte off is on, from 1. Lines end
+// with \n, \r\n or \r, as CommonMark's do.
+func lineAt(src string, off int) int {
+	s := src[:off]
+	n := 1 + strings.Count(s, "\n")
+	if strings.IndexByte(s, '\r') >= 0 {
+		n += strings.Count(s, "\r") - strings.Count(s, "\r\n")
+		if s[len(s)-1] == '\r' && off < len(src) && src[off] == '\n' {
+			n-- // off is within the line's end
+		}
+	}
+	return n
 }
 
 // numberNotes numbers the footnotes by the order of their definitions.

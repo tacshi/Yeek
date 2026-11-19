@@ -369,7 +369,7 @@ func (a *App) oauthTokenView(c *ui.Context, p colors, d *Draft, state *oauthEdit
 					state.showToken = !state.showToken
 				}
 				if ui.Button(c, locales.CopyToken()).Clicked() {
-					c.WriteClipboard(value)
+					copySecret(value)
 				}
 			})
 		}
